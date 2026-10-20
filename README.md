@@ -12,11 +12,11 @@ Requires Docker Desktop/Engine with Linux containers and Compose v2. Copy `.env.
 docker compose up --build --wait
 ```
 
-Open http://localhost:3000 (or your `WEB_PORT`). Compose migrates and seeds a development database before starting web and worker. On first initialization the seed adds Alex, Sam, and three equal-weight sample places; later runs preserve the game, including removals and archives. Select your name in the sidebar; open Admin in the toolbar with the configured `ADMIN_PASSWORD` to manage the game. Set today's schedule time earlier than the current local time to try a draw on the next worker tick; an existing date's result cannot be rerolled. Logs: `docker compose logs -f web worker`. Stop with `docker compose down`; the named PostgreSQL volume is retained.
+Open http://localhost:3000 (or your `WEB_PORT`). Compose migrates and initializes settings before starting web and worker. A new installation has no people or places. Sign in to first-run setup with the configured `ADMIN_PASSWORD`, add your roster and lunch places, check the schedule, then finish setup. The worker waits until setup is complete. Visitors must select a roster name before entering; browsers remember a valid selection and offer Change name. Existing populated installations keep their data and skip first-run setup. Set today's schedule time earlier than the current local time to try a draw on the next worker tick; an existing date's result cannot be rerolled. Logs: `docker compose logs -f web worker`. Stop with `docker compose down`; the named PostgreSQL volume is retained.
 
 The wheel fills the main workspace, with compact member, wallet and place controls alongside it. Replay animates today's saved result without choosing again. Admin removal permanently deletes unused profiles and archives profiles with activity, preserving their history.
 
-Compose binds web/database to localhost and uses development credentials. It is a local setup, not a production deployment. The seed service is development-only.
+Compose binds web/database to localhost and uses development credentials. It is a local setup, not a production deployment. The seed service initializes the settings singleton only and preserves existing data.
 
 If port 5432 is already occupied, set `POSTGRES_PORT` to a free port in `.env` and update the port in `DATABASE_URL` to match. Containers still connect to `db:5432` internally.
 
@@ -60,9 +60,9 @@ pnpm exec playwright install chromium
 pnpm test:e2e
 ```
 
-Playwright starts the production web server; run `pnpm build` first. On Linux, `node scripts/check-worker.mjs` verifies DB heartbeat and graceful SIGTERM shutdown. On Windows, run `pnpm dev:worker` and check Ctrl+C shutdown manually; Windows process termination does not provide POSIX SIGTERM semantics. CI runs all these checks and a separate Compose startup/health job. Run `pnpm format` to apply formatting.
+Integration tests explicitly create and remove their own sample fixtures; these are separate from runtime initialization. Playwright requires the disposable database to be empty and setup incomplete: it checks first-run setup before loading fixtures for game scenarios. It starts the production web server; run `pnpm build` first. On Linux, `node scripts/check-worker.mjs` verifies DB heartbeat and graceful SIGTERM shutdown. On Windows, run `pnpm dev:worker` and check Ctrl+C shutdown manually; Windows process termination does not provide POSIX SIGTERM semantics. CI runs all these checks and a separate Compose startup/health job. Run `pnpm format` to apply formatting.
 
-Schema changes: coordinator runs `pnpm db:generate`, reviews SQL and metadata under `packages/db/migrations`, then applies `pnpm db:migrate`. Never generate migrations concurrently. Development seed is repeat-safe but must not run against production.
+Schema changes: coordinator runs `pnpm db:generate`, reviews SQL and metadata under `packages/db/migrations`, then applies `pnpm db:migrate`. Never generate migrations concurrently. Settings initialization is repeat-safe; test fixtures must only run against a disposable database.
 
 ## Workspace and agent workflow
 

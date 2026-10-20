@@ -3,7 +3,21 @@ import './tests/disposable-database';
 export default defineConfig({
   testDir: './tests/e2e',
   projects: [
-    { name: 'chromium', testIgnore: '**/rate-limit.spec.ts' },
+    { name: 'first-run', testMatch: '**/setup.spec.ts' },
+    {
+      name: 'fixtures',
+      testMatch: '**/fixture-setup.ts',
+      dependencies: ['first-run'],
+    },
+    {
+      name: 'chromium',
+      testIgnore: [
+        '**/rate-limit.spec.ts',
+        '**/setup.spec.ts',
+        '**/fixture-setup.ts',
+      ],
+      dependencies: ['fixtures'],
+    },
     {
       name: 'login-throttle',
       testMatch: '**/rate-limit.spec.ts',

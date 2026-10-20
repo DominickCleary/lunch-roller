@@ -4,6 +4,8 @@ These rules are implemented by the local MVP. Optional notification delivery req
 
 One workplace shares an administrator-managed roster and wheel. Participants pick a name and the browser remembers it, without accounts or passwords. Anyone can impersonate a roster member; this is an accepted workplace trust model. Name selection never authorizes administration.
 
+A fresh workplace starts without people or places. An administrator must add at least one active person and place and finish setup before play or scheduled draws begin. Visitors must choose a name; a valid saved browser selection enters automatically and can be changed.
+
 ## Daily draw
 
 - Default schedule: Monday–Friday, 11:30, Europe/Dublin. Admin may change time, weekdays, and IANA timezone. ISO weekday numbers are 1=Monday through 7=Sunday.

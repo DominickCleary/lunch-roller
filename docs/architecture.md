@@ -29,6 +29,8 @@ Admin participant removal uses the same settings-first transaction. It deletes o
 
 Store the participant ID as `lunch-roller.participant-id` in localStorage, send it as `X-Participant-Id`, and validate that the participant is active. It is identity selection, not authentication. Reset stale selection when an ID is inactive or unknown.
 
+New installations initialize settings only and start with `setup_completed=false`. First-run administration uses the same separate password session to configure the empty roster, places and schedule. Completion locks settings first, requires an active person and place, and is persistent and idempotent. Public game/member APIs reject incomplete setup; worker draws and notification claims wait. Existing populated installations are marked complete by the additive migration without changing history. The UI validates saved browser identity before showing the wheel; new or stale identities must select a roster name, and Change name returns to that gate.
+
 Admin login validates `ADMIN_PASSWORD` on the server with timing-safe comparisons and issues a signed eight-hour HttpOnly, SameSite=Strict cookie using a minimum 32-byte `SESSION_SECRET`; Secure follows HTTPS `APP_ORIGIN`. Participant IDs never authorize admin access. State changes reject missing or mismatched Origin headers. Login has a bounded process-local attempt limiter; use one web process or an external shared limiter before scaling. Passwords and session tokens are never logged.
 
 Use polling for today's result initially; avoid a realtime service until needed. Public odds show current weights for the next draw; saved results contain pre-decay historical odds. A worker outage delays drawing, not the UI's authority over selection.
@@ -41,8 +43,8 @@ Outbox rows deduplicate on draw/subscription. Claims use `FOR UPDATE SKIP LOCKED
 
 ## Local deployment and operations
 
-Compose supplies PostgreSQL, one-shot migration and development seed services, web, and worker. Dependency conditions ensure the database is initialized before readiness probes. Data uses a named volume. Images retain workspace dependencies to keep this first scaffold simple; optimize production size later.
+Compose supplies PostgreSQL, one-shot migration and settings initialization services, web, and worker. Dependency conditions ensure the database is initialized before readiness probes. Data uses a named volume. Images retain workspace dependencies to keep this first scaffold simple; optimize production size later.
 
-Do not run development seed in production. Provision an always-on host, managed backups and tested restore, HTTPS reverse proxy, strong database/admin/session secrets, and VAPID keys before rollout. Do not expose PostgreSQL publicly. Use a one-shot migration release step before app startup. Check web readiness and worker heartbeat independently; a healthy health-only worker does not mean the game scheduler exists.
+Initialize the settings singleton after migration, then complete first-run setup through the administrator UI. Provision an always-on host, managed backups and tested restore, HTTPS reverse proxy, strong database/admin/session secrets, and VAPID keys before rollout. Do not expose PostgreSQL publicly. Use a one-shot migration release step before app startup. Check web readiness and worker heartbeat independently; readiness does not imply first-run setup is complete.
 
 Monitor stale heartbeat, overdue scheduled draws, failed outbox jobs and migration errors. The [operations runbook](operations.md) covers configuration, rollout, monitoring and backup/restore. This repository provisions no hosting; production HTTPS and real-device push checks remain environment dependent.

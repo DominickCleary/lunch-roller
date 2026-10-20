@@ -10,6 +10,7 @@ import {
   purchaseRequest,
   pushSubscription,
   schedule as scheduleSchema,
+  setupStatus,
   tokenCorrection,
   updateParticipant,
   updatePlace,
@@ -230,6 +231,17 @@ async function dispatch(request: NextRequest, context: Context) {
       });
     }
     const game = service();
+    if (route === '/setup' && method === 'GET')
+      return response(setupStatus.parse(await game.getSetupStatus()));
+    if (
+      !route.startsWith('/admin/') &&
+      !(await game.getSetupStatus()).completed
+    )
+      return error(
+        403,
+        'SETUP_REQUIRED',
+        'An administrator must finish setup first.',
+      );
     if (route === '/participants' && method === 'GET')
       return response({ participants: await game.listParticipants() });
     if (route === '/identity/select' && method === 'POST') {
@@ -278,6 +290,8 @@ async function dispatch(request: NextRequest, context: Context) {
       return response(undefined, 204);
     }
     if (route.startsWith('/admin/')) requireAdmin(request);
+    if (route === '/admin/setup/complete' && method === 'POST')
+      return response(setupStatus.parse(await game.completeSetup()));
     if (route === '/admin/participants' && method === 'GET')
       return response({ participants: await game.listParticipants(true) });
     if (route === '/admin/participants' && method === 'POST')

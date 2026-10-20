@@ -14,7 +14,7 @@ import { sql } from 'drizzle-orm';
 // Requires a disposable database migrated and seeded by the integration job.
 const database = createDatabase();
 afterAll(() => database.close());
-it('has a seeded weekday schedule and equal-weight seed options', async () => {
+it('has the initialized weekday schedule and explicit equal-weight test fixtures', async () => {
   const rows = await database.db.select().from(settings);
   expect(rows[0]).toMatchObject({
     timezone: 'Europe/Dublin',
