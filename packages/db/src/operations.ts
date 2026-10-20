@@ -27,6 +27,7 @@ import {
   wheelDisplay,
 } from '@lunch/domain';
 import type {
+  AttendanceStatus,
   AttendanceResponse,
   Draw as DrawResponse,
   Participant,
@@ -36,10 +37,12 @@ import type {
   PurchaseResponse,
   PushSubscriptionInput,
   Schedule,
+  GamePreferences,
   SetupStatus,
   TodayResponse,
   WalletResponse,
 } from '@lunch/contracts';
+import { gamePreferences } from '@lunch/contracts';
 import type { createDatabase } from './index';
 import {
   attendance,
@@ -169,6 +172,15 @@ function placeView(row: typeof places.$inferSelect): Place {
 
 function getScheduleFromRow(row: typeof settings.$inferSelect): Schedule {
   return { timezone: row.timezone, time: row.spinTime, weekdays: row.weekdays };
+}
+
+function preferencesFromRow(
+  row: typeof settings.$inferSelect,
+): GamePreferences {
+  return {
+    wheelSwitchTime: row.wheelSwitchTime,
+    checkInPledge: row.checkInPledge,
+  };
 }
 
 async function deactivateParticipant(tx: Tx, id: string): Promise<void> {
@@ -584,6 +596,73 @@ export class GameService {
     );
   }
 
+  async getPreferences(): Promise<GamePreferences> {
+    const [row] = await this.database.db
+      .select()
+      .from(settings)
+      .where(eq(settings.id, 1));
+    if (!row)
+      fail(503, 'NOT_INITIALIZED', 'Game settings are not initialized.');
+    return preferencesFromRow(row);
+  }
+
+  async setPreferences(input: GamePreferences): Promise<GamePreferences> {
+    const parsed = gamePreferences.safeParse(input);
+    if (!parsed.success)
+      fail(
+        400,
+        'INVALID_PREFERENCES',
+        'Provide a valid switch time and check-in pledge.',
+      );
+    return transaction(this.database, async (tx) => {
+      const [row] = await tx
+        .update(settings)
+        .set(parsed.data)
+        .where(eq(settings.id, 1))
+        .returning();
+      if (!row)
+        fail(503, 'NOT_INITIALIZED', 'Game settings are not initialized.');
+      return preferencesFromRow(row);
+    });
+  }
+
+  async attendanceStatus(
+    participantId: string,
+    now = new Date(),
+  ): Promise<AttendanceStatus> {
+    return this.database.db.transaction(
+      async (tx) => {
+        await requireSetupComplete(tx as Tx);
+        await activeParticipant(tx as Tx, participantId);
+        const schedule = await currentSchedule(tx as Tx);
+        const [draw] = await tx
+          .select()
+          .from(draws)
+          .where(
+            eq(draws.localDate, localClock(now, schedule.timezone).localDate),
+          );
+        if (!draw) return { drawId: null, checkedIn: false, open: false };
+        const [record] = await tx
+          .select({ id: attendance.id })
+          .from(attendance)
+          .where(
+            and(
+              eq(attendance.participantId, participantId),
+              eq(attendance.drawId, draw.id),
+            ),
+          );
+        return {
+          drawId: draw.id,
+          checkedIn: Boolean(record),
+          open:
+            localClock(now, draw.timezone).localDate === draw.localDate &&
+            now.getTime() >= draw.drawnAt.getTime(),
+        };
+      },
+      { isolationLevel: 'repeatable read', accessMode: 'read only' },
+    );
+  }
+
   async today(now = new Date()): Promise<TodayResponse> {
     return this.database.db.transaction(
       async (tx) => {
@@ -624,8 +703,14 @@ export class GameService {
         return {
           localDate: clock.localDate,
           schedule,
+          preferences: preferencesFromRow(settingsRow),
           status,
-          wheel: wheelDisplay(now, schedule, Boolean(existing)),
+          wheel: wheelDisplay(
+            now,
+            schedule,
+            Boolean(existing),
+            settingsRow.wheelSwitchTime,
+          ),
           result: existing ? drawView(existing) : null,
           odds,
         };

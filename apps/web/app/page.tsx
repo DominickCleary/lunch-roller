@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import Link from 'next/link';
+import { defaultGamePreferences } from '@lunch/contracts';
 import type {
+  AttendanceStatus,
+  GamePreferences,
   Participant,
   ParticipantRemoval,
   Place,
@@ -102,6 +105,11 @@ export default function Home() {
   const hasSavedResult = Boolean(today?.result);
   const savedResult = today?.result;
   const [wallet, setWallet] = useState<WalletResponse | null>(null);
+  const [attendance, setAttendance] = useState<{
+    participantId: string;
+    drawId: string;
+    status: AttendanceStatus;
+  } | null>(null);
   const [participantId, setParticipantId] = useState('');
   const [admin, setAdmin] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -133,12 +141,20 @@ export default function Home() {
     time: '11:30',
     weekdays: [1, 2, 3, 4, 5],
   });
+  const [preferences, setPreferences] = useState<GamePreferences>(
+    defaultGamePreferences,
+  );
   const [correction, setCorrection] = useState({
     participantId: '',
     delta: 1,
     reason: '',
   });
   const [pushOn, setPushOn] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const pushBusyRef = useRef(false);
+  const [pushConfigLoaded, setPushConfigLoaded] = useState(false);
+  const [pushPublicKey, setPushPublicKey] = useState<string | null>(null);
+  const latestAttendanceRequest = useRef(0);
   const [removeTarget, setRemoveTarget] = useState<Participant | null>(null);
   const removeTrigger = useRef<HTMLButtonElement | null>(null);
   const cancelRemoval = useRef<HTMLButtonElement | null>(null);
@@ -185,14 +201,17 @@ export default function Home() {
   }, []);
 
   const refreshAdmin = useCallback(async () => {
-    const [people, locations, savedSchedule] = await Promise.all([
-      request<{ participants: Participant[] }>('/admin/participants'),
-      request<{ places: Place[] }>('/admin/places'),
-      request<Schedule>('/admin/schedule'),
-    ]);
+    const [people, locations, savedSchedule, savedPreferences] =
+      await Promise.all([
+        request<{ participants: Participant[] }>('/admin/participants'),
+        request<{ places: Place[] }>('/admin/places'),
+        request<Schedule>('/admin/schedule'),
+        request<GamePreferences>('/admin/preferences'),
+      ]);
     setAllParticipants(people.participants);
     setPlaces(locations.places);
     setSchedule(savedSchedule);
+    setPreferences(savedPreferences);
     setAdmin(true);
   }, []);
 
@@ -269,9 +288,10 @@ export default function Home() {
         })
         .catch(() => undefined);
     }
-    void request<{ publicKey: string | null }>('/push-config').catch(
-      () => undefined,
-    );
+    void request<{ publicKey: string | null }>('/push-config')
+      .then((config) => setPushPublicKey(config.publicKey))
+      .catch(() => setPushPublicKey(null))
+      .finally(() => setPushConfigLoaded(true));
     return () => {
       mounted = false;
     };
@@ -286,7 +306,32 @@ export default function Home() {
     return () => window.clearInterval(interval);
   }, [entryStage, participantId, refresh]);
 
+  useEffect(() => {
+    const selectedId = participantId;
+    const drawId = today?.result?.id;
+    const requestId = ++latestAttendanceRequest.current;
+    if (entryStage !== 'game' || !selectedId || !drawId) return;
+    void request<AttendanceStatus>('/attendance', {}, selectedId)
+      .then((status) => {
+        if (
+          requestId === latestAttendanceRequest.current &&
+          participantId === selectedId &&
+          today?.result?.id === drawId &&
+          status.drawId === drawId
+        ) {
+          setAttendance({ participantId: selectedId, drawId, status });
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      if (requestId === latestAttendanceRequest.current)
+        latestAttendanceRequest.current += 1;
+    };
+  }, [entryStage, participantId, today]);
+
   function changeName() {
+    latestAttendanceRequest.current += 1;
+    setAttendance(null);
     localStorage.removeItem(storageKey);
     setParticipantId('');
     setWallet(null);
@@ -531,11 +576,55 @@ export default function Home() {
         },
         participantId,
       );
+      if (route === '/attendance') {
+        localStorage.removeItem(pendingKey);
+        const drawId = (payload as { drawId: string }).drawId;
+        latestAttendanceRequest.current += 1;
+        setAttendance({
+          participantId,
+          drawId,
+          status: { drawId, checkedIn: true, open: true },
+        });
+        setNotice(message);
+        try {
+          await refresh(participantId);
+        } catch {
+          // A committed check-in stays confirmed even if the page refresh fails.
+        }
+        return true;
+      }
       await refresh(participantId);
       localStorage.removeItem(pendingKey);
       setNotice(message);
       return true;
     } catch (caught) {
+      if (
+        route === '/attendance' &&
+        caught instanceof ApiRequestError &&
+        caught.code === 'ALREADY_ATTENDED'
+      ) {
+        const drawId = (payload as { drawId: string }).drawId;
+        latestAttendanceRequest.current += 1;
+        setAttendance({
+          participantId,
+          drawId,
+          status: { drawId, checkedIn: true, open: true },
+        });
+        try {
+          const status = await request<AttendanceStatus>(
+            '/attendance',
+            {},
+            participantId,
+          );
+          if (status.drawId === drawId && status.checkedIn) {
+            setAttendance({ participantId, drawId, status });
+            setNotice('You have already checked in for today.');
+            return true;
+          }
+        } catch {
+          // Keep the original request error visible if reconciliation fails.
+        }
+      }
       setError(
         caught instanceof Error
           ? caught.message
@@ -638,6 +727,9 @@ export default function Home() {
   }
 
   async function togglePush() {
+    if (pushBusyRef.current) return;
+    pushBusyRef.current = true;
+    setPushBusy(true);
     setError('');
     try {
       if (
@@ -649,20 +741,26 @@ export default function Home() {
           'Push notifications are not supported by this browser.',
         );
       }
+      if (pushConfigLoaded && !pushPublicKey)
+        throw new Error('Push notifications are not configured yet.');
+      if (!participantId)
+        throw new Error('Choose your name before enabling notifications.');
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        setPushOn(false);
+        throw new Error(
+          'Notifications were not enabled. You can still play without them.',
+        );
+      }
+      const config = pushConfigLoaded
+        ? { publicKey: pushPublicKey }
+        : await request<{ publicKey: string | null }>('/push-config');
+      if (!config.publicKey)
+        throw new Error('Push notifications are not configured yet.');
       const registration = await navigator.serviceWorker.ready;
       if (!registration.pushManager)
         throw new Error(
           'Push notifications are not supported by this browser.',
-        );
-      const config = await request<{ publicKey: string | null }>(
-        '/push-config',
-      );
-      if (!config.publicKey || !participantId)
-        throw new Error('Push notifications are not configured yet.');
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted')
-        throw new Error(
-          'Notifications were not enabled. You can still play without them.',
         );
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
@@ -686,10 +784,16 @@ export default function Home() {
           ? caught.message
           : 'Could not enable notifications.',
       );
+    } finally {
+      pushBusyRef.current = false;
+      setPushBusy(false);
     }
   }
 
   async function disablePush() {
+    if (pushBusyRef.current) return;
+    pushBusyRef.current = true;
+    setPushBusy(true);
     try {
       const id = localStorage.getItem('lunch-roller.push-subscription');
       if (id && participantId)
@@ -714,6 +818,9 @@ export default function Home() {
           ? caught.message
           : 'Could not disable notifications.',
       );
+    } finally {
+      pushBusyRef.current = false;
+      setPushBusy(false);
     }
   }
 
@@ -721,6 +828,19 @@ export default function Home() {
     (person) => person.id === participantId,
   )?.name;
   const drawnPlace = today?.result?.placeName;
+  const displayedDrawId = today?.result?.id ?? null;
+  const displayedAttendance =
+    attendance &&
+    attendance.participantId === participantId &&
+    attendance.drawId === displayedDrawId
+      ? attendance.status
+      : null;
+  const canCheckIn = Boolean(
+    displayedDrawId &&
+    displayedAttendance?.drawId === displayedDrawId &&
+    displayedAttendance.open &&
+    !displayedAttendance.checkedIn,
+  );
   const wheelTargetDate = today?.wheel.localDate;
   const wheelTargetLabel = wheelTargetDate
     ? new Intl.DateTimeFormat('en-GB', {
@@ -1246,10 +1366,30 @@ export default function Home() {
                   </strong>
                 </div>
               </div>
+              <p
+                id="check-in-pledge"
+                data-testid="check-in-pledge"
+                className="check-in-pledge"
+              >
+                {today?.preferences.checkInPledge ??
+                  defaultGamePreferences.checkInPledge}
+              </p>
+              {displayedAttendance?.checkedIn && (
+                <p
+                  className="check-in-confirmation"
+                  data-testid="check-in-confirmation"
+                  role="status"
+                  aria-live="polite"
+                >
+                  Checked in for today.
+                </p>
+              )}
               <div className="button-row">
                 <button
                   className="button button-yellow"
-                  disabled={busy || !participantId || !today?.result}
+                  data-testid="check-in"
+                  aria-describedby="check-in-pledge"
+                  disabled={busy || !participantId || !canCheckIn}
                   onClick={() =>
                     today?.result &&
                     void mutate(
@@ -1259,12 +1399,20 @@ export default function Home() {
                     )
                   }
                 >
-                  Check in <span>+10 ✳</span>
+                  {displayedAttendance?.checkedIn ? (
+                    'Checked in'
+                  ) : (
+                    <>
+                      Check in <span>+10 ✳</span>
+                    </>
+                  )}
                 </button>
                 <button
                   className="button button-light"
                   disabled={
+                    pushBusy ||
                     !participantId ||
+                    (!pushOn && (!pushConfigLoaded || !pushPublicKey)) ||
                     (!pushOn &&
                       (typeof window === 'undefined' ||
                         !('Notification' in window) ||
@@ -1274,10 +1422,20 @@ export default function Home() {
                   onClick={() =>
                     pushOn ? void disablePush() : void togglePush()
                   }
+                  data-testid="push-opt-in"
                 >
-                  {pushOn ? 'Turn alerts off' : 'Get lunch alerts'}
+                  {pushBusy
+                    ? 'Updating alerts…'
+                    : pushOn
+                      ? 'Turn alerts off'
+                      : 'Get lunch alerts'}
                 </button>
               </div>
+              {pushConfigLoaded && !pushPublicKey && !pushOn && (
+                <p className="check-in-pledge">
+                  Lunch alerts are not configured yet.
+                </p>
+              )}
               <div className="ledger">
                 <div className="ledger-heading">
                   <h3>Recent token activity</h3>
@@ -1739,6 +1897,57 @@ export default function Home() {
                       disabled={busy || !schedule.weekdays.length}
                     >
                       Save schedule
+                    </button>
+                  </form>
+                </div>
+                <div
+                  className="admin-tool-card"
+                  data-testid="admin-preferences"
+                >
+                  <h3>Wheel and check-in</h3>
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void adminSave(
+                        '/admin/preferences',
+                        'PUT',
+                        preferences,
+                        'Wheel and check-in preferences saved.',
+                      );
+                    }}
+                  >
+                    <label>
+                      Wheel switch time
+                      <input
+                        type="time"
+                        value={preferences.wheelSwitchTime}
+                        onChange={(event) =>
+                          setPreferences({
+                            ...preferences,
+                            wheelSwitchTime: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Check-in pledge
+                      <input
+                        type="text"
+                        value={preferences.checkInPledge}
+                        maxLength={500}
+                        onChange={(event) =>
+                          setPreferences({
+                            ...preferences,
+                            checkInPledge: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <button
+                      className="button button-dark"
+                      disabled={busy || !preferences.checkInPledge.trim()}
+                    >
+                      Save preferences
                     </button>
                   </form>
                 </div>

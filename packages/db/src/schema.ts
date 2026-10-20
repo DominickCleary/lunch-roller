@@ -69,6 +69,10 @@ export const settings = pgTable(
     timezone: text().default('Europe/Dublin').notNull(),
     setupCompleted: boolean('setup_completed').default(false).notNull(),
     spinTime: text('spin_time').default('11:30').notNull(),
+    wheelSwitchTime: text('wheel_switch_time').default('15:00').notNull(),
+    checkInPledge: text('check_in_pledge')
+      .default('I pledge that I actually obeyed the wheel')
+      .notNull(),
     weekdays: integer()
       .array()
       .default(sql`ARRAY[1,2,3,4,5]`)
@@ -76,6 +80,14 @@ export const settings = pgTable(
   },
   (t) => [
     check('settings_singleton', sql`${t.id} = 1`),
+    check(
+      'settings_wheel_switch_time',
+      sql`${t.wheelSwitchTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`,
+    ),
+    check(
+      'settings_check_in_pledge',
+      sql`length(btrim(${t.checkInPledge})) between 1 and 500`,
+    ),
     check(
       'settings_time',
       sql`${t.spinTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`,

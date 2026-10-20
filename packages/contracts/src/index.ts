@@ -15,6 +15,21 @@ export const setupStatus = z.object({
   placeCount: z.number().int().nonnegative(),
 });
 export type SetupStatus = z.infer<typeof setupStatus>;
+export const gamePreferences = z.object({
+  wheelSwitchTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  checkInPledge: z.string().trim().min(1).max(500),
+});
+export type GamePreferences = z.infer<typeof gamePreferences>;
+export const defaultGamePreferences: GamePreferences = {
+  wheelSwitchTime: '15:00',
+  checkInPledge: 'I pledge that I actually obeyed the wheel',
+};
+export const attendanceStatus = z.object({
+  drawId: id.nullable(),
+  checkedIn: z.boolean(),
+  open: z.boolean(),
+});
+export type AttendanceStatus = z.infer<typeof attendanceStatus>;
 export const place = z.object({
   id,
   name,
@@ -76,6 +91,7 @@ export const draw = z.object({
 export const todayResponse = z.object({
   localDate: z.iso.date(),
   schedule,
+  preferences: gamePreferences,
   wheel: z.object({
     mode: z.enum(['result', 'upcoming']),
     localDate: z.iso.date(),

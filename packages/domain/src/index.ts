@@ -69,9 +69,10 @@ export function wheelDisplay(
   now: Date,
   schedule: { timezone: string; weekdays: number[] },
   hasTodayResult: boolean,
+  switchTime = '15:00',
 ): { mode: 'result' | 'upcoming'; localDate: string } {
   const clock = localClock(now, schedule.timezone);
-  if (hasTodayResult && clock.time < '15:00')
+  if (hasTodayResult && clock.time < switchTime)
     return { mode: 'result', localDate: clock.localDate };
 
   // Keep an undrawn scheduled day visible, including delayed or late-time draws.

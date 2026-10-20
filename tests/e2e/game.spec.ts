@@ -168,9 +168,17 @@ async function exerciseAdminUiAndGame(
   if (!result)
     throw new Error('The configured E2E schedule did not produce a draw.');
   await page.reload();
-  await expect(page.locator('.wheel-footer strong')).toHaveText(
-    result.placeName,
-  );
+  const initialTodayResponse = await request.get('/api/v1/today');
+  expect(initialTodayResponse.ok()).toBe(true);
+  const initialToday = (await initialTodayResponse.json()) as {
+    wheel: { mode: 'result' | 'upcoming'; localDate: string };
+    result: { placeId: string; placeName: string } | null;
+  };
+  expect(initialToday.result?.placeId).toBe(result.placeId);
+  const replay = page.getByRole('button', {
+    name: "Replay today's result",
+  });
+  const wheel = page.locator('.wheel');
   const winnerIndex = result.snapshot.findIndex(
     (option) => option.placeId === result.placeId,
   );
@@ -187,15 +195,63 @@ async function exerciseAdminUiAndGame(
       (snapshotTotal || 1)) *
     360;
   const expectedPointerAngle = (90 - winnerCenter + 360) % 360;
-  const wheel = page.locator('.wheel');
+  async function readSettledAngle() {
+    let angle = 0;
+    await expect
+      .poll(
+        async () => {
+          angle = await wheel.evaluate((element) => {
+            const matrix = new DOMMatrixReadOnly(
+              getComputedStyle(element).transform,
+            );
+            return (Math.atan2(matrix.b, matrix.a) * 180) / Math.PI;
+          });
+          const normalized = (angle + 360) % 360;
+          return Math.min(
+            Math.abs(normalized - expectedPointerAngle),
+            360 - Math.abs(normalized - expectedPointerAngle),
+          );
+        },
+        { timeout: 1000 },
+      )
+      .toBeLessThan(2);
+    return angle;
+  }
+  let actualAngle: number;
+  if (initialToday.wheel.mode === 'result') {
+    await expect(page.getByTestId('today-result')).toContainText(
+      result.placeName,
+    );
+    await expect(wheel).not.toHaveClass(/wheel-spinning/);
+    actualAngle = await readSettledAngle();
+  } else {
+    await expect(page.getByTestId('wheel-target')).toHaveAttribute(
+      'data-target-date',
+      initialToday.wheel.localDate,
+    );
+    await expect(page.getByTestId('today-result')).toContainText(
+      result.placeName,
+    );
+    // Reduced motion holds the saved snapshot briefly, which lets the pointer
+    // check observe the historical wheel before the live odds return.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await replay.click();
+    await expect(page.getByTestId('wheel-target')).toContainText('Saved pick');
+    actualAngle = await readSettledAngle();
+    await expect(replay).toBeEnabled({ timeout: 8000 });
+    await expect(page.locator('.wheel-state')).not.toContainText(
+      'REPLAYING TODAY',
+    );
+    await expect(page.getByTestId('wheel-target')).toHaveAttribute(
+      'data-target-date',
+      initialToday.wheel.localDate,
+      { timeout: 3000 },
+    );
+  }
   const desktopWheelBounds = await page.locator('.wheel-wrap').boundingBox();
   expect(desktopWheelBounds).not.toBeNull();
   expect(desktopWheelBounds!.width).toBeGreaterThan(600);
   await expect(wheel).not.toHaveClass(/wheel-spinning/);
-  const actualAngle = await wheel.evaluate((element) => {
-    const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform);
-    return (Math.atan2(matrix.b, matrix.a) * 180) / Math.PI;
-  });
   const normalizedAngle = (actualAngle + 360) % 360;
   const angleDifference = Math.min(
     Math.abs(normalizedAngle - expectedPointerAngle),
@@ -203,7 +259,6 @@ async function exerciseAdminUiAndGame(
   );
   expect(angleDifference).toBeLessThan(2);
 
-  const replay = page.getByRole('button', { name: /Replay.*result/i });
   const selectedParticipantId = await page.evaluate(() =>
     localStorage.getItem('lunch-roller.participant-id'),
   );
@@ -219,12 +274,28 @@ async function exerciseAdminUiAndGame(
   };
   page.on('request', recordDrawRequest);
   await replay.click();
+  await expect(page.getByTestId('wheel-target')).toContainText('Saved pick');
   await expect(replay).toBeEnabled({ timeout: 8000 });
+  await expect(page.locator('.wheel-state')).not.toContainText(
+    'REPLAYING TODAY',
+  );
+  await expect(page.getByTestId('wheel-target')).toHaveAttribute(
+    'data-target-date',
+    initialToday.wheel.localDate,
+    { timeout: 3000 },
+  );
   page.off('request', recordDrawRequest);
   expect(drawRequests).toHaveLength(0);
-  await expect(page.locator('.wheel-footer strong')).toHaveText(
-    result.placeName,
-  );
+  if (initialToday.wheel.mode === 'result') {
+    await expect(page.getByTestId('today-result')).toContainText(
+      result.placeName,
+    );
+  } else {
+    await expect(page.getByTestId('wheel-target')).toHaveAttribute(
+      'data-target-date',
+      initialToday.wheel.localDate,
+    );
+  }
   const todayAfterReplay = await request.get('/api/v1/today');
   expect(todayAfterReplay.ok()).toBe(true);
   expect((await todayAfterReplay.json()).result.placeId).toBe(result.placeId);
@@ -320,7 +391,7 @@ async function exerciseAdminUiAndGame(
       .getByLabel('Your name')
       .selectOption({ label: memberName });
     await secondPage.getByRole('button', { name: 'Enter lunch wheel' }).click();
-    await expect(secondPage.locator('.wheel-footer strong')).toHaveText(
+    await expect(secondPage.getByTestId('today-result')).toContainText(
       result.placeName,
     );
     const reducedTransition = await secondPage

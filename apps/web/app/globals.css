@@ -303,6 +303,11 @@ button:disabled {
   background: #ffd326;
   color: #292c31;
 }
+.button-yellow:disabled {
+  background: #e0e2e5;
+  color: #72777d;
+  opacity: 1;
+}
 .button-yellow span {
   margin-left: 5px;
   padding-left: 6px;
@@ -354,6 +359,18 @@ button:disabled {
 }
 .button-row .button {
   flex: 1;
+}
+.check-in-pledge {
+  margin: 12px 0 0;
+  color: #666b72;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.check-in-confirmation {
+  margin: 6px 0 0;
+  color: #26834d;
+  font-size: 11px;
+  font-weight: 700;
 }
 .ledger {
   margin-top: 12px;

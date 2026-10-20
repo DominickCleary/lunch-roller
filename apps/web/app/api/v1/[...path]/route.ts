@@ -11,6 +11,8 @@ import {
   pushSubscription,
   schedule as scheduleSchema,
   setupStatus,
+  gamePreferences,
+  attendanceStatus,
   tokenCorrection,
   updateParticipant,
   updatePlace,
@@ -252,6 +254,12 @@ async function dispatch(request: NextRequest, context: Context) {
       return response(await game.today());
     if (route === '/wallet' && method === 'GET')
       return response(await game.wallet(participantId(request)));
+    if (route === '/attendance' && method === 'GET')
+      return response(
+        attendanceStatus.parse(
+          await game.attendanceStatus(participantId(request)),
+        ),
+      );
     if (route === '/attendance' && method === 'POST')
       return response(
         await game.attend(
@@ -290,6 +298,16 @@ async function dispatch(request: NextRequest, context: Context) {
       return response(undefined, 204);
     }
     if (route.startsWith('/admin/')) requireAdmin(request);
+    if (route === '/admin/preferences' && method === 'GET')
+      return response(gamePreferences.parse(await game.getPreferences()));
+    if (route === '/admin/preferences' && method === 'PUT')
+      return response(
+        gamePreferences.parse(
+          await game.setPreferences(
+            parse(gamePreferences, await body(request)),
+          ),
+        ),
+      );
     if (route === '/admin/setup/complete' && method === 'POST')
       return response(setupStatus.parse(await game.completeSetup()));
     if (route === '/admin/participants' && method === 'GET')

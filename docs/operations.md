@@ -52,6 +52,16 @@ Compare draw snapshots, ledger balances, settings, participants and places in th
 
 ## Device verification before rollout
 
+For a Compose deployment, generate the keys once on the server (the output includes the private key; keep it in your local environment configuration):
+
+```sh
+docker compose run --rm --no-deps worker pnpm --filter @lunch/worker exec web-push generate-vapid-keys
+```
+
+Copy the generated `Public Key` and `Private Key` values into `.env` as `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY`. Set `VAPID_SUBJECT` to your HTTPS contact/site URL or `mailto:` contact, and `APP_ORIGIN` to the actual public HTTPS origin. For this deployment, both URLs can be `https://lunch.dominick.ie`. Compose passes the same values to web and worker. Apply changed environment values with `docker compose up -d --wait web worker`, then verify `/api/v1/push-config` has a public key and the worker's startup log has `pushConfigured:true`. Do not publish the private key or replace the pair on every restart; changing the pair requires browsers to subscribe again.
+
+Missing keys intentionally disable notification delivery. After configuration, select a name and use Get lunch alerts to grant browser permission. Subscriptions receive subsequent committed draws; enabling alerts does not resend an already completed draw. Permission must be requested directly from the user's opt-in action, before awaited registration/network work.
+
 On the final HTTPS origin, use a supported browser/device, select a member, click Get lunch alerts, grant permission, and verify a subsequent committed draw arrives. Test denial, opt-out, browser restart and a retired subscription. The API accepts browser push services from Google, Mozilla, Apple and Windows only, preventing arbitrary internal notification targets. Unsupported devices and missing/invalid VAPID configuration must retain core play. Localhost can support service workers, but a local test does not establish production HTTPS delivery or mobile support.
 
 Run concurrent worker/restart checks and restore checks in a disposable environment before release. Integration and browser checks are separate from real provider delivery and production operations; report these separately.
