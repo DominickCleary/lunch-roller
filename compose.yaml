@@ -46,7 +46,7 @@ services:
       context: .
       target: web
     ports:
-      - '127.0.0.1:3000:3000'
+      - '127.0.0.1:${WEB_PORT:-3000}:3000'
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-lunch}:${POSTGRES_PASSWORD:-lunch}@db:5432/${POSTGRES_DB:-lunch_roller}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}

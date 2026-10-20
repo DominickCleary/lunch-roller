@@ -32,3 +32,4 @@ export async function checkDatabase(
 }
 
 export { schema };
+export { GameService, GameError, isReplay } from './operations';
