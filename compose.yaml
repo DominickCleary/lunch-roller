@@ -80,6 +80,9 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-lunch}:${POSTGRES_PASSWORD:-lunch}@db:5432/${POSTGRES_DB:-lunch_roller}
       WORKER_HEARTBEAT_FILE: /tmp/lunch-worker-heartbeat
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@example.com}
     depends_on:
       seed:
         condition: service_completed_successfully

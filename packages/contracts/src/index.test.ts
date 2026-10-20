@@ -27,3 +27,23 @@ it('validates schedule and push boundaries', () => {
     }).success,
   ).toBe(false);
 });
+it('accepts browser push services and rejects internal or credentialed targets', () => {
+  const keys = { p256dh: `B${'a'.repeat(86)}`, auth: 'a'.repeat(22) };
+  for (const endpoint of [
+    'https://fcm.googleapis.com/fcm/send/token',
+    'https://updates.push.services.mozilla.com/wpush/v2/token',
+    'https://web.push.apple.com/token',
+    'https://wns.notify.windows.com/token',
+  ]) {
+    expect(pushSubscription.safeParse({ endpoint, keys }).success).toBe(true);
+  }
+  for (const endpoint of [
+    'https://127.0.0.1/private',
+    'https://example.com/private',
+    'https://fcm.googleapis.com.attacker.com/',
+    'https://user:password@fcm.googleapis.com/',
+    'https://fcm.googleapis.com:444/',
+  ]) {
+    expect(pushSubscription.safeParse({ endpoint, keys }).success).toBe(false);
+  }
+});

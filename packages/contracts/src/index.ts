@@ -103,8 +103,25 @@ export const tokenCorrection = z.object({
   reason: z.string().trim().min(1).max(500),
 });
 export const pushSubscription = z.object({
-  endpoint: z.url().startsWith('https://'),
-  keys: z.object({ p256dh: z.string().min(1), auth: z.string().min(1) }),
+  endpoint: z.url().refine((value) => {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    return (
+      url.protocol === 'https:' &&
+      !url.username &&
+      !url.password &&
+      (!url.port || url.port === '443') &&
+      !url.hash &&
+      (host === 'fcm.googleapis.com' ||
+        host === 'web.push.apple.com' ||
+        /^([a-z0-9-]+\.)?push\.services\.mozilla\.com$/.test(host) ||
+        /^[a-z0-9-]+\.notify\.windows\.com$/.test(host))
+    );
+  }, 'Unsupported push service'),
+  keys: z.object({
+    p256dh: z.string().regex(/^B[A-Za-z0-9_-]{86}$/),
+    auth: z.string().regex(/^[A-Za-z0-9_-]{22}$/),
+  }),
 });
 export const pushConfigResponse = z.object({
   publicKey: z.string().nullable(),
