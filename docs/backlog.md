@@ -1,6 +1,6 @@
 # Implementation backlog
 
-The foundation ships the landing/readiness page, database setup, health-only worker, shared contracts, and tested calculations. The following work remains. Freeze contract changes with the coordinator before parallel tasks begin.
+All five milestones below are implemented in the local MVP. The table records their scope and dependency order. Local verification results and remaining environment checks are recorded in `docs/verification.md`; production hosting is not provisioned. Freeze contract changes with the coordinator before parallel tasks begin.
 
 | Milestone                           | Work and acceptance                                                                                                                                                                                                         | Agent lanes / dependencies                                                                                                        |
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
@@ -10,7 +10,7 @@ The foundation ships the landing/readiness page, database setup, health-only wor
 | 4. Wheel UI and admin polish        | Render proportional segments and odds, animate committed result, attendance/purchase controls, token history, responsive admin flows. Keyboard access and reduced motion; no client-selected winner.                        | Web lane after result/economy APIs; verification lane owns assigned browser tests.                                                |
 | 5. Push and deployment verification | User-triggered opt-in, service worker, VAPID subscription lifecycle, leased/retried outbox delivery, stale subscription cleanup, HTTPS deployment runbook and monitoring.                                                   | Worker and web subscription work in parallel after contract freeze; coordinator verifies integration.                             |
 
-## Required future integration and browser scenarios
+## Required integration and browser scenarios
 
 - Concurrent worker ticks create one result, one decay, and one outbox row per subscription. Failed transaction leaves none of these effects.
 - Concurrent purchases cannot overdraw; duplicate request keys charge once; mismatched replay returns conflict. Duplicate/blank place names leave balance unchanged. Attendance replay with the same or different keys cannot double-award.
@@ -23,4 +23,4 @@ The foundation ships the landing/readiness page, database setup, health-only wor
 
 ## Release gate
 
-Coordinator integrates by dependency order, runs all checks on a fresh disposable database, reviews generated SQL and environment changes, then tests container health, worker restart, browser flows, backup/restore, and HTTPS push on supported devices. Production hosting is outside the foundation task.
+Coordinator integrates by dependency order, runs all checks on a fresh disposable database, reviews generated SQL and environment changes, then tests container health, worker restart, browser flows, backup/restore, and HTTPS push on supported devices. Production hosting is outside this task; real HTTPS/device push delivery remains a deployment environment check.

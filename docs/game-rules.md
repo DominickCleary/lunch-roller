@@ -1,6 +1,6 @@
 # Lunch Roller rules
 
-This document specifies the intended MVP. Only pure calculations are shipped in the foundation; workflows appear in the backlog.
+These rules are implemented by the local MVP. Optional notification delivery requires VAPID configuration and a supported browser; production HTTPS/device verification remains an environment check.
 
 One workplace shares an administrator-managed roster and wheel. Participants pick a name and the browser remembers it, without accounts or passwords. Anyone can impersonate a roster member; this is an accepted workplace trust model. Name selection never authorizes administration.
 

@@ -28,6 +28,8 @@ Implement `packages/db/src/operations.ts`, exported by coordinator from `@lunch/
 
 Idempotent operations hash method + canonical API route + validated normalized body (stable explicit object property order), participant-scoped key. Ledger `response` stores exact original response for replay. Same key changed operation/body conflicts even across routes. Attendance with fresh key conflicts when already awarded. Replay checks before checking changed resource state/deadline, after active identity validation. Ledger history stays append only. Schema includes response jsonb, subscription active boolean, outbox lease_token UUID; coordinator generates migration.
 
+The package also exports `isReplay(value: unknown): boolean`, using an internal WeakSet marker on replay response objects. The web adapter returns 200 for replayed member place creation and 201 for a new creation without adding metadata to JSON.
+
 ## Scheduling (domain/worker lane)
 
 Append pure exports to domain: `localClock(now: Date, timezone: string): {localDate: string; weekday: number; time: string}` and `evaluateSchedule(now: Date, schedule: {timezone:string;time:string;weekdays:number[]}): {localDate:string;due:boolean;scheduled:boolean}`. Intl date parts, ISO weekdays, lexical HH:mm comparison. DB lane can implement against these frozen signatures before integration. No clock/random/env calls inside domain.
