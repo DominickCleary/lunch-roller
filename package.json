@@ -1,0 +1,36 @@
+{
+  "name": "lunch-roller",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.21.0",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @lunch/web dev",
+    "dev:worker": "pnpm --filter @lunch/worker dev",
+    "build": "pnpm --filter @lunch/web build && pnpm --filter @lunch/worker build",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:e2e": "playwright test",
+    "db:generate": "pnpm --filter @lunch/db generate",
+    "db:migrate": "pnpm --filter @lunch/db migrate",
+    "db:seed": "pnpm --filter @lunch/db seed"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/node": "24.10.1",
+    "eslint": "9.39.1",
+    "eslint-config-next": "16.4.2",
+    "prettier": "3.9.10",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.72.0",
+    "vitest": "5.0.5"
+  }
+}

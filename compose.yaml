@@ -1,0 +1,103 @@
+name: lunch-roller
+services:
+  db:
+    image: postgres:17.6-bookworm
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lunch}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lunch}
+      POSTGRES_DB: ${POSTGRES_DB:-lunch_roller}
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: .
+      target: tools
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-lunch}:${POSTGRES_PASSWORD:-lunch}@db:5432/${POSTGRES_DB:-lunch_roller}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: 'no'
+
+  seed:
+    build:
+      context: .
+      target: tools
+    command: ['pnpm', 'db:seed']
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-lunch}:${POSTGRES_PASSWORD:-lunch}@db:5432/${POSTGRES_DB:-lunch_roller}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: 'no'
+
+  web:
+    build:
+      context: .
+      target: web
+    ports:
+      - '127.0.0.1:3000:3000'
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-lunch}:${POSTGRES_PASSWORD:-lunch}@db:5432/${POSTGRES_DB:-lunch_roller}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3000}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@example.com}
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    init: true
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      target: worker
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-lunch}:${POSTGRES_PASSWORD:-lunch}@db:5432/${POSTGRES_DB:-lunch_roller}
+      WORKER_HEARTBEAT_FILE: /tmp/lunch-worker-heartbeat
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "const fs=require('node:fs');try{process.exit(Date.now()-Number(fs.readFileSync('/tmp/lunch-worker-heartbeat','utf8'))<90000?0:1)}catch{process.exit(1)}",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    init: true
+    stop_grace_period: 15s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
