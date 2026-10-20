@@ -1,10 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import Link from 'next/link';
 import type {
   Participant,
+  ParticipantRemoval,
   Place,
   Schedule,
   TodayResponse,
@@ -22,16 +23,7 @@ type Pending = {
 };
 const storageKey = 'lunch-roller.participant-id';
 const pendingKey = 'lunch-roller.pending-action';
-const colors = [
-  '#f4c85b',
-  '#b7cf9a',
-  '#e8a18a',
-  '#96c4bd',
-  '#dfa9c7',
-  '#efb56f',
-  '#b8b4df',
-  '#d4d1a2',
-];
+const colors = ['#ed3d34', '#ffd326', '#24bc68', '#3478e5'];
 
 class ApiRequestError extends Error {
   constructor(
@@ -92,6 +84,8 @@ export default function Home() {
   const [showAllLedger, setShowAllLedger] = useState(false);
   const [spin, setSpin] = useState(false);
   const [rotation, setRotation] = useState(0);
+  const rotationRef = useRef(0);
+  const animationTimer = useRef<number | null>(null);
   const [nameDraft, setNameDraft] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [newName, setNewName] = useState('');
@@ -110,6 +104,11 @@ export default function Home() {
     reason: '',
   });
   const [pushOn, setPushOn] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<Participant | null>(null);
+  const removeTrigger = useRef<HTMLButtonElement | null>(null);
+  const cancelRemoval = useRef<HTMLButtonElement | null>(null);
+  const confirmRemoval = useRef<HTMLButtonElement | null>(null);
+  const adminDisclosure = useRef<HTMLDetailsElement | null>(null);
 
   const refresh = useCallback(
     async (selected = participantId) => {
@@ -210,36 +209,75 @@ export default function Home() {
     return `conic-gradient(${stops.join(',')})`;
   }, [wheelOptions]);
 
+  const animateCommittedResult = useCallback(
+    (result: NonNullable<TodayResponse['result']>) => {
+      if (animationTimer.current !== null)
+        window.clearTimeout(animationTimer.current);
+      const index = result.snapshot.findIndex(
+        (option) => option.placeId === result.placeId,
+      );
+      if (index < 0) return;
+      const total = result.snapshot.reduce(
+        (sum, option) => sum + option.probability,
+        0,
+      );
+      const before = result.snapshot
+        .slice(0, index)
+        .reduce((sum, option) => sum + option.probability, 0);
+      const center =
+        ((before + result.snapshot[index]!.probability / 2) / (total || 1)) *
+        360;
+      const current = ((rotationRef.current % 360) + 360) % 360;
+      const target = (360 - center + 360) % 360;
+      const reducedMotion = window.matchMedia(
+        '(prefers-reduced-motion: reduce)',
+      ).matches;
+      setSpin(true);
+      const nextRotation =
+        rotationRef.current +
+        (reducedMotion ? 0 : 5 * 360) +
+        ((target - current + 360) % 360);
+      rotationRef.current = nextRotation;
+      setRotation(nextRotation);
+      if (reducedMotion) {
+        setSpin(false);
+      } else {
+        animationTimer.current = window.setTimeout(() => {
+          animationTimer.current = null;
+          setSpin(false);
+        }, 4700);
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     const result = today?.result;
-    if (!result || spin) return;
-    const index = result.snapshot.findIndex(
-      (option) => option.placeId === result.placeId,
+    if (!result) {
+      const frame = window.requestAnimationFrame(() => {
+        if (animationTimer.current !== null) {
+          window.clearTimeout(animationTimer.current);
+          animationTimer.current = null;
+        }
+        rotationRef.current = 0;
+        setRotation(0);
+        setSpin(false);
+      });
+      return () => window.cancelAnimationFrame(frame);
+    }
+    const frame = window.requestAnimationFrame(() =>
+      animateCommittedResult(result),
     );
-    if (index < 0) return;
-    const total = result.snapshot.reduce(
-      (sum, option) => sum + option.probability,
-      0,
-    );
-    let before = 0;
-    for (let cursor = 0; cursor < index; cursor++)
-      before += result.snapshot[cursor]!.probability;
-    const span = result.snapshot[index]!.probability;
-    const center = ((before + span / 2) / (total || 1)) * 360;
-    const current = ((rotation % 360) + 360) % 360;
-    const target = (360 - center + 360) % 360;
-    const frame = window.requestAnimationFrame(() => {
-      setSpin(true);
-      setRotation(rotation + 5 * 360 + ((target - current + 360) % 360));
-    });
-    const timer = window.setTimeout(() => setSpin(false), 4700);
     return () => {
       window.cancelAnimationFrame(frame);
-      window.clearTimeout(timer);
+      if (animationTimer.current !== null) {
+        window.clearTimeout(animationTimer.current);
+        animationTimer.current = null;
+      }
     };
-    // A result is committed and immutable; run once when its ID arrives.
+    // A saved result is immutable; only animate when its ID changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [today?.result?.id]);
+  }, [today?.result?.id, animateCommittedResult]);
 
   async function selectParticipant(event: FormEvent) {
     event.preventDefault();
@@ -478,46 +516,81 @@ export default function Home() {
   )?.name;
   const drawnPlace = today?.result?.placeName;
 
+  const replayResult = useCallback(() => {
+    const result = today?.result;
+    if (!result || spin) return;
+    animateCommittedResult(result);
+  }, [today?.result, spin, animateCommittedResult]);
+
+  useEffect(() => {
+    if (!removeTarget) return;
+    cancelRemoval.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setRemoveTarget(null);
+        window.setTimeout(() => removeTrigger.current?.focus(), 0);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [removeTarget]);
+
+  async function removeParticipant() {
+    if (!removeTarget || busy) return;
+    const person = removeTarget;
+    setBusy(true);
+    setError('');
+    try {
+      const result = await request<ParticipantRemoval>(
+        `/admin/participants/${person.id}`,
+        { method: 'DELETE' },
+      );
+      setRemoveTarget(null);
+      await refreshAdmin();
+      await refresh();
+      setNotice(
+        result.action === 'deleted'
+          ? `${person.name} was permanently deleted.`
+          : `${person.name} was archived; history was preserved.`,
+      );
+      window.setTimeout(
+        () => document.querySelector<HTMLElement>('.admin-tool-card')?.focus(),
+        0,
+      );
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : 'Could not remove this person.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <main className="site-shell">
       <header className="topbar">
         <a className="brand" href="#top" aria-label="Lunch Roller home">
-          <span className="brand-mark">✳</span> LUNCH ROLLER
+          <span className="brand-mark">✳</span>{' '}
+          <h1 className="brand-title">Lunch Roller</h1>
         </a>
         <div className="top-actions">
           <span className="date-chip">
             {today?.localDate ?? 'TODAY'} ·{' '}
             {today?.schedule.timezone ?? 'Europe/Dublin'}
           </span>
-          <a href="#admin" className="quiet-link">
+          <a
+            href="#admin"
+            className="quiet-link"
+            onClick={() => adminDisclosure.current?.setAttribute('open', '')}
+          >
             Admin
           </a>
         </div>
       </header>
 
-      <section className="hero" id="top">
-        <div className="hero-copy">
-          <p className="eyebrow">
-            <span className="eyebrow-dot" /> THE DAILY LUNCH DECIDER
-          </p>
-          <h1>
-            One team.
-            <br />
-            <em>One wheel.</em>
-            <br />
-            Lunch sorted.
-          </h1>
-          <p className="hero-lede">
-            A little chance. A little friendly persuasion. Your next lunch spot
-            is in good hands.
-          </p>
-          <Readiness />
-          {pollingError && (
-            <p className="refresh-error" role="status" aria-live="polite">
-              {pollingError}
-            </p>
-          )}
-        </div>
+      <section className="hero" id="top" aria-label="Lunch wheel">
         <div className="wheel-card">
           <div
             className="wheel-wrap"
@@ -554,7 +627,7 @@ export default function Home() {
                         title={option.name}
                         aria-label={option.name}
                         style={{
-                          transform: `rotate(${(wheelOptions.slice(0, index).reduce((sum, item) => sum + item.probability, 0) + option.probability / 2) * 360}deg) translateY(-126px) rotate(-${(wheelOptions.slice(0, index).reduce((sum, item) => sum + item.probability, 0) + option.probability / 2) * 360}deg)`,
+                          transform: `rotate(${(wheelOptions.slice(0, index).reduce((sum, item) => sum + item.probability, 0) + option.probability / 2) * 360}deg) translateY(-34cqw) rotate(-${(wheelOptions.slice(0, index).reduce((sum, item) => sum + item.probability, 0) + option.probability / 2) * 360}deg)`,
                         }}
                       >
                         {option.name.length > 14
@@ -588,7 +661,26 @@ export default function Home() {
                   ? 'Rest day'
                   : 'The wheel is waiting')}
             </strong>
+            {today?.result && (
+              <button
+                className="replay-button"
+                type="button"
+                onClick={replayResult}
+                disabled={spin}
+                aria-label="Replay today's result"
+              >
+                ↻ Replay today&apos;s result
+              </button>
+            )}
           </div>
+        </div>
+        <div className="wheel-status">
+          <Readiness />
+          {pollingError && (
+            <p className="refresh-error" role="status" aria-live="polite">
+              {pollingError}
+            </p>
+          )}
         </div>
       </section>
 
@@ -600,7 +692,7 @@ export default function Home() {
           <div className="section-heading">
             <div>
               <p className="eyebrow">01 / YOUR SEAT AT THE TABLE</p>
-              <h2>Who’s hungry?</h2>
+              <h2>You</h2>
             </div>
             <span className="mini-icon">↗</span>
           </div>
@@ -730,7 +822,7 @@ export default function Home() {
           <div className="section-heading">
             <div>
               <p className="eyebrow">02 / THE ODDS</p>
-              <h2>Where could we go?</h2>
+              <h2>Places</h2>
             </div>
             <span className="odds-total">{odds.length} PLACES</span>
           </div>
@@ -839,396 +931,457 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="rules-strip" aria-label="How the game works">
-        <article>
-          <span>01</span>
-          <div>
-            <h3>THE EDICT</h3>
-            <p>
-              {today?.schedule.time ?? '11:30'} local time. One shared choice on
-              scheduled days.
-            </p>
+      <details className="admin-disclosure" id="admin" ref={adminDisclosure}>
+        <summary>Admin tools</summary>
+        <section className="admin-section">
+          <div className="admin-intro">
+            <p className="eyebrow">THE BACK OFFICE</p>
+            <h2>Admin corner</h2>
+            <p>Keep the roster, lunch spots and schedule in good order.</p>
           </div>
-        </article>
-        <article>
-          <span>02</span>
-          <div>
-            <h3>THE TWIST</h3>
-            <p>The winning place loses half its weight after every draw.</p>
-          </div>
-        </article>
-        <article>
-          <span>03</span>
-          <div>
-            <h3>THE INFLUENCE</h3>
-            <p>Check in for 10 tokens. Spend 5 to nudge the odds.</p>
-          </div>
-        </article>
-      </section>
-
-      <section className="admin-section" id="admin">
-        <div className="admin-intro">
-          <p className="eyebrow">THE BACK OFFICE</p>
-          <h2>Admin corner</h2>
-          <p>Keep the roster, lunch spots and schedule in good order.</p>
-        </div>
-        {!admin ? (
-          <form className="admin-login" onSubmit={login}>
-            <label htmlFor="admin-password">Administrator password</label>
-            <div className="inline-form">
-              <input
-                id="admin-password"
-                type="password"
-                value={adminPassword}
-                onChange={(event) => setAdminPassword(event.target.value)}
-                autoComplete="current-password"
-              />
-              <button
-                className="button button-dark"
-                disabled={busy || !adminPassword}
-              >
-                Unlock
-              </button>
-            </div>
-          </form>
-        ) : (
-          <div className="admin-tools">
-            <div className="admin-tool-card">
-              <h3>People</h3>
-              <form
-                className="inline-form"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (newName.trim())
-                    void adminSave(
-                      '/admin/participants',
-                      'POST',
-                      { name: newName },
-                      'Person added.',
-                    ).then(() => setNewName(''));
-                }}
-              >
+          {!admin ? (
+            <form className="admin-login" onSubmit={login}>
+              <label htmlFor="admin-password">Administrator password</label>
+              <div className="inline-form">
                 <input
-                  aria-label="New team member name"
-                  placeholder="New team member"
-                  value={newName}
-                  onChange={(event) => setNewName(event.target.value)}
-                  maxLength={100}
+                  id="admin-password"
+                  type="password"
+                  value={adminPassword}
+                  onChange={(event) => setAdminPassword(event.target.value)}
+                  autoComplete="current-password"
                 />
                 <button
-                  className="button button-light"
-                  disabled={busy || !newName.trim()}
+                  className="button button-dark"
+                  disabled={busy || !adminPassword}
                 >
-                  Add
+                  Unlock
                 </button>
-              </form>
-              {allParticipants.map((person) => (
-                <div className="admin-row" key={person.id}>
-                  {editingPersonId === person.id ? (
-                    <form
-                      className="inline-form"
-                      onSubmit={(event) => {
-                        event.preventDefault();
+              </div>
+            </form>
+          ) : (
+            <div className="admin-tools">
+              <div className="admin-tool-card" tabIndex={-1}>
+                <h3>People</h3>
+                <form
+                  className="inline-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (newName.trim())
+                      void adminSave(
+                        '/admin/participants',
+                        'POST',
+                        { name: newName },
+                        'Person added.',
+                      ).then(() => setNewName(''));
+                  }}
+                >
+                  <input
+                    aria-label="New team member name"
+                    placeholder="New team member"
+                    value={newName}
+                    onChange={(event) => setNewName(event.target.value)}
+                    maxLength={100}
+                  />
+                  <button
+                    className="button button-light"
+                    disabled={busy || !newName.trim()}
+                  >
+                    Add
+                  </button>
+                </form>
+                {allParticipants.map((person) => (
+                  <div className="admin-row" key={person.id}>
+                    {editingPersonId === person.id ? (
+                      <form
+                        className="inline-form"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          void adminSave(
+                            `/admin/participants/${person.id}`,
+                            'PATCH',
+                            { name: editingPersonName },
+                            'Name updated.',
+                          ).then(() => setEditingPersonId(''));
+                        }}
+                      >
+                        <input
+                          aria-label={`Rename ${person.name}`}
+                          value={editingPersonName}
+                          onChange={(event) =>
+                            setEditingPersonName(event.target.value)
+                          }
+                          maxLength={100}
+                        />
+                        <button
+                          className="button button-light"
+                          disabled={busy || !editingPersonName.trim()}
+                        >
+                          Save
+                        </button>
+                      </form>
+                    ) : (
+                      <span>{person.name}</span>
+                    )}
+                    <button
+                      disabled={busy}
+                      onClick={() => {
+                        setEditingPersonId(person.id);
+                        setEditingPersonName(person.name);
+                      }}
+                    >
+                      Rename
+                    </button>
+                    <button
+                      disabled={busy}
+                      onClick={() =>
                         void adminSave(
                           `/admin/participants/${person.id}`,
                           'PATCH',
-                          { name: editingPersonName },
-                          'Name updated.',
-                        ).then(() => setEditingPersonId(''));
+                          { active: !person.active },
+                          person.active
+                            ? 'Person archived.'
+                            : 'Person restored.',
+                        )
+                      }
+                    >
+                      {person.active ? 'Archive' : 'Restore'}
+                    </button>
+                    <button
+                      ref={removeTrigger}
+                      aria-label={`Remove ${person.name}`}
+                      disabled={busy}
+                      onClick={(event) => {
+                        removeTrigger.current = event.currentTarget;
+                        setRemoveTarget(person);
                       }}
                     >
-                      <input
-                        aria-label={`Rename ${person.name}`}
-                        value={editingPersonName}
-                        onChange={(event) =>
-                          setEditingPersonName(event.target.value)
-                        }
-                        maxLength={100}
-                      />
-                      <button
-                        className="button button-light"
-                        disabled={busy || !editingPersonName.trim()}
-                      >
-                        Save
-                      </button>
-                    </form>
-                  ) : (
-                    <span>{person.name}</span>
-                  )}
-                  <button
-                    disabled={busy}
-                    onClick={() => {
-                      setEditingPersonId(person.id);
-                      setEditingPersonName(person.name);
-                    }}
-                  >
-                    Rename
-                  </button>
-                  <button
-                    disabled={busy}
-                    onClick={() =>
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="admin-tool-card">
+                <h3>Places</h3>
+                <form
+                  className="inline-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const name = new FormData(event.currentTarget)
+                      .get('admin-place')
+                      ?.toString()
+                      .trim();
+                    if (name)
                       void adminSave(
-                        `/admin/participants/${person.id}`,
-                        'PATCH',
-                        { active: !person.active },
-                        person.active ? 'Person archived.' : 'Person restored.',
-                      )
-                    }
-                  >
-                    {person.active ? 'Archive' : 'Restore'}
+                        '/admin/places',
+                        'POST',
+                        { name },
+                        'Place added.',
+                      );
+                  }}
+                >
+                  <input
+                    name="admin-place"
+                    aria-label="New lunch place"
+                    placeholder="New lunch place"
+                    maxLength={100}
+                  />
+                  <button className="button button-light" disabled={busy}>
+                    Add
                   </button>
-                </div>
-              ))}
-            </div>
-            <div className="admin-tool-card">
-              <h3>Places</h3>
-              <form
-                className="inline-form"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const name = new FormData(event.currentTarget)
-                    .get('admin-place')
-                    ?.toString()
-                    .trim();
-                  if (name)
-                    void adminSave(
-                      '/admin/places',
-                      'POST',
-                      { name },
-                      'Place added.',
-                    );
-                }}
-              >
-                <input
-                  name="admin-place"
-                  aria-label="New lunch place"
-                  placeholder="New lunch place"
-                  maxLength={100}
-                />
-                <button className="button button-light" disabled={busy}>
-                  Add
-                </button>
-              </form>
-              {places.map((place) => (
-                <div className="admin-row" key={place.id}>
-                  {editingPlaceId === place.id ? (
-                    <form
-                      className="inline-form"
-                      onSubmit={(event) => {
-                        event.preventDefault();
+                </form>
+                {places.map((place) => (
+                  <div className="admin-row" key={place.id}>
+                    {editingPlaceId === place.id ? (
+                      <form
+                        className="inline-form"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          void adminSave(
+                            `/admin/places/${place.id}`,
+                            'PATCH',
+                            { name: editingPlaceName },
+                            'Name updated.',
+                          ).then(() => setEditingPlaceId(''));
+                        }}
+                      >
+                        <input
+                          aria-label={`Rename ${place.name}`}
+                          value={editingPlaceName}
+                          onChange={(event) =>
+                            setEditingPlaceName(event.target.value)
+                          }
+                          maxLength={100}
+                        />
+                        <button
+                          className="button button-light"
+                          disabled={busy || !editingPlaceName.trim()}
+                        >
+                          Save
+                        </button>
+                      </form>
+                    ) : (
+                      <span>
+                        {place.name}{' '}
+                        <small>
+                          {place.active
+                            ? `${Math.exp(place.logWeight).toFixed(2)}× weight`
+                            : 'archived'}
+                        </small>
+                      </span>
+                    )}
+                    <button
+                      disabled={busy}
+                      onClick={() => {
+                        setEditingPlaceId(place.id);
+                        setEditingPlaceName(place.name);
+                      }}
+                    >
+                      Rename
+                    </button>
+                    <button
+                      disabled={busy}
+                      onClick={() =>
                         void adminSave(
                           `/admin/places/${place.id}`,
                           'PATCH',
-                          { name: editingPlaceName },
-                          'Name updated.',
-                        ).then(() => setEditingPlaceId(''));
-                      }}
+                          { active: !place.active },
+                          place.active ? 'Place archived.' : 'Place restored.',
+                        )
+                      }
                     >
-                      <input
-                        aria-label={`Rename ${place.name}`}
-                        value={editingPlaceName}
-                        onChange={(event) =>
-                          setEditingPlaceName(event.target.value)
-                        }
-                        maxLength={100}
-                      />
-                      <button
-                        className="button button-light"
-                        disabled={busy || !editingPlaceName.trim()}
-                      >
-                        Save
-                      </button>
-                    </form>
-                  ) : (
-                    <span>
-                      {place.name}{' '}
-                      <small>
-                        {place.active
-                          ? `${Math.exp(place.logWeight).toFixed(2)}× weight`
-                          : 'archived'}
-                      </small>
-                    </span>
-                  )}
-                  <button
-                    disabled={busy}
-                    onClick={() => {
-                      setEditingPlaceId(place.id);
-                      setEditingPlaceName(place.name);
-                    }}
-                  >
-                    Rename
-                  </button>
-                  <button
-                    disabled={busy}
-                    onClick={() =>
-                      void adminSave(
-                        `/admin/places/${place.id}`,
-                        'PATCH',
-                        { active: !place.active },
-                        place.active ? 'Place archived.' : 'Place restored.',
-                      )
-                    }
-                  >
-                    {place.active ? 'Archive' : 'Restore'}
-                  </button>
-                </div>
-              ))}
-            </div>
-            <div className="admin-tool-card">
-              <h3>Draw schedule</h3>
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void adminSave(
-                    '/admin/schedule',
-                    'PUT',
-                    schedule,
-                    'Schedule saved.',
-                  );
-                }}
-              >
-                <label>
-                  Time
-                  <input
-                    type="time"
-                    value={schedule.time}
-                    onChange={(event) =>
-                      setSchedule({ ...schedule, time: event.target.value })
-                    }
-                  />
-                </label>
-                <label>
-                  Timezone
-                  <input
-                    value={schedule.timezone}
-                    onChange={(event) =>
-                      setSchedule({ ...schedule, timezone: event.target.value })
-                    }
-                  />
-                </label>
-                <div className="weekdays">
-                  {'MTWTFSS'.split('').map((label, index) => (
-                    <label key={`${label}${index}`}>
-                      <input
-                        type="checkbox"
-                        checked={schedule.weekdays.includes(index + 1)}
-                        onChange={(event) =>
-                          setSchedule({
-                            ...schedule,
-                            weekdays: event.target.checked
-                              ? [...schedule.weekdays, index + 1].sort()
-                              : schedule.weekdays.filter(
-                                  (day) => day !== index + 1,
-                                ),
-                          })
-                        }
-                      />
-                      {label}
-                    </label>
-                  ))}
-                </div>
-                <button
-                  className="button button-dark"
-                  disabled={busy || !schedule.weekdays.length}
+                      {place.active ? 'Archive' : 'Restore'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="admin-tool-card">
+                <h3>Draw schedule</h3>
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void adminSave(
+                      '/admin/schedule',
+                      'PUT',
+                      schedule,
+                      'Schedule saved.',
+                    );
+                  }}
                 >
-                  Save schedule
-                </button>
-              </form>
-            </div>
-            <div className="admin-tool-card">
-              <h3>Token correction</h3>
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void adminSave(
-                    '/admin/token-corrections',
-                    'POST',
-                    correction,
-                    'Token correction recorded.',
-                  );
-                }}
-              >
-                <label>
-                  Team member
-                  <select
-                    required
-                    value={correction.participantId}
-                    onChange={(event) =>
-                      setCorrection({
-                        ...correction,
-                        participantId: event.target.value,
-                      })
-                    }
-                  >
-                    <option value="">Choose a person</option>
-                    {allParticipants.map((person) => (
-                      <option key={person.id} value={person.id}>
-                        {person.name}
-                      </option>
+                  <label>
+                    Time
+                    <input
+                      type="time"
+                      value={schedule.time}
+                      onChange={(event) =>
+                        setSchedule({ ...schedule, time: event.target.value })
+                      }
+                    />
+                  </label>
+                  <label>
+                    Timezone
+                    <input
+                      value={schedule.timezone}
+                      onChange={(event) =>
+                        setSchedule({
+                          ...schedule,
+                          timezone: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <div className="weekdays">
+                    {'MTWTFSS'.split('').map((label, index) => (
+                      <label key={`${label}${index}`}>
+                        <input
+                          type="checkbox"
+                          checked={schedule.weekdays.includes(index + 1)}
+                          onChange={(event) =>
+                            setSchedule({
+                              ...schedule,
+                              weekdays: event.target.checked
+                                ? [...schedule.weekdays, index + 1].sort()
+                                : schedule.weekdays.filter(
+                                    (day) => day !== index + 1,
+                                  ),
+                            })
+                          }
+                        />
+                        {label}
+                      </label>
                     ))}
-                  </select>
-                </label>
-                <label>
-                  Token change
-                  <input
-                    type="number"
-                    required
-                    value={correction.delta}
-                    onChange={(event) =>
-                      setCorrection({
-                        ...correction,
-                        delta: Number(event.target.value),
-                      })
-                    }
-                  />
-                </label>
-                <label>
-                  Reason
-                  <input
-                    required
-                    maxLength={500}
-                    value={correction.reason}
-                    onChange={(event) =>
-                      setCorrection({
-                        ...correction,
-                        reason: event.target.value,
-                      })
-                    }
-                  />
-                </label>
-                <button
-                  className="button button-dark"
-                  disabled={
-                    busy ||
-                    !correction.participantId ||
-                    !correction.reason.trim()
-                  }
+                  </div>
+                  <button
+                    className="button button-dark"
+                    disabled={busy || !schedule.weekdays.length}
+                  >
+                    Save schedule
+                  </button>
+                </form>
+              </div>
+              <div className="admin-tool-card">
+                <h3>Token correction</h3>
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void adminSave(
+                      '/admin/token-corrections',
+                      'POST',
+                      correction,
+                      'Token correction recorded.',
+                    );
+                  }}
                 >
-                  Record correction
-                </button>
-              </form>
+                  <label>
+                    Team member
+                    <select
+                      required
+                      value={correction.participantId}
+                      onChange={(event) =>
+                        setCorrection({
+                          ...correction,
+                          participantId: event.target.value,
+                        })
+                      }
+                    >
+                      <option value="">Choose a person</option>
+                      {allParticipants.map((person) => (
+                        <option key={person.id} value={person.id}>
+                          {person.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Token change
+                    <input
+                      type="number"
+                      required
+                      value={correction.delta}
+                      onChange={(event) =>
+                        setCorrection({
+                          ...correction,
+                          delta: Number(event.target.value),
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    Reason
+                    <input
+                      required
+                      maxLength={500}
+                      value={correction.reason}
+                      onChange={(event) =>
+                        setCorrection({
+                          ...correction,
+                          reason: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <button
+                    className="button button-dark"
+                    disabled={
+                      busy ||
+                      !correction.participantId ||
+                      !correction.reason.trim()
+                    }
+                  >
+                    Record correction
+                  </button>
+                </form>
+              </div>
+              <button
+                className="quiet-link logout"
+                onClick={async () => {
+                  await request('/admin/session', { method: 'DELETE' });
+                  setAdmin(false);
+                  setPlaces([]);
+                }}
+              >
+                Lock admin tools
+              </button>
             </div>
-            <button
-              className="quiet-link logout"
-              onClick={async () => {
-                await request('/admin/session', { method: 'DELETE' });
-                setAdmin(false);
-                setPlaces([]);
-              }}
-            >
-              Lock admin tools
-            </button>
-          </div>
-        )}
-      </section>
+          )}
+        </section>
+      </details>
 
       <footer className="footer">
         <span className="brand">
           <span className="brand-mark">✳</span> LUNCH ROLLER
         </span>
-        <span>Make room for a good lunch.</span>
         <Link href="/api/v1/health">Service health ↗</Link>
       </footer>
+      {removeTarget && (
+        <div className="dialog-backdrop">
+          <section
+            className="confirm-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="remove-person-heading"
+            aria-describedby="remove-person-description"
+            onKeyDown={(event) => {
+              if (event.key !== 'Tab') return;
+              if (busy) {
+                event.preventDefault();
+                cancelRemoval.current?.focus();
+                return;
+              }
+              if (
+                event.shiftKey &&
+                document.activeElement === cancelRemoval.current
+              ) {
+                event.preventDefault();
+                confirmRemoval.current?.focus();
+              } else if (
+                !event.shiftKey &&
+                document.activeElement === confirmRemoval.current
+              ) {
+                event.preventDefault();
+                cancelRemoval.current?.focus();
+              } else if (
+                document.activeElement !== cancelRemoval.current &&
+                document.activeElement !== confirmRemoval.current
+              ) {
+                event.preventDefault();
+                (event.shiftKey
+                  ? confirmRemoval.current
+                  : cancelRemoval.current
+                )?.focus();
+              }
+            }}
+          >
+            <h2 id="remove-person-heading">Remove person?</h2>
+            <p id="remove-person-description">
+              Remove <strong>{removeTarget.name}</strong>? Profiles without
+              history are deleted. Profiles with history are archived, with
+              their history preserved.
+            </p>
+            <div className="dialog-actions">
+              <button
+                ref={cancelRemoval}
+                className="button button-light"
+                type="button"
+                onClick={() => {
+                  setRemoveTarget(null);
+                  window.setTimeout(() => removeTrigger.current?.focus(), 0);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                ref={confirmRemoval}
+                className="button button-dark"
+                type="button"
+                disabled={busy}
+                onClick={() => void removeParticipant()}
+              >
+                Remove person
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       <div className="announcement" aria-live="polite" role="status">
         {error || notice}
       </div>
