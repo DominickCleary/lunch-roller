@@ -8,6 +8,8 @@ Base: `/api/v1`. Zod schemas in `@lunch/contracts` are the source of wire shapes
 
 ## Game and administration endpoints
 
+GET `/setup` returns `{ completed, participantCount, placeCount }`. POST `/admin/setup/complete` requires the existing administrator session and matching Origin, requires at least one active person/place, and completes first-run setup atomically. It returns the same status shape with 200; incomplete configuration is 409 `SETUP_INCOMPLETE`. Until completion, public/member game endpoints return 403 `SETUP_REQUIRED`; administrator configuration, setup status, health and push configuration remain available. Runtime initialization creates no sample people or places. Existing populated installations are marked complete by migration.
+
 | Method / path                  | Request schema       | Response                                                   | Access                                         |
 | ------------------------------ | -------------------- | ---------------------------------------------------------- | ---------------------------------------------- |
 | GET /participants              | —                    | `{ participants: participant[] }` (active only)            | Public                                         |

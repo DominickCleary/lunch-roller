@@ -9,6 +9,12 @@ export const participantRemoval = z.object({
   action: z.enum(['deleted', 'archived']),
 });
 export type ParticipantRemoval = z.infer<typeof participantRemoval>;
+export const setupStatus = z.object({
+  completed: z.boolean(),
+  participantCount: z.number().int().nonnegative(),
+  placeCount: z.number().int().nonnegative(),
+});
+export type SetupStatus = z.infer<typeof setupStatus>;
 export const place = z.object({
   id,
   name,

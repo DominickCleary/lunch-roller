@@ -67,6 +67,7 @@ export const settings = pgTable(
   {
     id: integer().primaryKey().default(1),
     timezone: text().default('Europe/Dublin').notNull(),
+    setupCompleted: boolean('setup_completed').default(false).notNull(),
     spinTime: text('spin_time').default('11:30').notNull(),
     weekdays: integer()
       .array()

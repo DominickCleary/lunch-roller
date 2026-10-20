@@ -15,6 +15,13 @@
       "when": 1792530493484,
       "tag": "0001_mushy_anthem",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792533095767,
+      "tag": "0002_hesitant_sinister_six",
+      "breakpoints": true
     }
   ]
 }
