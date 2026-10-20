@@ -63,12 +63,8 @@
           "name": "attendance_participant_id_participants_id_fk",
           "tableFrom": "attendance",
           "tableTo": "participants",
-          "columnsFrom": [
-            "participant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["participant_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -76,12 +72,8 @@
           "name": "attendance_draw_id_draws_id_fk",
           "tableFrom": "attendance",
           "tableTo": "draws",
-          "columnsFrom": [
-            "draw_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["draw_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -153,12 +145,8 @@
           "name": "draws_place_id_places_id_fk",
           "tableFrom": "draws",
           "tableTo": "places",
-          "columnsFrom": [
-            "place_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["place_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -168,9 +156,7 @@
         "draws_local_date_unique": {
           "name": "draws_local_date_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "local_date"
-          ]
+          "columns": ["local_date"]
         }
       },
       "policies": {},
@@ -301,12 +287,8 @@
           "name": "notification_outbox_draw_id_draws_id_fk",
           "tableFrom": "notification_outbox",
           "tableTo": "draws",
-          "columnsFrom": [
-            "draw_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["draw_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -314,12 +296,8 @@
           "name": "notification_outbox_subscription_id_push_subscriptions_id_fk",
           "tableFrom": "notification_outbox",
           "tableTo": "push_subscriptions",
-          "columnsFrom": [
-            "subscription_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["subscription_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -460,12 +438,8 @@
           "name": "places_added_by_participants_id_fk",
           "tableFrom": "places",
           "tableTo": "participants",
-          "columnsFrom": [
-            "added_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["added_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -541,12 +515,8 @@
           "name": "push_subscriptions_participant_id_participants_id_fk",
           "tableFrom": "push_subscriptions",
           "tableTo": "participants",
-          "columnsFrom": [
-            "participant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["participant_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -556,9 +526,7 @@
         "push_subscriptions_endpoint_unique": {
           "name": "push_subscriptions_endpoint_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "endpoint"
-          ]
+          "columns": ["endpoint"]
         }
       },
       "policies": {},
@@ -750,12 +718,8 @@
           "name": "token_ledger_participant_id_participants_id_fk",
           "tableFrom": "token_ledger",
           "tableTo": "participants",
-          "columnsFrom": [
-            "participant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["participant_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -763,12 +727,8 @@
           "name": "token_ledger_attendance_id_attendance_id_fk",
           "tableFrom": "token_ledger",
           "tableTo": "attendance",
-          "columnsFrom": [
-            "attendance_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["attendance_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -776,12 +736,8 @@
           "name": "token_ledger_place_id_places_id_fk",
           "tableFrom": "token_ledger",
           "tableTo": "places",
-          "columnsFrom": [
-            "place_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["place_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }

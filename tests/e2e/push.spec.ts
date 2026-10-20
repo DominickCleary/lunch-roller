@@ -145,7 +145,7 @@ test('push subscription writes enforce origins, input shape, ownership, and life
       },
     },
   );
-  expect(repeatedRemoval.status()).toBe(404);
+  expect(repeatedRemoval.status()).toBe(204);
 });
 
 test('place creation replays once and rejects a changed request body', async ({

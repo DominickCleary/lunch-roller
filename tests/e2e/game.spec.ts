@@ -93,6 +93,7 @@ async function exerciseAdminUiAndGame(
   await expect(page.locator('.member-status')).toContainText(archivedName);
   await page.reload();
   await expect(page.locator('.member-status')).toContainText(archivedName);
+  await signIn(page);
 
   await peopleCard
     .getByText(archivedName, { exact: true })
@@ -133,7 +134,12 @@ async function exerciseAdminUiAndGame(
     .filter({ hasText: placeName })
     .getByRole('button', { name: 'Archive' })
     .click();
-  await expect(placesCard.getByText('archived', { exact: true })).toBeVisible();
+  await expect(
+    placesCard
+      .locator('.admin-row')
+      .filter({ hasText: placeName })
+      .getByText('archived', { exact: true }),
+  ).toBeVisible();
 
   const scheduleCard = page
     .locator('.admin-tool-card')

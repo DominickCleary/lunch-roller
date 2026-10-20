@@ -1,5 +1,5 @@
 import './env';
-import { afterAll, afterEach, expect, it } from 'vitest';
+import { afterAll, afterEach, expect, it, vi } from 'vitest';
 import { and, eq, gte, inArray, isNull, lte } from 'drizzle-orm';
 import { createDatabase } from './index';
 import { GameService } from './operations';
@@ -292,4 +292,51 @@ it('ignores stale lease completion after a job is reclaimed', async () => {
       (job) => job.subscription.endpoint === serviceEndpoint('stale-lease'),
     ),
   ).toMatchObject({ id: first!.id, attempts: 3 });
+});
+
+it('evaluates live draw and attendance dates after waiting across local midnight', async () => {
+  await setDailyUtcSchedule();
+  const before = new Date('2088-08-16T23:59:59.000Z');
+  const after = new Date('2088-08-17T00:00:01.000Z');
+  const priorDraw = rememberDraw(await service.drawIfDue(before));
+  expect(priorDraw).not.toBeNull();
+
+  let release!: () => void;
+  let acquired!: () => void;
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const ready = new Promise<void>((resolve) => {
+    acquired = resolve;
+  });
+  const lock = database.db.transaction(async (tx) => {
+    await tx.select().from(settings).where(eq(settings.id, 1)).for('update');
+    acquired();
+    await released;
+  });
+  await ready;
+  vi.useFakeTimers({ toFake: ['Date'] });
+  try {
+    vi.setSystemTime(before);
+    const pendingDraw = service.drawIfDue();
+    const pendingAttendance = service.attend(
+      secondParticipant.id,
+      { drawId: priorDraw!.id },
+      crypto.randomUUID(),
+    );
+    const attendanceOutcome = pendingAttendance.then(
+      () => 'awarded',
+      (error: unknown) => (error as { code: string }).code,
+    );
+    vi.setSystemTime(after);
+    release();
+    await lock;
+    const nextDraw = rememberDraw(await pendingDraw);
+    expect(nextDraw?.localDate).toBe('2088-08-17');
+    expect(await attendanceOutcome).toBe('ATTENDANCE_CLOSED');
+  } finally {
+    release();
+    await lock;
+    vi.useRealTimers();
+  }
 });

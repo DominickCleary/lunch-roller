@@ -50,6 +50,7 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
       - run: node scripts/check-worker.mjs
+      - run: node scripts/check-worker.mjs --push-config
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

@@ -1,7 +1,7 @@
 import '@lunch/db/env';
 import { writeFile, rm } from 'node:fs/promises';
 import { createDatabase, GameService } from '@lunch/db';
-import * as webPush from 'web-push';
+import webPush from 'web-push';
 import { configurePush, runTick } from './scheduler.js';
 
 const intervalMs = 30_000;

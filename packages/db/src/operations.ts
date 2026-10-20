@@ -524,10 +524,12 @@ export class GameService {
     );
   }
 
-  async drawIfDue(now = new Date()): Promise<DrawResponse | null> {
+  async drawIfDue(now?: Date): Promise<DrawResponse | null> {
     return transaction(this.database, async (tx) => {
       const schedule = await currentSchedule(tx);
-      const due = evaluateSchedule(now, schedule);
+      // Resolve the live clock after the serialization lock: a waiting tick may cross midnight.
+      const instant = now ?? new Date();
+      const due = evaluateSchedule(instant, schedule);
       if (!due.due || !due.scheduled) return null;
       const [existing] = await tx
         .select()
@@ -559,7 +561,7 @@ export class GameService {
           placeName: winner.name,
           snapshot,
           sample,
-          drawnAt: now,
+          drawnAt: instant,
         })
         .returning();
       await tx
@@ -602,7 +604,7 @@ export class GameService {
     participantId: string,
     input: { drawId: string },
     key: string,
-    now = new Date(),
+    now?: Date,
   ): Promise<AttendanceResponse> {
     const body = { drawId: input.drawId };
     const hash = requestHash('POST', '/api/v1/attendance', body);
@@ -615,10 +617,11 @@ export class GameService {
         .from(draws)
         .where(eq(draws.id, input.drawId));
       if (!draw) fail(404, 'DRAW_NOT_FOUND', 'Draw was not found.');
-      const clock = localClock(now, draw.timezone);
+      const instant = now ?? new Date();
+      const clock = localClock(instant, draw.timezone);
       if (
         clock.localDate !== draw.localDate ||
-        now.getTime() < draw.drawnAt.getTime()
+        instant.getTime() < draw.drawnAt.getTime()
       )
         fail(409, 'ATTENDANCE_CLOSED', 'The attendance window is closed.');
       const [already] = await tx

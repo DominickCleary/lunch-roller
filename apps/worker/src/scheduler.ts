@@ -65,7 +65,8 @@ export async function runTick(options: {
   }
 
   try {
-    await options.game.drawIfDue(now);
+    // Let the shared transaction resolve its live clock after acquiring the game lock.
+    await options.game.drawIfDue(options.now);
   } catch {
     options.log('draw_attempt_failed');
   }
