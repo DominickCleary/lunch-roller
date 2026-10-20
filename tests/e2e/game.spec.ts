@@ -97,7 +97,7 @@ async function exerciseAdminUiAndGame(
 
   const memberSelect = page.getByLabel('Your name');
   await memberSelect.selectOption({ label: archivedName });
-  await page.getByRole('button', { name: 'Join in' }).click();
+  await page.getByRole('button', { name: 'Enter lunch wheel' }).click();
   await expect(page.locator('.member-status')).toContainText(archivedName);
   await page.reload();
   await expect(page.locator('.member-status')).toContainText(archivedName);
@@ -112,7 +112,7 @@ async function exerciseAdminUiAndGame(
   await expect(page.getByLabel('Your name')).not.toContainText(archivedName);
 
   await page.getByLabel('Your name').selectOption({ label: memberName });
-  await page.getByRole('button', { name: 'Join in' }).click();
+  await page.getByRole('button', { name: 'Enter lunch wheel' }).click();
   await expect(page.locator('.member-status')).toContainText(memberName);
   await page.reload();
   await expect(page.locator('.member-status')).toContainText(memberName);
@@ -288,17 +288,14 @@ async function exerciseAdminUiAndGame(
     });
     const secondPage = await secondContext.newPage();
     await secondPage.goto(appOrigin);
-    await expect(secondPage.locator('.wheel-footer strong')).toHaveText(
-      result.placeName,
-    );
     await expect(secondPage.getByRole('heading', { level: 1 })).toHaveText(
       'Lunch Roller',
     );
+    await expect(secondPage.getByTestId('name-picker')).toBeVisible();
     await expect(secondPage.getByLabel('Your name')).toBeVisible();
     await expect(
-      secondPage.getByRole('button', { name: 'Join in' }),
+      secondPage.getByRole('button', { name: 'Enter lunch wheel' }),
     ).toBeVisible();
-    await expect(secondPage.locator('.wheel-footer strong')).toBeVisible();
     await expect(
       secondPage.locator('.top-actions').getByText('Admin'),
     ).toBeVisible();
@@ -317,7 +314,14 @@ async function exerciseAdminUiAndGame(
     );
     await expect(
       secondPage.getByRole('button', { name: /Get lunch alerts/ }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
+    await secondPage
+      .getByLabel('Your name')
+      .selectOption({ label: memberName });
+    await secondPage.getByRole('button', { name: 'Enter lunch wheel' }).click();
+    await expect(secondPage.locator('.wheel-footer strong')).toHaveText(
+      result.placeName,
+    );
     const reducedTransition = await secondPage
       .locator('.wheel')
       .evaluate((element) => getComputedStyle(element).transitionDuration);

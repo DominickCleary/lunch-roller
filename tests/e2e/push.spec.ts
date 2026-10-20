@@ -216,7 +216,7 @@ test('permission is requested only on opt-in and core member actions remain avai
   await page.getByLabel('Your name').selectOption({
     label: browserParticipantName,
   });
-  await page.getByRole('button', { name: 'Join in' }).click();
+  await page.getByRole('button', { name: 'Enter lunch wheel' }).click();
   await expect(page.locator('.member-status')).toContainText(
     browserParticipantName,
   );
