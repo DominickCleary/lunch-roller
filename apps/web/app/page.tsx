@@ -1354,12 +1354,12 @@ export default function Home() {
                   data-testid="change-name"
                   onClick={changeName}
                 >
-                  Change name
+                  Logout
                 </button>
               )}
               <div className="member-status">
                 <div>
-                  <span className="status-label">SELECTED NAME</span>
+                  <span className="status-label">YOU ARE</span>
                   <strong>{currentName ?? 'No one yet'}</strong>
                 </div>
                 <div className="balance">
