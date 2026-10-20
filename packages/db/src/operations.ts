@@ -29,6 +29,7 @@ import type {
   AttendanceResponse,
   Draw as DrawResponse,
   Participant,
+  ParticipantRemoval,
   Place,
   PurchaseRequest,
   PurchaseResponse,
@@ -166,6 +167,44 @@ function placeView(row: typeof places.$inferSelect): Place {
 
 function getScheduleFromRow(row: typeof settings.$inferSelect): Schedule {
   return { timezone: row.timezone, time: row.spinTime, weekdays: row.weekdays };
+}
+
+async function deactivateParticipant(tx: Tx, id: string): Promise<void> {
+  const subs = await tx
+    .update(pushSubscriptions)
+    .set({ active: false })
+    .where(eq(pushSubscriptions.participantId, id))
+    .returning({ id: pushSubscriptions.id });
+  if (subs.length)
+    await tx
+      .update(notificationOutbox)
+      .set({
+        sentAt: new Date(),
+        lockedUntil: null,
+        leaseToken: null,
+        lastError: 'participant-inactive',
+      })
+      .where(
+        and(
+          inArray(
+            notificationOutbox.subscriptionId,
+            subs.map((subscription) => subscription.id),
+          ),
+          isNull(notificationOutbox.sentAt),
+        ),
+      );
+}
+
+async function participantHasReferences(tx: Tx, id: string): Promise<boolean> {
+  const [row] = await tx.execute<{ referenced: boolean }>(sql`
+    select
+      exists(select 1 from attendance where participant_id = ${id}::uuid) or
+      exists(select 1 from token_ledger where participant_id = ${id}::uuid) or
+      exists(select 1 from places where added_by = ${id}::uuid) or
+      exists(select 1 from push_subscriptions where participant_id = ${id}::uuid)
+      as referenced
+  `);
+  return row?.referenced ?? false;
 }
 
 async function transaction<T>(
@@ -330,31 +369,34 @@ export class GameService {
         .where(eq(participants.id, id))
         .returning();
       if (input.active === false) {
-        const subs = await tx
-          .update(pushSubscriptions)
-          .set({ active: false })
-          .where(eq(pushSubscriptions.participantId, id))
-          .returning({ id: pushSubscriptions.id });
-        if (subs.length)
-          await tx
-            .update(notificationOutbox)
-            .set({
-              sentAt: new Date(),
-              lockedUntil: null,
-              leaseToken: null,
-              lastError: 'participant-inactive',
-            })
-            .where(
-              and(
-                inArray(
-                  notificationOutbox.subscriptionId,
-                  subs.map((subscription) => subscription.id),
-                ),
-                isNull(notificationOutbox.sentAt),
-              ),
-            );
+        await deactivateParticipant(tx, id);
       }
       return participantView(row!);
+    });
+  }
+
+  async removeParticipant(id: string): Promise<ParticipantRemoval> {
+    return transaction(this.database, async (tx) => {
+      const [current] = await tx
+        .select({ id: participants.id })
+        .from(participants)
+        .where(eq(participants.id, id));
+      if (!current)
+        fail(404, 'PARTICIPANT_NOT_FOUND', 'Participant was not found.');
+
+      if (await participantHasReferences(tx, id)) {
+        await tx
+          .update(participants)
+          .set({ active: false })
+          .where(eq(participants.id, id));
+        await deactivateParticipant(tx, id);
+        return { participantId: id, action: 'archived' };
+      }
+
+      // Foreign keys remain the final guard if a reference is added outside the
+      // settings-locked game mutation path.
+      await tx.delete(participants).where(eq(participants.id, id));
+      return { participantId: id, action: 'deleted' };
     });
   }
 
