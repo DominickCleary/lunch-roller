@@ -35,6 +35,7 @@ import type {
   PurchaseResponse,
   PushSubscriptionInput,
   Schedule,
+  SetupStatus,
   TodayResponse,
   WalletResponse,
 } from '@lunch/contracts';
@@ -303,6 +304,37 @@ async function currentSchedule(tx: Tx): Promise<Schedule> {
   return getScheduleFromRow(row);
 }
 
+async function setupStatusInTransaction(tx: Tx): Promise<SetupStatus> {
+  const [row] = await tx
+    .select({ completed: settings.setupCompleted })
+    .from(settings)
+    .where(eq(settings.id, 1));
+  if (!row) fail(503, 'NOT_INITIALIZED', 'Game settings are not initialized.');
+  const [participantCount] = await tx
+    .select({ count: sql<number>`count(*)::int` })
+    .from(participants)
+    .where(eq(participants.active, true));
+  const [placeCount] = await tx
+    .select({ count: sql<number>`count(*)::int` })
+    .from(places)
+    .where(eq(places.active, true));
+  return {
+    completed: row.completed,
+    participantCount: participantCount!.count,
+    placeCount: placeCount!.count,
+  };
+}
+
+async function requireSetupComplete(tx: Tx): Promise<void> {
+  const [row] = await tx
+    .select({ completed: settings.setupCompleted })
+    .from(settings)
+    .where(eq(settings.id, 1));
+  if (!row) fail(503, 'NOT_INITIALIZED', 'Game settings are not initialized.');
+  if (!row.completed)
+    fail(403, 'SETUP_REQUIRED', 'Administrator setup is not complete.');
+}
+
 function secureSample(): number {
   // 53 unbiased bits produce a representable uniform value in [0, 1).
   const bytes = randomBytes(7);
@@ -315,6 +347,31 @@ function secureSample(): number {
 export class GameService {
   constructor(private readonly database: Database) {}
 
+  async getSetupStatus(): Promise<SetupStatus> {
+    return this.database.db.transaction(
+      (tx) => setupStatusInTransaction(tx as Tx),
+      { isolationLevel: 'repeatable read', accessMode: 'read only' },
+    );
+  }
+
+  async completeSetup(): Promise<SetupStatus> {
+    return transaction(this.database, async (tx) => {
+      const status = await setupStatusInTransaction(tx);
+      if (status.completed) return status;
+      if (status.participantCount < 1 || status.placeCount < 1)
+        fail(
+          409,
+          'SETUP_INCOMPLETE',
+          'Add at least one active participant and place before completing setup.',
+        );
+      await tx
+        .update(settings)
+        .set({ setupCompleted: true })
+        .where(eq(settings.id, 1));
+      return { ...status, completed: true };
+    });
+  }
+
   async listParticipants(includeInactive = false): Promise<Participant[]> {
     const query = this.database.db.select().from(participants);
     const rows = includeInactive
@@ -326,6 +383,14 @@ export class GameService {
   }
 
   async selectParticipant(id: string): Promise<Participant> {
+    const setup = await this.database.db
+      .select({ completed: settings.setupCompleted })
+      .from(settings)
+      .where(eq(settings.id, 1));
+    if (!setup[0])
+      fail(503, 'NOT_INITIALIZED', 'Game settings are not initialized.');
+    if (!setup[0].completed)
+      fail(403, 'SETUP_REQUIRED', 'Administrator setup is not complete.');
     const [row] = await this.database.db
       .select()
       .from(participants)
@@ -475,6 +540,7 @@ export class GameService {
   async wallet(participantId: string): Promise<WalletResponse> {
     return this.database.db.transaction(
       async (tx) => {
+        await requireSetupComplete(tx as Tx);
         const [person] = await tx
           .select({ id: participants.id, active: participants.active })
           .from(participants)
@@ -568,6 +634,11 @@ export class GameService {
 
   async drawIfDue(now?: Date): Promise<DrawResponse | null> {
     return transaction(this.database, async (tx) => {
+      const [setup] = await tx
+        .select({ completed: settings.setupCompleted })
+        .from(settings)
+        .where(eq(settings.id, 1));
+      if (!setup?.completed) return null;
       const schedule = await currentSchedule(tx);
       // Resolve the live clock after the serialization lock: a waiting tick may cross midnight.
       const instant = now ?? new Date();
@@ -651,6 +722,7 @@ export class GameService {
     const body = { drawId: input.drawId };
     const hash = requestHash('POST', '/api/v1/attendance', body);
     return transaction(this.database, async (tx) => {
+      await requireSetupComplete(tx);
       await activeParticipant(tx, participantId);
       const prior = await existingKey(tx, participantId, key, hash);
       if (prior) return replay<AttendanceResponse>(prior);
@@ -717,6 +789,7 @@ export class GameService {
   ): Promise<PurchaseResponse> {
     const hash = requestHash('POST', route, input);
     return transaction(this.database, async (tx) => {
+      await requireSetupComplete(tx);
       await activeParticipant(tx, participantId);
       const prior = await existingKey(tx, participantId, key, hash);
       if (prior) return replay<PurchaseResponse>(prior);
@@ -764,6 +837,7 @@ export class GameService {
     const body = { name: normalizedName(input.name) };
     const hash = requestHash('POST', '/api/v1/places', body);
     return transaction(this.database, async (tx) => {
+      await requireSetupComplete(tx);
       await activeParticipant(tx, participantId);
       const prior = await existingKey(tx, participantId, key, hash);
       if (prior) return replay<PurchaseResponse>(prior);
@@ -888,6 +962,7 @@ export class GameService {
     input: PushSubscriptionInput,
   ): Promise<{ id: string }> {
     return transaction(this.database, async (tx) => {
+      await requireSetupComplete(tx);
       await activeParticipant(tx, participantId);
       const [found] = await tx
         .select()
@@ -943,6 +1018,7 @@ export class GameService {
 
   async unsubscribe(participantId: string, id: string): Promise<void> {
     await transaction(this.database, async (tx) => {
+      await requireSetupComplete(tx);
       const [sub] = await tx
         .select()
         .from(pushSubscriptions)
@@ -975,6 +1051,11 @@ export class GameService {
     limit = 10,
   ): Promise<NotificationJob[]> {
     return transaction(this.database, async (tx) => {
+      const [setup] = await tx
+        .select({ completed: settings.setupCompleted })
+        .from(settings)
+        .where(eq(settings.id, 1));
+      if (!setup?.completed) return [];
       await tx
         .update(notificationOutbox)
         .set({
