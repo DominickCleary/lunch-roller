@@ -26,6 +26,102 @@ import { TeamActivity } from './team-activity';
 type ApiError = { error?: { code?: string; message?: string } };
 type TokenBalanceRow = { participantId: string; balance: number };
 type RestaurantOdd = { placeId: string; name: string; percent: number };
+const oddsPrecision = 1_000_000;
+const minimumOddsPercent = 1 / oddsPrecision;
+const totalOddsUnits = 100 * oddsPrecision;
+
+function redistributeRestaurantOdds(
+  places: RestaurantOdd[],
+  current: Record<string, string>,
+  changedPlaceId: string,
+  requestedPercent: number,
+): Record<string, string> {
+  if (places.length === 1) {
+    return { [places[0]!.placeId]: '100.000000' };
+  }
+
+  const otherPlaces = places.filter(
+    (place) => place.placeId !== changedPlaceId,
+  );
+  if (!otherPlaces.length) return current;
+
+  const minUnits = 1;
+  const maxChangedUnits = totalOddsUnits - minUnits * otherPlaces.length;
+  const changedUnits = Math.min(
+    maxChangedUnits,
+    Math.max(minUnits, Math.round(requestedPercent * oddsPrecision)),
+  );
+  let remainingUnits = totalOddsUnits - changedUnits;
+  const weights = new Map(
+    otherPlaces.map((place) => {
+      const draftPercent = Number(current[place.placeId]);
+      const weight =
+        Number.isFinite(draftPercent) && draftPercent > 0
+          ? draftPercent
+          : place.percent;
+      return [
+        place.placeId,
+        Number.isFinite(weight) && weight > 0 ? weight : 1,
+      ];
+    }),
+  );
+  const units = new Map<string, number>();
+  let unassigned = [...otherPlaces];
+
+  while (unassigned.length) {
+    const totalWeight = unassigned.reduce(
+      (sum, place) => sum + weights.get(place.placeId)!,
+      0,
+    );
+    const belowMinimum = unassigned.filter(
+      (place) =>
+        (remainingUnits * weights.get(place.placeId)!) / totalWeight < minUnits,
+    );
+    if (belowMinimum.length) {
+      for (const place of belowMinimum) units.set(place.placeId, minUnits);
+      remainingUnits -= belowMinimum.length * minUnits;
+      const belowMinimumIds = new Set(
+        belowMinimum.map((place) => place.placeId),
+      );
+      unassigned = unassigned.filter(
+        (place) => !belowMinimumIds.has(place.placeId),
+      );
+      continue;
+    }
+
+    const allocations = unassigned.map((place) => {
+      const exactUnits =
+        (remainingUnits * weights.get(place.placeId)!) / totalWeight;
+      const wholeUnits = Math.floor(exactUnits);
+      units.set(place.placeId, wholeUnits);
+      return { placeId: place.placeId, fraction: exactUnits - wholeUnits };
+    });
+    let remainder =
+      remainingUnits -
+      allocations.reduce((sum, item) => {
+        return sum + units.get(item.placeId)!;
+      }, 0);
+    allocations.sort((left, right) => right.fraction - left.fraction);
+    for (let index = 0; remainder > 0; index += 1, remainder -= 1) {
+      const placeId = allocations[index % allocations.length]!.placeId;
+      units.set(placeId, units.get(placeId)! + 1);
+    }
+    break;
+  }
+
+  const next = Object.fromEntries(
+    places.map((place) => [
+      place.placeId,
+      `${(units.get(place.placeId) ?? changedUnits) / oddsPrecision}`,
+    ]),
+  );
+  const otherUnits = otherPlaces.reduce(
+    (sum, place) => sum + units.get(place.placeId)!,
+    0,
+  );
+  next[changedPlaceId] = `${(totalOddsUnits - otherUnits) / oddsPrecision}`;
+  return next;
+}
 type RestaurantEconomySettings = EconomySettings & {
   removePlaceCost: number;
   newPlaceMultiplier: number;
@@ -1002,6 +1098,25 @@ export default function Home() {
       return Number.isFinite(percent) && percent > 0 && percent <= 100;
     }) &&
     Math.abs(restaurantOddsTotal - 100) <= 0.01;
+  const updateRestaurantOdds = (placeId: string, rawPercent: string) => {
+    if (!rawPercent) {
+      setRestaurantOddsDraft({ ...restaurantOddsDraft, [placeId]: '' });
+      return;
+    }
+    const percent = Number(rawPercent);
+    if (!Number.isFinite(percent) || percent <= 0) {
+      setRestaurantOddsDraft({ ...restaurantOddsDraft, [placeId]: rawPercent });
+      return;
+    }
+    setRestaurantOddsDraft(
+      redistributeRestaurantOdds(
+        restaurantOdds,
+        restaurantOddsDraft,
+        placeId,
+        percent,
+      ),
+    );
+  };
   const entryGate = (
     <>
       {entryStage === 'loading' ? (
@@ -2088,9 +2203,10 @@ export default function Home() {
                 >
                   <h3>Restaurant odds</h3>
                   <p className="muted">
-                    Set the share of the wheel for each active restaurant.
-                    Values must total 100%. Saving changes future draws and
-                    keeps completed results as they were.
+                    Adjust one restaurant&apos;s share with its slider or
+                    percentage field. The remaining shares resize proportionally
+                    and stay positive, keeping the total at 100%. Saving changes
+                    future draws and keeps completed results as they were.
                   </p>
                   {restaurantOdds.length ? (
                     <>
@@ -2103,34 +2219,80 @@ export default function Home() {
                             </tr>
                           </thead>
                           <tbody>
-                            {restaurantOdds.map((place) => (
-                              <tr key={place.placeId}>
-                                <th scope="row">{place.name}</th>
-                                <td>
-                                  <label className="odds-input-label">
-                                    <input
-                                      className="table-input odds-input"
-                                      aria-label={`${place.name} percentage`}
-                                      type="number"
-                                      min={0.000001}
-                                      max={100}
-                                      step="0.000001"
-                                      required
-                                      value={
-                                        restaurantOddsDraft[place.placeId] ?? ''
-                                      }
-                                      onChange={(event) =>
-                                        setRestaurantOddsDraft({
-                                          ...restaurantOddsDraft,
-                                          [place.placeId]: event.target.value,
-                                        })
-                                      }
-                                    />{' '}
-                                    <span>%</span>
-                                  </label>
-                                </td>
-                              </tr>
-                            ))}
+                            {restaurantOdds.map((place) => {
+                              const minimumPercent =
+                                restaurantOdds.length === 1
+                                  ? 100
+                                  : minimumOddsPercent;
+                              const maximumPercent =
+                                restaurantOdds.length === 1
+                                  ? 100
+                                  : 100 -
+                                    minimumOddsPercent *
+                                      (restaurantOdds.length - 1);
+                              const draftPercent = Number(
+                                restaurantOddsDraft[place.placeId],
+                              );
+                              const sliderPercent = Math.min(
+                                maximumPercent,
+                                Math.max(
+                                  minimumPercent,
+                                  Number.isFinite(draftPercent) &&
+                                    draftPercent > 0
+                                    ? draftPercent
+                                    : minimumPercent,
+                                ),
+                              );
+                              return (
+                                <tr key={place.placeId}>
+                                  <th scope="row">{place.name}</th>
+                                  <td>
+                                    <div className="odds-editor">
+                                      <input
+                                        className="odds-range"
+                                        aria-label={`${place.name} wheel share slider`}
+                                        type="range"
+                                        min={minimumPercent}
+                                        max={maximumPercent}
+                                        step="0.01"
+                                        value={sliderPercent}
+                                        disabled={restaurantOdds.length === 1}
+                                        onChange={(event) =>
+                                          updateRestaurantOdds(
+                                            place.placeId,
+                                            event.target.value,
+                                          )
+                                        }
+                                      />
+                                      <label className="odds-input-label">
+                                        <input
+                                          className="table-input odds-input"
+                                          aria-label={`${place.name} percentage`}
+                                          type="number"
+                                          min={minimumPercent}
+                                          max={maximumPercent}
+                                          step="0.000001"
+                                          required
+                                          disabled={restaurantOdds.length === 1}
+                                          value={
+                                            restaurantOddsDraft[
+                                              place.placeId
+                                            ] ?? ''
+                                          }
+                                          onChange={(event) =>
+                                            updateRestaurantOdds(
+                                              place.placeId,
+                                              event.target.value,
+                                            )
+                                          }
+                                        />{' '}
+                                        <span>%</span>
+                                      </label>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>

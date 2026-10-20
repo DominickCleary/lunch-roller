@@ -706,6 +706,22 @@ button:disabled {
   align-items: center;
   gap: 5px;
 }
+.odds-editor {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+.odds-range {
+  width: 100%;
+  min-width: 100px;
+  accent-color: var(--primary-bg);
+  touch-action: pan-y;
+  cursor: pointer;
+}
+.odds-range:disabled {
+  cursor: not-allowed;
+}
 .odds-input {
   width: 130px;
 }
