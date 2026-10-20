@@ -6,6 +6,64 @@ export const RULES = Object.freeze({
 export type WeightedPlace = Readonly<{ id: string; logWeight: number }>;
 export type Influence = 'boost' | 'reduce';
 
+export type LocalClock = Readonly<{
+  localDate: string;
+  weekday: number;
+  time: string;
+}>;
+
+/** Read the local calendar clock for an explicit instant and IANA timezone. */
+export function localClock(now: Date, timezone: string): LocalClock {
+  if (!Number.isFinite(now.getTime())) throw new Error('Invalid date');
+
+  const parts = new Intl.DateTimeFormat('en-US-u-ca-iso8601-nu-latn', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    weekday: 'short',
+    hourCycle: 'h23',
+  }).formatToParts(now);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((value) => value.type === type)?.value;
+  const year = part('year');
+  const month = part('month');
+  const day = part('day');
+  const hour = part('hour');
+  const minute = part('minute');
+  const weekday = part('weekday');
+  if (!year || !month || !day || !hour || !minute || !weekday)
+    throw new Error('Unable to read local clock');
+
+  const isoWeekday = weekday === 'Sun' ? 7 : weekdayIndex(weekday);
+  return {
+    localDate: `${year}-${month}-${day}`,
+    weekday: isoWeekday,
+    time: `${hour}:${minute}`,
+  };
+}
+
+function weekdayIndex(weekday: string): number {
+  const index = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(weekday);
+  if (index < 0) throw new Error('Unable to read local weekday');
+  return index + 1;
+}
+
+export function evaluateSchedule(
+  now: Date,
+  schedule: { timezone: string; time: string; weekdays: number[] },
+): { localDate: string; due: boolean; scheduled: boolean } {
+  const clock = localClock(now, schedule.timezone);
+  const scheduled = schedule.weekdays.includes(clock.weekday);
+  return {
+    localDate: clock.localDate,
+    due: scheduled && clock.time >= schedule.time,
+    scheduled,
+  };
+}
+
 function finite(value: number): number {
   if (!Number.isFinite(value)) throw new Error('Weight must be finite');
   return value;
