@@ -3,7 +3,9 @@ import { evaluateSchedule, localClock } from './index.js';
 
 describe('localClock', () => {
   it('returns a local date, ISO weekday, and minute in the requested timezone', () => {
-    expect(localClock(new Date('2026-10-20T10:30:00Z'), 'Europe/Dublin')).toEqual({
+    expect(
+      localClock(new Date('2026-10-20T10:30:00Z'), 'Europe/Dublin'),
+    ).toEqual({
       localDate: '2026-10-20',
       weekday: 2,
       time: '11:30',
@@ -11,7 +13,9 @@ describe('localClock', () => {
   });
 
   it('uses ISO Sunday numbering', () => {
-    expect(localClock(new Date('2026-10-25T11:00:00Z'), 'Europe/Dublin')).toEqual({
+    expect(
+      localClock(new Date('2026-10-25T11:00:00Z'), 'Europe/Dublin'),
+    ).toEqual({
       localDate: '2026-10-25',
       weekday: 7,
       time: '11:00',
@@ -29,17 +33,25 @@ describe('evaluateSchedule', () => {
   const schedule = { timezone: 'Europe/Dublin', time: '11:30', weekdays };
 
   it('is not due before the configured local time and due at or after it', () => {
-    expect(evaluateSchedule(new Date('2026-10-20T10:29:00Z'), schedule)).toEqual({
+    expect(
+      evaluateSchedule(new Date('2026-10-20T10:29:00Z'), schedule),
+    ).toEqual({
       localDate: '2026-10-20',
       due: false,
       scheduled: true,
     });
-    expect(evaluateSchedule(new Date('2026-10-20T10:30:00Z'), schedule).due).toBe(true);
-    expect(evaluateSchedule(new Date('2026-10-20T12:00:00Z'), schedule).due).toBe(true);
+    expect(
+      evaluateSchedule(new Date('2026-10-20T10:30:00Z'), schedule).due,
+    ).toBe(true);
+    expect(
+      evaluateSchedule(new Date('2026-10-20T12:00:00Z'), schedule).due,
+    ).toBe(true);
   });
 
   it('skips weekends and respects edited weekdays and timezone', () => {
-    expect(evaluateSchedule(new Date('2026-10-25T12:00:00Z'), schedule)).toEqual({
+    expect(
+      evaluateSchedule(new Date('2026-10-25T12:00:00Z'), schedule),
+    ).toEqual({
       localDate: '2026-10-25',
       due: false,
       scheduled: false,
@@ -70,7 +82,11 @@ describe('evaluateSchedule', () => {
       time: '01:30',
       weekdays: [7],
     };
-    expect(evaluateSchedule(new Date('2026-10-25T00:30:00Z'), autumnSchedule).due).toBe(true);
-    expect(evaluateSchedule(new Date('2026-10-25T01:30:00Z'), autumnSchedule).due).toBe(true);
+    expect(
+      evaluateSchedule(new Date('2026-10-25T00:30:00Z'), autumnSchedule).due,
+    ).toBe(true);
+    expect(
+      evaluateSchedule(new Date('2026-10-25T01:30:00Z'), autumnSchedule).due,
+    ).toBe(true);
   });
 });

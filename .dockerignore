@@ -1,4 +1,7 @@
 .git
+.worktrees
+.idea
+.codex
 **/node_modules
 **/.next
 **/dist
