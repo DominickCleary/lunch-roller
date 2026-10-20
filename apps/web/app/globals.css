@@ -524,6 +524,11 @@ button:disabled {
   font-size: 10px;
   cursor: pointer;
 }
+.influence-buttons .remove-place-control {
+  color: var(--danger);
+  font-size: 14px;
+  font-weight: 700;
+}
 .add-place {
   padding-top: 10px;
   border-top: 1px solid var(--line);
@@ -533,6 +538,9 @@ button:disabled {
   margin-bottom: 6px;
   font-size: 10px;
   font-weight: 700;
+}
+.add-place-help {
+  margin: -2px 0 7px;
 }
 .add-place input {
   flex: 1;
@@ -713,6 +721,9 @@ button:disabled {
 .admin-tool-card h3 {
   margin: 0 0 9px;
   font-size: 12px;
+}
+.economy-help {
+  margin: 0 0 10px;
 }
 .admin-tool-card .inline-form {
   margin-bottom: 6px;

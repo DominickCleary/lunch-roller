@@ -30,8 +30,10 @@ export const economySettings = z.object({
   addPlaceCost: tokenAmount,
   boostCost: tokenAmount,
   reduceCost: tokenAmount,
+  removePlaceCost: tokenAmount,
   boostMultiplier: z.number().finite().gt(1).max(100),
   reduceMultiplier: z.number().finite().min(0.01).lt(1),
+  newPlaceMultiplier: z.number().finite().min(0.01).max(100),
 });
 export type EconomySettings = z.infer<typeof economySettings>;
 export const defaultEconomySettings: EconomySettings = {
@@ -39,8 +41,10 @@ export const defaultEconomySettings: EconomySettings = {
   addPlaceCost: 20,
   boostCost: 5,
   reduceCost: 5,
+  removePlaceCost: 40,
   boostMultiplier: 1.25,
   reduceMultiplier: 0.8,
+  newPlaceMultiplier: 1,
 };
 export const attendanceStatus = z.object({
   drawId: id.nullable(),
@@ -67,7 +71,7 @@ export const updatePlace = z.object({
 export const attendanceRequest = z.object({ drawId: id });
 export const purchaseRequest = z.object({
   placeId: id,
-  action: z.enum(['boost', 'reduce']),
+  action: z.enum(['boost', 'reduce', 'remove']),
 });
 export const schedule = z.object({
   timezone: z.string().refine((value) => {

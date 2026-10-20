@@ -36,6 +36,13 @@
       "when": 1792538764306,
       "tag": "0004_organic_jackpot",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792539856956,
+      "tag": "0005_watery_amazoness",
+      "breakpoints": true
     }
   ]
 }

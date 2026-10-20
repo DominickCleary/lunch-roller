@@ -87,10 +87,12 @@ it('uses configured rewards and prices, replays original responses, and preserve
   const economy = {
     attendanceReward: 13,
     addPlaceCost: 7,
+    removePlaceCost: 12,
     boostCost: 3,
     reduceCost: 4,
     boostMultiplier: 1.7,
     reduceMultiplier: 0.6,
+    newPlaceMultiplier: 1.5,
   };
   expect(await service.setEconomy(economy)).toEqual(economy);
 
@@ -143,7 +145,32 @@ it('uses configured rewards and prices, replays original responses, and preserve
     Math.log(
       weightsBeforeAdd.reduce((sum, weight) => sum + Math.exp(weight), 0) /
         weightsBeforeAdd.length,
-    ),
+    ) + Math.log(economy.newPlaceMultiplier),
+  );
+
+  const removed = await service.purchase(
+    member.id,
+    { placeId: added.place.id, action: 'remove' },
+    crypto.randomUUID(),
+  );
+  expect(removed.spentTokens).toBe(economy.removePlaceCost);
+  expect(removed.place.active).toBe(false);
+  const weightsBeforeRestore = (await service.listPlaces()).map(
+    (place) => place.logWeight,
+  );
+  const restored = await service.addPlace(
+    member.id,
+    { name: added.place.name },
+    crypto.randomUUID(),
+  );
+  expect(restored.place.id).toBe(added.place.id);
+  expect(restored.place.active).toBe(true);
+  expect(restored.spentTokens).toBe(economy.addPlaceCost);
+  expect(restored.place.logWeight).toBeCloseTo(
+    Math.log(
+      weightsBeforeRestore.reduce((sum, weight) => sum + Math.exp(weight), 0) /
+        weightsBeforeRestore.length,
+    ) + Math.log(economy.newPlaceMultiplier),
   );
 
   const attendanceKey = crypto.randomUUID();
@@ -163,6 +190,8 @@ it('uses configured rewards and prices, replays original responses, and preserve
     reduceCost: 9,
     boostMultiplier: 2.2,
     reduceMultiplier: 0.4,
+    removePlaceCost: 18,
+    newPlaceMultiplier: 2,
   };
   await service.setEconomy(changedEconomy);
   const replayedPurchase = await service.purchase(

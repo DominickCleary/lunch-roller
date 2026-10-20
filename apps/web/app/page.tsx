@@ -26,6 +26,15 @@ import { TeamActivity } from './team-activity';
 type ApiError = { error?: { code?: string; message?: string } };
 type TokenBalanceRow = { participantId: string; balance: number };
 type RestaurantOdd = { placeId: string; name: string; percent: number };
+type RestaurantEconomySettings = EconomySettings & {
+  removePlaceCost: number;
+  newPlaceMultiplier: number;
+};
+const fallbackEconomySettings: RestaurantEconomySettings = {
+  ...defaultEconomySettings,
+  removePlaceCost: 40,
+  newPlaceMultiplier: 1,
+};
 type Pending = {
   key: string;
   route: string;
@@ -162,8 +171,8 @@ export default function Home() {
   const [preferences, setPreferences] = useState<GamePreferences>(
     defaultGamePreferences,
   );
-  const [economy, setEconomy] = useState<EconomySettings>(
-    defaultEconomySettings,
+  const [economy, setEconomy] = useState<RestaurantEconomySettings>(
+    fallbackEconomySettings,
   );
   const [pushOn, setPushOn] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
@@ -232,7 +241,7 @@ export default function Home() {
       request<{ places: RestaurantOdd[] }>('/admin/restaurant-odds'),
       request<Schedule>('/admin/schedule'),
       request<GamePreferences>('/admin/preferences'),
-      request<EconomySettings>('/admin/economy'),
+      request<RestaurantEconomySettings>('/admin/economy'),
     ]);
     setAllParticipants(people.participants);
     const balanceMap = Object.fromEntries(
@@ -394,7 +403,10 @@ export default function Home() {
   }
 
   const odds = useMemo(() => today?.odds ?? [], [today]);
-  const currentEconomy = today?.economy ?? defaultEconomySettings;
+  const currentEconomy: RestaurantEconomySettings = {
+    ...fallbackEconomySettings,
+    ...today?.economy,
+  };
   const baselineOptions =
     today?.wheel.mode === 'result' && today.result
       ? today.result.snapshot
@@ -658,8 +670,10 @@ export default function Home() {
         (route === '/places' || route === '/purchases') &&
           result.spentTokens !== undefined
           ? route === '/places'
-            ? `New lunch place added for ${result.spentTokens} tokens.`
-            : message
+            ? `Restaurant added or restored for ${result.spentTokens} tokens.`
+            : (payload as { action?: string }).action === 'remove'
+              ? `Restaurant removed for ${result.spentTokens} tokens.`
+              : message
           : message,
       );
       return true;
@@ -1632,6 +1646,26 @@ export default function Home() {
                         >
                           − ↘
                         </button>
+                        <button
+                          className="remove-place-control"
+                          aria-label={`Remove ${option.name} from the wheel for ${currentEconomy.removePlaceCost} tokens`}
+                          title={`Remove place (${currentEconomy.removePlaceCost} tokens)`}
+                          disabled={busy || !participantId}
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `Remove ${option.name} from the wheel for ${currentEconomy.removePlaceCost} tokens? You can restore it later by adding the same name.`,
+                              )
+                            )
+                              void mutate(
+                                '/purchases',
+                                { placeId, action: 'remove' },
+                                'Restaurant removed.',
+                              );
+                          }}
+                        >
+                          ×
+                        </button>
                       </div>
                     </div>
                   );
@@ -1662,6 +1696,11 @@ export default function Home() {
                 }}
               >
                 <label htmlFor="place-name">Have a new spot in mind?</label>
+                <p className="muted add-place-help">
+                  Add a restaurant for {currentEconomy.addPlaceCost} tokens. If
+                  it was removed before, adding the same name restores it with
+                  the admin-configured starting weight.
+                </p>
                 <div className="inline-form">
                   <input
                     id="place-name"
@@ -2297,6 +2336,45 @@ export default function Home() {
                         }
                       />
                     </label>
+                    <label>
+                      Remove place cost (tokens)
+                      <input
+                        type="number"
+                        required
+                        min={1}
+                        max={2147483647}
+                        step={1}
+                        value={economy.removePlaceCost}
+                        onChange={(event) =>
+                          setEconomy({
+                            ...economy,
+                            removePlaceCost: Number(event.target.value),
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      New restaurant starting weight vs current average
+                      <input
+                        type="number"
+                        required
+                        min={0.01}
+                        max={100}
+                        step="any"
+                        value={economy.newPlaceMultiplier}
+                        onChange={(event) =>
+                          setEconomy({
+                            ...economy,
+                            newPlaceMultiplier: Number(event.target.value),
+                          })
+                        }
+                      />
+                    </label>
+                    <p className="muted economy-help">
+                      The multiplier sets a new restaurant&apos;s starting
+                      weight relative to the current average. Re-adding a
+                      removed name uses this setting.
+                    </p>
                     <label>
                       Boost cost (tokens)
                       <input

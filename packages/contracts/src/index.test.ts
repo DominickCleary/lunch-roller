@@ -23,6 +23,7 @@ it('validates the complete token economy and directional weight multipliers', ()
   for (const field of [
     'attendanceReward',
     'addPlaceCost',
+    'removePlaceCost',
     'boostCost',
     'reduceCost',
   ]) {
@@ -35,6 +36,7 @@ it('validates the complete token economy and directional weight multipliers', ()
   for (const [field, values] of [
     ['boostMultiplier', [0, 1, 101, Infinity, NaN]],
     ['reduceMultiplier', [0, 0.001, 1, Infinity, NaN]],
+    ['newPlaceMultiplier', [0, 0.001, 101, Infinity, NaN]],
   ] as const)
     for (const value of values)
       expect(

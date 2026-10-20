@@ -2,6 +2,7 @@ export const RULES = Object.freeze({
   attendanceReward: 10,
   influenceCost: 5,
   addPlaceCost: 20,
+  removePlaceCost: 40,
 });
 export type WeightedPlace = Readonly<{ id: string; logWeight: number }>;
 export type Influence = 'boost' | 'reduce';
@@ -166,29 +167,42 @@ export function influenceWeight(
   return finite(finite(logWeight) + Math.log(multiplier));
 }
 
-export function newPlaceLogWeight(places: readonly WeightedPlace[]): number {
-  return logMean(places.map((place) => place.logWeight));
+export function newPlaceLogWeight(
+  places: readonly WeightedPlace[],
+  multiplier = 1,
+): number {
+  if (!Number.isFinite(multiplier) || multiplier < 0.01 || multiplier > 100)
+    throw new Error('Invalid new-place multiplier');
+  return logMean(places.map((place) => place.logWeight)) + Math.log(multiplier);
 }
 
 export function spendTokens(
   balance: number,
-  action: Influence | 'add-place',
-  prices: { addPlaceCost: number; boostCost: number; reduceCost: number } = {
+  action: Influence | 'add-place' | 'remove-place',
+  prices: {
+    addPlaceCost: number;
+    boostCost: number;
+    reduceCost: number;
+    removePlaceCost?: number;
+  } = {
     addPlaceCost: RULES.addPlaceCost,
     boostCost: RULES.influenceCost,
     reduceCost: RULES.influenceCost,
+    removePlaceCost: RULES.removePlaceCost,
   },
 ): number {
   if (!Number.isSafeInteger(balance) || balance < 0)
     throw new Error('Invalid token balance');
-  if (!['boost', 'reduce', 'add-place'].includes(action))
+  if (!['boost', 'reduce', 'add-place', 'remove-place'].includes(action))
     throw new Error('Unknown purchase');
   const cost =
     action === 'add-place'
       ? prices.addPlaceCost
-      : action === 'boost'
-        ? prices.boostCost
-        : prices.reduceCost;
+      : action === 'remove-place'
+        ? (prices.removePlaceCost ?? RULES.removePlaceCost)
+        : action === 'boost'
+          ? prices.boostCost
+          : prices.reduceCost;
   if (!Number.isSafeInteger(cost) || cost < 1 || cost > 2147483647)
     throw new Error('Invalid token cost');
   if (balance < cost) throw new Error('Insufficient tokens');

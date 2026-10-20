@@ -71,6 +71,7 @@ export const settings = pgTable(
     spinTime: text('spin_time').default('11:30').notNull(),
     attendanceReward: integer('attendance_reward').default(10).notNull(),
     addPlaceCost: integer('add_place_cost').default(20).notNull(),
+    removePlaceCost: integer('remove_place_cost').default(40).notNull(),
     boostCost: integer('boost_cost').default(5).notNull(),
     reduceCost: integer('reduce_cost').default(5).notNull(),
     boostMultiplier: doublePrecision('boost_multiplier')
@@ -78,6 +79,9 @@ export const settings = pgTable(
       .notNull(),
     reduceMultiplier: doublePrecision('reduce_multiplier')
       .default(0.8)
+      .notNull(),
+    newPlaceMultiplier: doublePrecision('new_place_multiplier')
+      .default(1)
       .notNull(),
     wheelSwitchTime: text('wheel_switch_time').default('15:00').notNull(),
     checkInPledge: text('check_in_pledge')
@@ -92,7 +96,7 @@ export const settings = pgTable(
     check('settings_singleton', sql`${t.id} = 1`),
     check(
       'settings_token_amounts',
-      sql`${t.attendanceReward} > 0 and ${t.addPlaceCost} > 0 and ${t.boostCost} > 0 and ${t.reduceCost} > 0`,
+      sql`${t.attendanceReward} > 0 and ${t.addPlaceCost} > 0 and ${t.removePlaceCost} > 0 and ${t.boostCost} > 0 and ${t.reduceCost} > 0`,
     ),
     check(
       'settings_boost_multiplier',
@@ -101,6 +105,10 @@ export const settings = pgTable(
     check(
       'settings_reduce_multiplier',
       sql`${t.reduceMultiplier} >= 0.01 and ${t.reduceMultiplier} < 1`,
+    ),
+    check(
+      'settings_new_place_multiplier',
+      sql`${t.newPlaceMultiplier} >= 0.01 and ${t.newPlaceMultiplier} <= 100`,
     ),
     check(
       'settings_wheel_switch_time',
@@ -173,7 +181,14 @@ export const tokenLedger = pgTable(
       .references(() => participants.id),
     delta: integer().notNull(),
     kind: text({
-      enum: ['attendance', 'boost', 'reduce', 'add-place', 'correction'],
+      enum: [
+        'attendance',
+        'boost',
+        'reduce',
+        'add-place',
+        'remove-place',
+        'correction',
+      ],
     }).notNull(),
     idempotencyKey: text('idempotency_key').notNull(),
     requestHash: text('request_hash').notNull(),
@@ -190,7 +205,7 @@ export const tokenLedger = pgTable(
     check('ledger_nonzero', sql`${t.delta} <> 0`),
     check(
       'ledger_kind',
-      sql`${t.kind} in ('attendance','boost','reduce','add-place','correction')`,
+      sql`${t.kind} in ('attendance','boost','reduce','add-place','remove-place','correction')`,
     ),
     check(
       'correction_reason',

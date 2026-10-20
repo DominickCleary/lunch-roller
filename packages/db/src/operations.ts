@@ -195,8 +195,10 @@ function economyFromRow(row: typeof settings.$inferSelect): EconomySettings {
     addPlaceCost: row.addPlaceCost,
     boostCost: row.boostCost,
     reduceCost: row.reduceCost,
+    removePlaceCost: row.removePlaceCost,
     boostMultiplier: row.boostMultiplier,
     reduceMultiplier: row.reduceMultiplier,
+    newPlaceMultiplier: row.newPlaceMultiplier,
   };
 }
 
@@ -683,7 +685,8 @@ export class GameService {
           .select({ id: places.id, logWeight: places.logWeight })
           .from(places)
           .where(eq(places.active, true));
-        const logWeight = newPlaceLogWeight(active);
+        const economy = await currentEconomy(tx);
+        const logWeight = newPlaceLogWeight(active, economy.newPlaceMultiplier);
         const [row] = await tx
           .insert(places)
           .values({ name: normalizedName(input.name), logWeight })
@@ -1111,7 +1114,11 @@ export class GameService {
       const current = await balance(tx, participantId);
       const economy = await currentEconomy(tx);
       const cost =
-        input.action === 'boost' ? economy.boostCost : economy.reduceCost;
+        input.action === 'boost'
+          ? economy.boostCost
+          : input.action === 'reduce'
+            ? economy.reduceCost
+            : economy.removePlaceCost;
       if (current < cost)
         fail(
           409,
@@ -1120,9 +1127,17 @@ export class GameService {
         );
       const [changed] = await tx
         .update(places)
-        .set({
-          logWeight: influenceWeight(place.logWeight, input.action, economy),
-        })
+        .set(
+          input.action === 'remove'
+            ? { active: false }
+            : {
+                logWeight: influenceWeight(
+                  place.logWeight,
+                  input.action,
+                  economy,
+                ),
+              },
+        )
         .where(eq(places.id, place.id))
         .returning();
       const response = {
@@ -1133,11 +1148,14 @@ export class GameService {
       await tx.insert(tokenLedger).values({
         participantId,
         delta: -cost,
-        kind: input.action,
+        kind: input.action === 'remove' ? 'remove-place' : input.action,
         idempotencyKey: key,
         requestHash: hash,
         response,
         placeId: place.id,
+        ...(input.action === 'remove'
+          ? { reason: `Removed ${place.name} from the wheel.` }
+          : {}),
       });
       return response;
     });
@@ -1156,7 +1174,8 @@ export class GameService {
       const prior = await existingKey(tx, participantId, key, hash);
       if (prior) return replay<PurchaseResponse>(prior);
       const current = await balance(tx, participantId);
-      const { addPlaceCost } = await currentEconomy(tx);
+      const economy = await currentEconomy(tx);
+      const { addPlaceCost } = economy;
       if (current < addPlaceCost)
         fail(
           409,
@@ -1167,14 +1186,46 @@ export class GameService {
         .select({ id: places.id, logWeight: places.logWeight })
         .from(places)
         .where(eq(places.active, true));
-      const [place] = await tx
-        .insert(places)
-        .values({
-          name: body.name,
-          addedBy: participantId,
-          logWeight: newPlaceLogWeight(active),
-        })
-        .returning();
+      const [alreadyActive] = await tx
+        .select({ id: places.id })
+        .from(places)
+        .where(
+          and(
+            eq(places.active, true),
+            sql`lower(btrim(${places.name})) = lower(${body.name})`,
+          ),
+        );
+      if (alreadyActive)
+        fail(409, 'DUPLICATE_NAME', 'That restaurant is already on the wheel.');
+      const [archived] = await tx
+        .select()
+        .from(places)
+        .where(
+          and(
+            eq(places.active, false),
+            sql`lower(btrim(${places.name})) = lower(${body.name})`,
+          ),
+        )
+        .orderBy(desc(places.createdAt))
+        .limit(1);
+      const startingWeight = newPlaceLogWeight(
+        active,
+        economy.newPlaceMultiplier,
+      );
+      const [place] = archived
+        ? await tx
+            .update(places)
+            .set({ name: body.name, active: true, logWeight: startingWeight })
+            .where(eq(places.id, archived.id))
+            .returning()
+        : await tx
+            .insert(places)
+            .values({
+              name: body.name,
+              addedBy: participantId,
+              logWeight: startingWeight,
+            })
+            .returning();
       const response = {
         place: placeView(place!),
         spentTokens: addPlaceCost,
