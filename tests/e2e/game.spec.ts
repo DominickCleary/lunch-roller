@@ -106,7 +106,7 @@ async function exerciseAdminUiAndGame(
   await peopleCard
     .getByText(archivedName, { exact: true })
     .locator('..')
-    .getByRole('button', { name: 'Archive' })
+    .getByRole('button', { name: 'Archive', exact: true })
     .click();
   await expect(page.locator('.member-status')).toContainText('No one yet');
   await expect(page.getByLabel('Your name')).not.toContainText(archivedName);
@@ -140,7 +140,7 @@ async function exerciseAdminUiAndGame(
   await placesCard
     .locator('.admin-row')
     .filter({ hasText: placeName })
-    .getByRole('button', { name: 'Archive' })
+    .getByRole('button', { name: 'Archive', exact: true })
     .click();
   await expect(
     placesCard
@@ -185,9 +185,9 @@ async function exerciseAdminUiAndGame(
     ((probabilityBefore + result.snapshot[winnerIndex]!.probability / 2) /
       (snapshotTotal || 1)) *
     360;
-  const expectedPointerAngle = (360 - winnerCenter + 360) % 360;
+  const expectedPointerAngle = (90 - winnerCenter + 360) % 360;
   const wheel = page.locator('.wheel');
-  const desktopWheelBounds = await wheel.boundingBox();
+  const desktopWheelBounds = await page.locator('.wheel-wrap').boundingBox();
   expect(desktopWheelBounds).not.toBeNull();
   expect(desktopWheelBounds!.width).toBeGreaterThan(600);
   await expect(wheel).not.toHaveClass(/wheel-spinning/);

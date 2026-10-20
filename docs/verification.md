@@ -9,11 +9,11 @@ Verified on 20 October 2026 with Node 24.19.0, pnpm 11.21.0, PostgreSQL 17.6, Ch
 | `pnpm format:check`                      | Passed                                                                                                                                                              |
 | `pnpm lint`                              | Passed                                                                                                                                                              |
 | `pnpm typecheck`                         | Passed across all packages/apps                                                                                                                                     |
-| `pnpm test`                              | 27 tests passed                                                                                                                                                     |
+| `pnpm test`                              | 28 tests passed                                                                                                                                                     |
 | `pnpm build`                             | Next production Turbopack build and worker type build passed                                                                                                        |
 | Fresh migration and seed, each run twice | Passed on a dedicated disposable PostgreSQL database                                                                                                                |
-| `pnpm test:integration`                  | 19 tests passed; repeat run passed                                                                                                                                  |
-| `pnpm test:e2e`                          | 7 Chromium scenarios passed against the real built app/database                                                                                                     |
+| `pnpm test:integration`                  | 24 tests passed; repeat run passed                                                                                                                                  |
+| `pnpm test:e2e`                          | 9 Chromium scenarios passed against the real built app/database                                                                                                     |
 | Compose configuration/build/startup      | Separate project on web 3018 / database 5450; DB, web and worker healthy                                                                                            |
 | POSIX worker check                       | `node scripts/check-worker.mjs` passed inside Linux worker container                                                                                                |
 | Worker restart                           | Graceful SIGTERM/stopped/start/heartbeat logs; same one daily draw ID and snapshot retained                                                                         |
@@ -23,6 +23,9 @@ Verified on 20 October 2026 with Node 24.19.0, pnpm 11.21.0, PostgreSQL 17.6, Ch
 Integration tests use an explicitly supplied `TEST_DATABASE_URL`; application `.env` URLs are not used as fallback. Disposable test fixtures restore settings/weights and remove only their own records. Browser fixtures archive their records so referenced history survives. Run the integration seed-count tests on a fresh test database before browser tests.
 
 ## Behavior exercised
+
+- The wheel-first redesign removes the marketing hero and rules strip, uses a large coloured wheel with radial labels and a side pointer, and keeps member/place controls in a compact sidebar. Desktop/mobile geometry and overflow are checked, with screenshots inspected. Centre and footer replay controls present the saved result without mutating the draw or wallet.
+- Admin removal confirms before mutation, rejects unauthenticated/cross-origin requests, deletes unused profiles, archives referenced profiles, preserves history and retires pending notifications. A concurrent attendance/removal test verifies serialization. The development seed bootstraps only once; a regression verifies deleted/archived sample members do not return on restart.
 
 - Settings-first transaction locking; concurrent duplicate workers create one draw/decay/outbox; injected outbox failure rolls all draw effects back.
 - Cryptographic server selection, immutable historical snapshots after rename/archive, current next-draw odds, empty-wheel retries and no historical catch-up.

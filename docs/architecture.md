@@ -23,6 +23,8 @@ Do not import web/worker into packages. Shared application operations live in th
 
 One settings row is seeded and constrained to ID 1. Daily date uniqueness is intentionally global for the single workplace. Ledger request keys are unique per participant; attendance is additionally unique per participant/draw and its reward ledger row references attendance uniquely. Archived records retain foreign-key references. Wallet and today reads use read-only repeatable-read snapshots. Connection statements are bounded to ten seconds; write transactions use eight-second statement and three-second lock timeouts.
 
+Admin participant removal uses the same settings-first transaction. It deletes only profiles with no attendance, ledger, added-place or subscription references; otherwise it archives and retires notification work. Foreign keys guard against references inserted outside the shared mutation path. The wheel-first UI keeps admin tools in a secondary disclosure and confirms removals before calling this operation.
+
 ## Identity and transport
 
 Store the participant ID as `lunch-roller.participant-id` in localStorage, send it as `X-Participant-Id`, and validate that the participant is active. It is identity selection, not authentication. Reset stale selection when an ID is inactive or unknown.

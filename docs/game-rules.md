@@ -21,6 +21,7 @@ One workplace shares an administrator-managed roster and wheel. Participants pic
 - Spend 20 to add an active place immediately. Starting weight is the arithmetic mean of current active weights, calculated in log space; use 1 if the wheel is empty.
 - No overdrafts. Repeated requests cannot double-charge or double-reward. Admin corrections append a signed delta with a reason, also without making the balance negative.
 - Names are trimmed, 1–100 characters, and case-insensitively unique among active records. Blank/duplicate additions are rejected without charging. Archiving preserves history; reactivating a conflicting name is rejected.
+- Admins may remove roster members. Unused profiles are permanently deleted; profiles referenced by attendance, ledger entries, added places or subscriptions are archived, with history retained and notifications retired.
 
 ## Notifications
 

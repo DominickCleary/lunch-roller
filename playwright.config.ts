@@ -2,6 +2,14 @@ import { defineConfig } from '@playwright/test';
 import './tests/disposable-database';
 export default defineConfig({
   testDir: './tests/e2e',
+  projects: [
+    { name: 'chromium', testIgnore: '**/rate-limit.spec.ts' },
+    {
+      name: 'login-throttle',
+      testMatch: '**/rate-limit.spec.ts',
+      dependencies: ['chromium'],
+    },
+  ],
   use: { baseURL: process.env.APP_ORIGIN ?? 'http://localhost:3000' },
   webServer: {
     env: {

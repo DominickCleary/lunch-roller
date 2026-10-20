@@ -12,7 +12,9 @@ Requires Docker Desktop/Engine with Linux containers and Compose v2. Copy `.env.
 docker compose up --build --wait
 ```
 
-Open http://localhost:3000 (or your `WEB_PORT`). Compose migrates and seeds a development database before starting web and worker. The seed adds Alex, Sam, and three equal-weight sample places, without overwriting existing data. Select your name, then use Admin corner with the configured `ADMIN_PASSWORD` to manage the game. Set today's schedule time earlier than the current local time to try a draw on the next worker tick; an existing date's result cannot be rerolled. Logs: `docker compose logs -f web worker`. Stop with `docker compose down`; the named PostgreSQL volume is retained.
+Open http://localhost:3000 (or your `WEB_PORT`). Compose migrates and seeds a development database before starting web and worker. On first initialization the seed adds Alex, Sam, and three equal-weight sample places; later runs preserve the game, including removals and archives. Select your name in the sidebar; open Admin in the toolbar with the configured `ADMIN_PASSWORD` to manage the game. Set today's schedule time earlier than the current local time to try a draw on the next worker tick; an existing date's result cannot be rerolled. Logs: `docker compose logs -f web worker`. Stop with `docker compose down`; the named PostgreSQL volume is retained.
+
+The wheel fills the main workspace, with compact member, wallet and place controls alongside it. Replay animates today's saved result without choosing again. Admin removal permanently deletes unused profiles and archives profiles with activity, preserving their history.
 
 Compose binds web/database to localhost and uses development credentials. It is a local setup, not a production deployment. The seed service is development-only.
 

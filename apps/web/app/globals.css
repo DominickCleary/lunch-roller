@@ -96,12 +96,14 @@ body {
   aspect-ratio: 1;
   margin: 0 auto;
   position: relative;
+  overflow: clip;
   display: grid;
   place-items: center;
 }
 .pointer {
   position: absolute;
-  top: -3px;
+  top: calc(50% - 16px);
+  right: 0;
   z-index: 4;
   color: #24272b;
   font-size: 31px;
@@ -127,9 +129,9 @@ body {
 }
 .wheel-label {
   position: absolute;
-  left: calc(50% - 85px);
-  top: calc(50% - 17px);
-  width: 170px;
+  left: 32%;
+  top: calc(50% - 0.575em);
+  width: 36%;
   color: #16181b;
   text-align: center;
   font-size: clamp(13px, 4cqw, 34px);
@@ -139,11 +141,12 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  transform-origin: 50% 17px;
+  transform-origin: center;
 }
 .wheel-hub {
   position: absolute;
-  inset: calc(50% - 43px);
+  z-index: 2;
+  inset: calc(50% - clamp(24px, 3.5vw, 43px));
   display: grid;
   place-items: center;
   border: 6px solid #fff;
@@ -151,10 +154,17 @@ body {
   background: #f9fafb;
   color: #30343a;
   text-align: center;
-  font-size: 11px;
+  padding: 0;
+  font-size: 24px;
   line-height: 1.05;
   font-weight: 800;
   box-shadow: 0 1px 4px #16191e55;
+  cursor: pointer;
+}
+.wheel-hub:disabled {
+  opacity: 1;
+  cursor: default;
+  color: #777b81;
 }
 .wheel-footer {
   min-height: 48px;
@@ -773,11 +783,11 @@ button:disabled {
     border-width: 7px;
   }
   .wheel-label {
-    left: calc(50% - 61px);
-    top: calc(50% - 11px);
-    width: 122px;
+    left: 32%;
+    top: calc(50% - 0.575em);
+    width: 36%;
     font-size: clamp(12px, 4cqw, 18px);
-    transform-origin: 50% 11px;
+    transform-origin: center;
   }
   .wheel-footer {
     min-height: 39px;

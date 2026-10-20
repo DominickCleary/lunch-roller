@@ -9,6 +9,8 @@
 - Checks and required fixtures: package lint/typecheck; full format/lint/typecheck/unit/build; real integration removal cases on explicit disposable DB; Chromium desktop/mobile and existing game/push browser tests with updated presentation selectors; final screenshot review.
 - Migration/environment effects: none. Local demo at port 3018 will be rebuilt after verification; original stack remains untouched.
 
+Coordinator follow-up ownership includes `packages/db/src/seed.ts` and its integration regression: bootstrap sample people/places only when settings are first initialized, so restarting the development stack cannot resurrect removed or archived records. No schema change is needed.
+
 ## Handoff
 
 Report behavior, owned files, branch/commit, commands/results and unresolved issues. Coordinator reviews/integrates DB before API, then UI, runs required checks and confirms local demo.

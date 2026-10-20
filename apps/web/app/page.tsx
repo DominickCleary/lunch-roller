@@ -228,7 +228,7 @@ export default function Home() {
         ((before + result.snapshot[index]!.probability / 2) / (total || 1)) *
         360;
       const current = ((rotationRef.current % 360) + 360) % 360;
-      const target = (360 - center + 360) % 360;
+      const target = (90 - center + 360) % 360;
       const reducedMotion = window.matchMedia(
         '(prefers-reduced-motion: reduce)',
       ).matches;
@@ -601,7 +601,7 @@ export default function Home() {
             }
           >
             <div className="pointer" aria-hidden="true">
-              ▼
+              ◀
             </div>
             <div
               className={`wheel ${spin ? 'wheel-spinning' : ''}`}
@@ -619,7 +619,7 @@ export default function Home() {
               {wheelOptions.length
                 ? wheelOptions
                     .map((option, index) => ({ option, index }))
-                    .filter(({ option }) => option.probability >= 0.005)
+                    .filter(({ option }) => option.probability >= 0.05)
                     .map(({ option, index }) => (
                       <span
                         className="wheel-label"
@@ -627,7 +627,7 @@ export default function Home() {
                         title={option.name}
                         aria-label={option.name}
                         style={{
-                          transform: `rotate(${(wheelOptions.slice(0, index).reduce((sum, item) => sum + item.probability, 0) + option.probability / 2) * 360}deg) translateY(-34cqw) rotate(-${(wheelOptions.slice(0, index).reduce((sum, item) => sum + item.probability, 0) + option.probability / 2) * 360}deg)`,
+                          transform: `rotate(${(wheelOptions.slice(0, index).reduce((sum, item) => sum + item.probability, 0) + option.probability / 2) * 360}deg) translateY(-28cqw) rotate(-90deg)`,
                         }}
                       >
                         {option.name.length > 14
@@ -636,14 +636,25 @@ export default function Home() {
                       </span>
                     ))
                 : null}
-              <div className="wheel-hub">
-                <span>
-                  LET’S
-                  <br />
-                  EAT
-                </span>
-              </div>
             </div>
+            <button
+              type="button"
+              className="wheel-hub"
+              disabled={!today?.result || spin}
+              onClick={replayResult}
+              aria-label={
+                today?.result
+                  ? 'Replay wheel animation'
+                  : 'Waiting for the scheduled draw'
+              }
+              title={
+                today?.result
+                  ? 'Replay the saved result'
+                  : 'The next draw runs on the schedule'
+              }
+            >
+              <span aria-hidden="true">{today?.result ? '↻' : '◷'}</span>
+            </button>
           </div>
           <div className="wheel-footer">
             <span className="wheel-state">

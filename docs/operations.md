@@ -18,7 +18,7 @@ The default `.env.example` credentials are development examples. Replace them be
 
 Copy `.env.example` to `.env`, configure it, then run `docker compose up --build --wait`. Compose migrates and runs the repeat-safe development seed before web and worker. The seed is intended for local use; omit its service from a production release and initialize roster/settings deliberately. Use `pnpm db:migrate` as a one-shot release step before upgrading both processes. Retain both migration SQL and metadata in source control.
 
-For a local game, open the site, select a roster member and use Admin corner to configure places and schedule. The worker checks every 30 seconds. To try a draw immediately, set the schedule to an earlier local time on the current weekday and wait for a tick; there is no reroll endpoint. Once today's result exists, schedule edits cannot replace that date's result. Check in for tokens, then influence the next draw or add a place.
+For a local game, open the site, select a roster member and open Admin in the toolbar to configure places and schedule. The worker checks every 30 seconds. To try a draw immediately, set the schedule to an earlier local time on the current weekday and wait for a tick; there is no reroll endpoint. Once today's result exists, schedule edits cannot replace that date's result. Check in for tokens, then influence the next draw or add a place.
 
 Use `GET /api/v1/health` for database readiness. Check worker structured logs for `started`, `heartbeat`, scheduling failures and delivery failures. Database health alone does not prove draws or notifications are progressing. Graceful termination finishes the current bounded tick; a 45-second Compose grace period allows normal completion.
 

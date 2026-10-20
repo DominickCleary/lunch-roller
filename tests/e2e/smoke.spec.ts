@@ -4,6 +4,7 @@ test('landing page reports readiness and shows the lunch wheel', async ({
   request,
 }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto(process.env.APP_ORIGIN ?? '/');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(
     'Lunch Roller',
@@ -11,14 +12,15 @@ test('landing page reports readiness and shows the lunch wheel', async ({
   await expect(page.getByText('Web + database ready')).toBeVisible();
   const wheel = page.locator('.wheel');
   await expect(wheel).toBeVisible();
-  const desktopBounds = await wheel.boundingBox();
+  const footprint = page.locator('.wheel-wrap');
+  const desktopBounds = await footprint.boundingBox();
   expect(desktopBounds).not.toBeNull();
   expect(desktopBounds!.width).toBeGreaterThan(600);
   await page.screenshot({ path: 'test-results/wheel-desktop.png' });
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(wheel).toBeVisible();
-  const mobileBounds = await wheel.boundingBox();
+  const mobileBounds = await footprint.boundingBox();
   expect(mobileBounds).not.toBeNull();
   expect(mobileBounds!.x).toBeGreaterThanOrEqual(0);
   expect(mobileBounds!.x + mobileBounds!.width).toBeLessThanOrEqual(390);

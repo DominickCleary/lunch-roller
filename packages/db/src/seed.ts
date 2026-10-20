@@ -5,7 +5,13 @@ import { participants, places, settings } from './schema';
 const database = createDatabase();
 try {
   await database.db.transaction(async (tx) => {
-    await tx.insert(settings).values({ id: 1 }).onConflictDoNothing();
+    const initialized = await tx
+      .insert(settings)
+      .values({ id: 1 })
+      .onConflictDoNothing()
+      .returning({ id: settings.id });
+    // Bootstrap once: restarting a development stack must not resurrect removed members or places.
+    if (!initialized.length) return;
     await tx
       .insert(participants)
       .values([{ name: 'Alex' }, { name: 'Sam' }])
