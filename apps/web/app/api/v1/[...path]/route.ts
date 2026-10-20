@@ -6,6 +6,7 @@ import {
   createPlace,
   id,
   participantSelection,
+  participantRemoval,
   purchaseRequest,
   pushSubscription,
   schedule as scheduleSchema,
@@ -287,6 +288,12 @@ async function dispatch(request: NextRequest, context: Context) {
         201,
       );
     const person = route.match(/^\/admin\/participants\/([^/]+)$/i);
+    if (person && method === 'DELETE')
+      return response(
+        participantRemoval.parse(
+          await game.removeParticipant(parse(id, person[1])),
+        ),
+      );
     if (person && method === 'PATCH')
       return response(
         await game.saveParticipant(

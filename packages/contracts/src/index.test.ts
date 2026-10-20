@@ -4,7 +4,25 @@ import {
   defaultSchedule,
   schedule,
   pushSubscription,
+  participantRemoval,
 } from './index';
+it('distinguishes permanent participant deletion from history-preserving archival', () => {
+  const participantId = 'ca982f50-f7c6-4eb3-8572-28fa01106ed7';
+  for (const action of ['deleted', 'archived'])
+    expect(
+      participantRemoval.safeParse({ participantId, action }).success,
+    ).toBe(true);
+  expect(
+    participantRemoval.safeParse({ participantId, action: 'erased-history' })
+      .success,
+  ).toBe(false);
+  expect(
+    participantRemoval.safeParse({
+      participantId: 'not-a-uuid',
+      action: 'deleted',
+    }).success,
+  ).toBe(false);
+});
 it('trims place names and rejects blank names', () => {
   expect(createPlace.parse({ name: '  Sushi  ' }).name).toBe('Sushi');
   expect(createPlace.safeParse({ name: '  ' }).success).toBe(false);
