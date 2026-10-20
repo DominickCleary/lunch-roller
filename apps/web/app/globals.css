@@ -840,3 +840,146 @@ button:disabled {
     animation-iteration-count: 1 !important;
   }
 }
+
+.setup-shell {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+.setup-shell .topbar {
+  flex-shrink: 0;
+}
+.setup-shell .footer {
+  margin-top: auto;
+}
+.setup-shell .admin-disclosure {
+  width: 100%;
+}
+.setup-card {
+  width: min(100% - 36px, 560px);
+  margin: clamp(32px, 8vh, 88px) auto;
+  padding: clamp(24px, 5vw, 48px);
+  border: 1px solid #d9dce0;
+  border-radius: 8px;
+  background: white;
+}
+.setup-card-wide {
+  width: min(100% - 36px, 900px);
+}
+.setup-card h2 {
+  margin: 8px 0 12px;
+  font-size: clamp(1.7rem, 5vw, 2.3rem);
+  line-height: 1;
+}
+.setup-card > .muted {
+  max-width: 55ch;
+  margin-bottom: 24px;
+}
+.setup-form {
+  display: grid;
+  gap: 10px;
+}
+.setup-form label,
+.setup-schedule-fields label {
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.setup-form input,
+.setup-form select,
+.setup-schedule-fields input {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid #cbd0c3;
+  border-radius: 10px;
+  background: white;
+  color: inherit;
+  font: inherit;
+}
+.setup-admin-content h3 {
+  margin: 22px 0 8px;
+  font-size: 1.5rem;
+}
+.setup-counts,
+.setup-schedule-fields,
+.setup-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.setup-counts span {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f1f3e9;
+  font-weight: 700;
+}
+.setup-step {
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid #e1e4da;
+  border-radius: 14px;
+  background: #fff;
+}
+.setup-step h4 {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+}
+.setup-roster {
+  display: grid;
+  gap: 6px;
+  max-height: 150px;
+  overflow: auto;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.setup-roster li {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f6f6f1;
+}
+.setup-schedule-fields {
+  margin-bottom: 12px;
+}
+.setup-schedule-fields label {
+  display: grid;
+  gap: 7px;
+}
+.weekday-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0;
+}
+.weekday-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 9px;
+  border-radius: 999px;
+  background: #f1f3e9;
+  font-size: 0.84rem;
+}
+.setup-finish {
+  margin-top: 18px;
+}
+.setup-hint,
+.setup-error {
+  margin-top: 12px;
+}
+.setup-error {
+  color: #a22b25;
+}
+.change-name {
+  margin-bottom: 12px;
+}
+@media (max-width: 640px) {
+  .setup-columns,
+  .setup-counts,
+  .setup-schedule-fields {
+    grid-template-columns: 1fr;
+  }
+  .setup-card {
+    margin-top: 28px;
+  }
+}

@@ -8,6 +8,7 @@ import type {
   ParticipantRemoval,
   Place,
   Schedule,
+  SetupStatus,
   TodayResponse,
   WalletResponse,
 } from '@lunch/contracts';
@@ -70,6 +71,10 @@ function moneyLabel(delta: number) {
 }
 
 export default function Home() {
+  const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
+  const [entryStage, setEntryStage] = useState<
+    'loading' | 'setup' | 'name' | 'game'
+  >('loading');
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [allParticipants, setAllParticipants] = useState<Participant[]>([]);
   const [places, setPlaces] = useState<Place[]>([]);
@@ -89,6 +94,8 @@ export default function Home() {
   const [nameDraft, setNameDraft] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [newName, setNewName] = useState('');
+  const [setupPlaceName, setSetupPlaceName] = useState('');
+  const [finishingSetup, setFinishingSetup] = useState(false);
   const [editingPersonId, setEditingPersonId] = useState('');
   const [editingPersonName, setEditingPersonName] = useState('');
   const [editingPlaceId, setEditingPlaceId] = useState('');
@@ -110,42 +117,43 @@ export default function Home() {
   const confirmRemoval = useRef<HTMLButtonElement | null>(null);
   const adminDisclosure = useRef<HTMLDetailsElement | null>(null);
 
-  const refresh = useCallback(
-    async (selected = participantId) => {
-      try {
-        const [roster, todayResult] = await Promise.all([
-          request<{ participants: Participant[] }>('/participants'),
-          request<TodayResponse>('/today'),
-        ]);
-        setParticipants(roster.participants);
-        setToday(todayResult);
-        if (selected) {
-          try {
-            setWallet(await request<WalletResponse>('/wallet', {}, selected));
-          } catch (caught) {
-            if (
-              caught instanceof ApiRequestError &&
-              [401, 403, 404].includes(caught.status) &&
-              (caught.code === 'IDENTITY_REQUIRED' ||
-                caught.code?.includes('PARTICIPANT') ||
-                caught.code?.includes('IDENTITY'))
-            ) {
-              localStorage.removeItem(storageKey);
-              setParticipantId('');
-              setWallet(null);
-            } else throw caught;
-          }
-        } else setWallet(null);
-        setPollingError('');
-      } catch (caught) {
-        setPollingError(
-          'Could not refresh the lunch wheel. It will retry shortly.',
-        );
-        throw caught;
-      }
-    },
-    [participantId],
-  );
+  const refresh = useCallback(async (selected: string) => {
+    try {
+      const [roster, todayResult] = await Promise.all([
+        request<{ participants: Participant[] }>('/participants'),
+        request<TodayResponse>('/today'),
+      ]);
+      setParticipants(roster.participants);
+      setToday(todayResult);
+      if (selected) {
+        try {
+          setWallet(await request<WalletResponse>('/wallet', {}, selected));
+        } catch (caught) {
+          if (
+            caught instanceof ApiRequestError &&
+            [401, 403, 404].includes(caught.status) &&
+            (caught.code === 'IDENTITY_REQUIRED' ||
+              caught.code?.includes('PARTICIPANT') ||
+              caught.code?.includes('IDENTITY'))
+          ) {
+            localStorage.removeItem(storageKey);
+            setParticipantId('');
+            setWallet(null);
+            setNameDraft('');
+            setEntryStage('name');
+            return false;
+          } else throw caught;
+        }
+      } else setWallet(null);
+      setPollingError('');
+      return true;
+    } catch (caught) {
+      setPollingError(
+        'Could not refresh the lunch wheel. It will retry shortly.',
+      );
+      throw caught;
+    }
+  }, []);
 
   const refreshAdmin = useCallback(async () => {
     const [people, locations, savedSchedule] = await Promise.all([
@@ -159,12 +167,61 @@ export default function Home() {
     setAdmin(true);
   }, []);
 
+  const loadSetupStatus = useCallback(async () => {
+    const status = await request<SetupStatus>('/setup');
+    setSetupStatus(status);
+    return status;
+  }, []);
+
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const saved = localStorage.getItem(storageKey) ?? '';
-      setParticipantId(saved);
-      void refresh(saved).catch(() => undefined);
-    }, 0);
+    let mounted = true;
+    const initialize = async () => {
+      try {
+        const status = await loadSetupStatus();
+        if (!mounted) return;
+        if (!status.completed) {
+          setEntryStage('setup');
+          try {
+            await refreshAdmin();
+          } catch {
+            // The setup gate remains available to an administrator who signs in here.
+          }
+          return;
+        }
+        const saved = localStorage.getItem(storageKey) ?? '';
+        if (saved) {
+          try {
+            const selected = await request<Participant>('/identity/select', {
+              method: 'POST',
+              body: json({ participantId: saved }),
+            });
+            if (!mounted) return;
+            setParticipantId(selected.id);
+            const valid = await refresh(selected.id);
+            if (mounted && valid) setEntryStage('game');
+            return;
+          } catch (caught) {
+            if (
+              !(caught instanceof ApiRequestError) ||
+              ![400, 401, 403, 404].includes(caught.status)
+            )
+              throw caught;
+            localStorage.removeItem(storageKey);
+          }
+        }
+        if (!mounted) return;
+        setParticipantId('');
+        setEntryStage('name');
+        const roster = await request<{ participants: Participant[] }>(
+          '/participants',
+        );
+        if (mounted) setParticipants(roster.participants);
+      } catch {
+        if (mounted)
+          setPollingError('Could not load setup status. Please retry.');
+      }
+    };
+    void initialize();
     if ('serviceWorker' in navigator) {
       void navigator.serviceWorker
         .register('/service-worker.js')
@@ -186,15 +243,30 @@ export default function Home() {
     void request<{ publicKey: string | null }>('/push-config').catch(
       () => undefined,
     );
+    return () => {
+      mounted = false;
+    };
+  }, [loadSetupStatus, refresh, refreshAdmin]);
+
+  useEffect(() => {
+    if (entryStage !== 'game') return;
     const interval = window.setInterval(
-      () => void refresh().catch(() => undefined),
+      () => void refresh(participantId).catch(() => undefined),
       30000,
     );
-    return () => {
-      window.clearTimeout(timer);
-      window.clearInterval(interval);
-    };
-  }, [refresh]);
+    return () => window.clearInterval(interval);
+  }, [entryStage, participantId, refresh]);
+
+  function changeName() {
+    localStorage.removeItem(storageKey);
+    setParticipantId('');
+    setWallet(null);
+    setNameDraft('');
+    setEntryStage('name');
+    void request<{ participants: Participant[] }>('/participants')
+      .then((roster) => setParticipants(roster.participants))
+      .catch(() => setError('Could not load the active roster.'));
+  }
 
   const odds = useMemo(() => today?.odds ?? [], [today]);
   const wheelOptions = today?.result?.snapshot ?? odds;
@@ -295,7 +367,8 @@ export default function Home() {
           selected.id,
       );
       setNameDraft('');
-      await refresh(selected.id);
+      if (!(await refresh(selected.id))) return;
+      setEntryStage('game');
       setNotice(`You’re in as ${selected.name}.`);
     } catch (caught) {
       setError(
@@ -357,7 +430,7 @@ export default function Home() {
         },
         participantId,
       );
-      await refresh();
+      await refresh(participantId);
       localStorage.removeItem(pendingKey);
       setNotice(message);
       return true;
@@ -384,6 +457,7 @@ export default function Home() {
       });
       setAdminPassword('');
       await refreshAdmin();
+      await loadSetupStatus();
       setNotice('Administrator tools unlocked.');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Login failed.');
@@ -418,7 +492,8 @@ export default function Home() {
       }
       await request(route, { method, body: json(payload), headers });
       await refreshAdmin();
-      await refresh();
+      const status = await loadSetupStatus();
+      if (status.completed) await refresh(participantId);
       setNotice(done);
       if (route === '/admin/token-corrections')
         sessionStorage.removeItem('lunch-roller.admin-correction');
@@ -427,6 +502,36 @@ export default function Home() {
         caught instanceof Error ? caught.message : 'Could not save changes.',
       );
     } finally {
+      setBusy(false);
+    }
+  }
+
+  async function completeFirstRunSetup() {
+    if (busy || !admin || !setupStatus) return;
+    setFinishingSetup(true);
+    setBusy(true);
+    setError('');
+    try {
+      const status = await request<SetupStatus>('/admin/setup/complete', {
+        method: 'POST',
+      });
+      setSetupStatus(status);
+      setParticipants(
+        (await request<{ participants: Participant[] }>('/participants'))
+          .participants,
+      );
+      setEntryStage('name');
+      setNotice(
+        'Setup is complete. Choose your name to enter the lunch wheel.',
+      );
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : 'Could not complete setup.',
+      );
+      await loadSetupStatus().catch(() => undefined);
+      await refreshAdmin().catch(() => undefined);
+    } finally {
+      setFinishingSetup(false);
       setBusy(false);
     }
   }
@@ -547,7 +652,7 @@ export default function Home() {
       );
       setRemoveTarget(null);
       await refreshAdmin();
-      await refresh();
+      await refresh(participantId);
       setNotice(
         result.action === 'deleted'
           ? `${person.name} was permanently deleted.`
@@ -568,163 +673,45 @@ export default function Home() {
     }
   }
 
-  return (
-    <main className="site-shell">
-      <header className="topbar">
-        <a className="brand" href="#top" aria-label="Lunch Roller home">
-          <span className="brand-mark">✳</span>{' '}
-          <h1 className="brand-title">Lunch Roller</h1>
-        </a>
-        <div className="top-actions">
-          <span className="date-chip">
-            {today?.localDate ?? 'TODAY'} ·{' '}
-            {today?.schedule.timezone ?? 'Europe/Dublin'}
-          </span>
-          <a
-            href="#admin"
-            className="quiet-link"
-            onClick={() => adminDisclosure.current?.setAttribute('open', '')}
-          >
-            Admin
-          </a>
-        </div>
-      </header>
-
-      <section className="hero" id="top" aria-label="Lunch wheel">
-        <div className="wheel-card">
-          <div
-            className="wheel-wrap"
-            aria-label={
-              drawnPlace
-                ? `Today's committed result is ${drawnPlace}`
-                : 'Lunch wheel'
-            }
-          >
-            <div className="pointer" aria-hidden="true">
-              ◀
-            </div>
-            <div
-              className={`wheel ${spin ? 'wheel-spinning' : ''}`}
-              style={{
-                background: gradient,
-                transform: `rotate(${rotation}deg)`,
-              }}
-              role="img"
-              aria-label={
-                wheelOptions.length
-                  ? `Wheel with ${wheelOptions.length} lunch places, sized by the ${today?.result ? 'committed draw snapshot' : 'current odds'}`
-                  : 'Empty lunch wheel'
-              }
-            >
-              {wheelOptions.length
-                ? wheelOptions
-                    .map((option, index) => ({ option, index }))
-                    .filter(({ option }) => option.probability >= 0.05)
-                    .map(({ option, index }) => (
-                      <span
-                        className="wheel-label"
-                        key={option.placeId}
-                        title={option.name}
-                        aria-label={option.name}
-                        style={{
-                          transform: `rotate(${(wheelOptions.slice(0, index).reduce((sum, item) => sum + item.probability, 0) + option.probability / 2) * 360}deg) translateY(-28cqw) rotate(-90deg)`,
-                        }}
-                      >
-                        {option.name.length > 14
-                          ? `${option.name.slice(0, 13)}…`
-                          : option.name}
-                      </span>
-                    ))
-                : null}
-            </div>
-            <button
-              type="button"
-              className="wheel-hub"
-              disabled={!today?.result || spin}
-              onClick={replayResult}
-              aria-label={
-                today?.result
-                  ? 'Replay wheel animation'
-                  : 'Waiting for the scheduled draw'
-              }
-              title={
-                today?.result
-                  ? 'Replay the saved result'
-                  : 'The next draw runs on the schedule'
-              }
-            >
-              <span aria-hidden="true">{today?.result ? '↻' : '◷'}</span>
-            </button>
-          </div>
-          <div className="wheel-footer">
-            <span className="wheel-state">
-              {today?.status === 'drawn'
-                ? 'TODAY’S PICK'
-                : today?.status === 'not-scheduled'
-                  ? 'NO DRAW TODAY'
-                  : today?.status === 'no-options'
-                    ? 'ADD A PLACE TO BEGIN'
-                    : 'NEXT DRAW'}
-            </span>
-            <strong>
-              {drawnPlace ??
-                (today?.status === 'not-scheduled'
-                  ? 'Rest day'
-                  : 'The wheel is waiting')}
-            </strong>
-            {today?.result && (
-              <button
-                className="replay-button"
-                type="button"
-                onClick={replayResult}
-                disabled={spin}
-                aria-label="Replay today's result"
-              >
-                ↻ Replay today&apos;s result
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="wheel-status">
-          <Readiness />
+  const activePeople = allParticipants.filter((person) => person.active).length;
+  const activePlaces = places.filter((place) => place.active).length;
+  const entryGate = (
+    <>
+      {entryStage === 'loading' ? (
+        <section
+          className="setup-card"
+          data-testid="setup-loading"
+          aria-live="polite"
+        >
+          <p className="eyebrow">WELCOME TO LUNCH ROLLER</p>
+          <h2>Checking lunch setup…</h2>
           {pollingError && (
-            <p className="refresh-error" role="status" aria-live="polite">
-              {pollingError}
-            </p>
+            <>
+              <p role="alert">{pollingError}</p>
+              <button
+                className="button button-light"
+                onClick={() => window.location.reload()}
+              >
+                Retry
+              </button>
+            </>
           )}
-        </div>
-      </section>
-
-      <section
-        className="play-grid"
-        aria-label="Lunch wheel and member controls"
-      >
-        <div className="panel roster-panel">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">01 / YOUR SEAT AT THE TABLE</p>
-              <h2>You</h2>
-            </div>
-            <span className="mini-icon">↗</span>
-          </div>
+        </section>
+      ) : entryStage === 'name' ? (
+        <section className="setup-card" data-testid="name-picker">
+          <Readiness />
+          <p className="eyebrow">YOUR SEAT AT THE TABLE</p>
+          <h2>Choose your name</h2>
           <p className="muted">
-            Pick your name to check in and see your token balance.
+            Pick your name from the active team roster to enter the lunch wheel.
           </p>
-          <form className="inline-form" onSubmit={selectParticipant}>
-            <label className="sr-only" htmlFor="member-select">
-              Your name
-            </label>
+          <form className="setup-form" onSubmit={selectParticipant}>
+            <label htmlFor="entry-name">Your name</label>
             <select
-              id="member-select"
-              value={currentName ? participantId : nameDraft}
-              onChange={(event) =>
-                currentName
-                  ? (localStorage.removeItem(storageKey),
-                    setParticipantId(''),
-                    setWallet(null),
-                    setNameDraft(event.target.value))
-                  : setNameDraft(event.target.value)
-              }
+              id="entry-name"
+              value={nameDraft}
+              onChange={(event) => setNameDraft(event.target.value)}
+              required
             >
               <option value="">Choose your name</option>
               {participants.map((person) => (
@@ -737,447 +724,144 @@ export default function Home() {
               className="button button-dark"
               disabled={busy || !nameDraft}
             >
-              {currentName ? 'Change' : 'Join in'}
+              Enter lunch wheel
             </button>
           </form>
-          <div className="member-status">
-            <div>
-              <span className="status-label">SELECTED NAME</span>
-              <strong>{currentName ?? 'No one yet'}</strong>
-            </div>
-            <div className="balance">
-              <span className="status-label">YOUR TOKENS</span>
-              <strong>
-                {wallet?.balance ?? '—'} <span>✳</span>
-              </strong>
-            </div>
-          </div>
-          <div className="button-row">
-            <button
-              className="button button-yellow"
-              disabled={busy || !participantId || !today?.result}
-              onClick={() =>
-                today?.result &&
-                void mutate(
-                  '/attendance',
-                  { drawId: today.result.id },
-                  'Check-in complete — 10 tokens added.',
-                )
-              }
-            >
-              Check in <span>+10 ✳</span>
-            </button>
-            <button
-              className="button button-light"
-              disabled={
-                !participantId ||
-                (!pushOn &&
-                  (typeof window === 'undefined' ||
-                    !('Notification' in window) ||
-                    !('serviceWorker' in navigator) ||
-                    !('PushManager' in window)))
-              }
-              onClick={() => (pushOn ? void disablePush() : void togglePush())}
-            >
-              {pushOn ? 'Turn alerts off' : 'Get lunch alerts'}
-            </button>
-          </div>
-          <div className="ledger">
-            <div className="ledger-heading">
-              <h3>Recent token activity</h3>
-              {wallet && wallet.ledger.length > 5 ? (
-                <button
-                  className="ledger-toggle"
-                  aria-expanded={showAllLedger}
-                  aria-controls="token-ledger"
-                  onClick={() => setShowAllLedger((showing) => !showing)}
-                >
-                  {showAllLedger ? 'Show recent' : 'Show all'}
-                </button>
-              ) : (
-                <span>YOUR WALLET</span>
-              )}
-            </div>
-            {wallet?.ledger.length ? (
-              <div id="token-ledger">
-                {wallet.ledger
-                  .slice(0, showAllLedger ? undefined : 5)
-                  .map((entry) => (
-                    <div className="ledger-row" key={entry.id}>
-                      <span>
-                        {entry.reason ?? entry.kind.replaceAll('-', ' ')}
-                      </span>
-                      <span className="ledger-date">
-                        <time dateTime={entry.createdAt}>
-                          {new Intl.DateTimeFormat(undefined, {
-                            dateStyle: 'short',
-                            timeStyle: 'short',
-                          }).format(new Date(entry.createdAt))}
-                        </time>
-                      </span>
-                      <strong className={entry.delta > 0 ? 'positive' : ''}>
-                        {moneyLabel(entry.delta)}
-                      </strong>
-                    </div>
-                  ))}
-              </div>
-            ) : (
-              <p className="empty-note">
-                Your token activity will show up here.
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div className="panel odds-panel">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">02 / THE ODDS</p>
-              <h2>Places</h2>
-            </div>
-            <span className="odds-total">{odds.length} PLACES</span>
-          </div>
+          {error && (
+            <p className="setup-error" role="alert">
+              {error}
+            </p>
+          )}
+        </section>
+      ) : (
+        <section
+          className={`setup-card${admin ? ' setup-card-wide' : ''}`}
+          data-testid="setup-admin-login"
+        >
+          <p className="eyebrow">WELCOME TO LUNCH ROLLER</p>
+          <h2>Set up your lunch wheel</h2>
           <p className="muted">
-            Current chances for the next draw. More tokens can nudge the odds.
+            An administrator needs to add the team and lunch places before
+            anyone can enter.
           </p>
-          <div className="odds-list">
-            {odds.map((option, index) => {
-              const placeId = 'placeId' in option ? option.placeId : '';
-              return (
-                <div className="odds-row" key={placeId}>
-                  <span
-                    className="odds-color"
-                    style={{ background: colors[index % colors.length] }}
-                  />
-                  <span className="odds-name">{option.name}</span>
-                  <span className="odds-bar">
-                    <span
-                      style={{
-                        width: `${Math.max(option.probability * 100, option.probability > 0 ? 0.5 : 0)}%`,
-                        background: colors[index % colors.length],
-                      }}
-                    />
-                  </span>
-                  <strong>{(option.probability * 100).toFixed(1)}%</strong>
-                  <div className="influence-buttons">
-                    <button
-                      title="Boost place (5 tokens)"
-                      disabled={busy || !participantId}
-                      onClick={() =>
-                        void mutate(
-                          '/purchases',
-                          { placeId, action: 'boost' },
-                          'Place boosted for the next draw.',
-                        )
-                      }
-                    >
-                      + ↗
-                    </button>
-                    <button
-                      title="Reduce place (5 tokens)"
-                      disabled={busy || !participantId}
-                      onClick={() =>
-                        void mutate(
-                          '/purchases',
-                          { placeId, action: 'reduce' },
-                          'Place reduced for the next draw.',
-                        )
-                      }
-                    >
-                      − ↘
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-            {!odds.length && (
-              <p className="empty-note">
-                The admin can add places to get the wheel rolling.
-              </p>
-            )}
-          </div>
-          <form
-            className="add-place"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const form = event.currentTarget;
-              const input = new FormData(form).get('place')?.toString().trim();
-              if (input)
-                void mutate(
-                  '/places',
-                  { name: input },
-                  'New lunch place added for 20 tokens.',
-                ).then((saved) => {
-                  if (saved) form.reset();
-                });
-            }}
-          >
-            <label htmlFor="place-name">Have a new spot in mind?</label>
-            <div className="inline-form">
+          {!admin ? (
+            <form className="setup-form" onSubmit={login}>
+              <label htmlFor="first-run-password">Administrator password</label>
               <input
-                id="place-name"
-                name="place"
-                placeholder="Add a lunch place · 20 tokens"
-                maxLength={100}
+                id="first-run-password"
+                type="password"
+                value={adminPassword}
+                onChange={(event) => setAdminPassword(event.target.value)}
+                autoComplete="current-password"
                 required
-                disabled={!participantId || busy}
               />
               <button
-                className="button button-light"
-                disabled={!participantId || busy}
+                className="button button-dark"
+                disabled={busy || !adminPassword}
               >
-                Add place
+                Sign in as administrator
               </button>
-            </div>
-          </form>
-          {today?.result && (
-            <div className="result-note">
-              <span>✳</span>
-              <p>
-                The team picked <strong>{today.result.placeName}</strong>.
-                Winner’s weight is halved for next time.
-              </p>
-            </div>
-          )}
-        </div>
-      </section>
-
-      <details className="admin-disclosure" id="admin" ref={adminDisclosure}>
-        <summary>Admin tools</summary>
-        <section className="admin-section">
-          <div className="admin-intro">
-            <p className="eyebrow">THE BACK OFFICE</p>
-            <h2>Admin corner</h2>
-            <p>Keep the roster, lunch spots and schedule in good order.</p>
-          </div>
-          {!admin ? (
-            <form className="admin-login" onSubmit={login}>
-              <label htmlFor="admin-password">Administrator password</label>
-              <div className="inline-form">
-                <input
-                  id="admin-password"
-                  type="password"
-                  value={adminPassword}
-                  onChange={(event) => setAdminPassword(event.target.value)}
-                  autoComplete="current-password"
-                />
-                <button
-                  className="button button-dark"
-                  disabled={busy || !adminPassword}
-                >
-                  Unlock
-                </button>
-              </div>
             </form>
           ) : (
-            <div className="admin-tools">
-              <div className="admin-tool-card" tabIndex={-1}>
-                <h3>People</h3>
-                <form
-                  className="inline-form"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    if (newName.trim())
-                      void adminSave(
-                        '/admin/participants',
-                        'POST',
-                        { name: newName },
-                        'Person added.',
-                      ).then(() => setNewName(''));
-                  }}
-                >
-                  <input
-                    aria-label="New team member name"
-                    placeholder="New team member"
-                    value={newName}
-                    onChange={(event) => setNewName(event.target.value)}
-                    maxLength={100}
-                  />
-                  <button
-                    className="button button-light"
-                    disabled={busy || !newName.trim()}
+            <div className="setup-admin-content">
+              <h3>Build your lunch wheel</h3>
+              <div className="setup-counts" aria-live="polite">
+                <span>
+                  {activePeople} active{' '}
+                  {activePeople === 1 ? 'person' : 'people'}
+                </span>
+                <span>
+                  {activePlaces} active{' '}
+                  {activePlaces === 1 ? 'place' : 'places'}
+                </span>
+              </div>
+              <div className="setup-columns">
+                <section className="setup-step">
+                  <h4>People</h4>
+                  <form
+                    className="setup-form"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      const form = event.currentTarget;
+                      const name = new FormData(form)
+                        .get('setup-person')
+                        ?.toString()
+                        .trim();
+                      if (name)
+                        void adminSave(
+                          '/admin/participants',
+                          'POST',
+                          { name },
+                          'Person added.',
+                        ).then(() => form.reset());
+                    }}
                   >
-                    Add
-                  </button>
-                </form>
-                {allParticipants.map((person) => (
-                  <div className="admin-row" key={person.id}>
-                    {editingPersonId === person.id ? (
-                      <form
-                        className="inline-form"
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          void adminSave(
-                            `/admin/participants/${person.id}`,
-                            'PATCH',
-                            { name: editingPersonName },
-                            'Name updated.',
-                          ).then(() => setEditingPersonId(''));
-                        }}
-                      >
-                        <input
-                          aria-label={`Rename ${person.name}`}
-                          value={editingPersonName}
-                          onChange={(event) =>
-                            setEditingPersonName(event.target.value)
-                          }
-                          maxLength={100}
-                        />
-                        <button
-                          className="button button-light"
-                          disabled={busy || !editingPersonName.trim()}
-                        >
-                          Save
-                        </button>
-                      </form>
-                    ) : (
-                      <span>{person.name}</span>
-                    )}
-                    <button
-                      disabled={busy}
-                      onClick={() => {
-                        setEditingPersonId(person.id);
-                        setEditingPersonName(person.name);
-                      }}
-                    >
-                      Rename
+                    <label htmlFor="setup-person">New team member name</label>
+                    <input
+                      id="setup-person"
+                      name="setup-person"
+                      placeholder="Person’s name"
+                      maxLength={100}
+                      required
+                    />
+                    <button className="button button-light" disabled={busy}>
+                      Add person
                     </button>
-                    <button
-                      disabled={busy}
-                      onClick={() =>
+                  </form>
+                  <ul className="setup-roster">
+                    {allParticipants
+                      .filter((person) => person.active)
+                      .map((person) => (
+                        <li key={person.id}>{person.name}</li>
+                      ))}
+                  </ul>
+                </section>
+                <section className="setup-step">
+                  <h4>Lunch places</h4>
+                  <form
+                    className="setup-form"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      const name = setupPlaceName.trim();
+                      if (name)
                         void adminSave(
-                          `/admin/participants/${person.id}`,
-                          'PATCH',
-                          { active: !person.active },
-                          person.active
-                            ? 'Person archived.'
-                            : 'Person restored.',
-                        )
+                          '/admin/places',
+                          'POST',
+                          { name },
+                          'Place added.',
+                        ).then(() => setSetupPlaceName(''));
+                    }}
+                  >
+                    <label htmlFor="setup-place">New lunch place</label>
+                    <input
+                      id="setup-place"
+                      value={setupPlaceName}
+                      onChange={(event) =>
+                        setSetupPlaceName(event.target.value)
                       }
-                    >
-                      {person.active ? 'Archive' : 'Restore'}
-                    </button>
+                      placeholder="Lunch place name"
+                      maxLength={100}
+                      required
+                    />
                     <button
-                      ref={removeTrigger}
-                      aria-label={`Remove ${person.name}`}
-                      disabled={busy}
-                      onClick={(event) => {
-                        removeTrigger.current = event.currentTarget;
-                        setRemoveTarget(person);
-                      }}
+                      className="button button-light"
+                      disabled={busy || !setupPlaceName.trim()}
                     >
-                      Remove
+                      Add place
                     </button>
-                  </div>
-                ))}
+                  </form>
+                  <ul className="setup-roster">
+                    {places
+                      .filter((place) => place.active)
+                      .map((place) => (
+                        <li key={place.id}>{place.name}</li>
+                      ))}
+                  </ul>
+                </section>
               </div>
-              <div className="admin-tool-card">
-                <h3>Places</h3>
-                <form
-                  className="inline-form"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    const name = new FormData(event.currentTarget)
-                      .get('admin-place')
-                      ?.toString()
-                      .trim();
-                    if (name)
-                      void adminSave(
-                        '/admin/places',
-                        'POST',
-                        { name },
-                        'Place added.',
-                      );
-                  }}
-                >
-                  <input
-                    name="admin-place"
-                    aria-label="New lunch place"
-                    placeholder="New lunch place"
-                    maxLength={100}
-                  />
-                  <button className="button button-light" disabled={busy}>
-                    Add
-                  </button>
-                </form>
-                {places.map((place) => (
-                  <div className="admin-row" key={place.id}>
-                    {editingPlaceId === place.id ? (
-                      <form
-                        className="inline-form"
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          void adminSave(
-                            `/admin/places/${place.id}`,
-                            'PATCH',
-                            { name: editingPlaceName },
-                            'Name updated.',
-                          ).then(() => setEditingPlaceId(''));
-                        }}
-                      >
-                        <input
-                          aria-label={`Rename ${place.name}`}
-                          value={editingPlaceName}
-                          onChange={(event) =>
-                            setEditingPlaceName(event.target.value)
-                          }
-                          maxLength={100}
-                        />
-                        <button
-                          className="button button-light"
-                          disabled={busy || !editingPlaceName.trim()}
-                        >
-                          Save
-                        </button>
-                      </form>
-                    ) : (
-                      <span>
-                        {place.name}{' '}
-                        <small>
-                          {place.active
-                            ? `${Math.exp(place.logWeight).toFixed(2)}× weight`
-                            : 'archived'}
-                        </small>
-                      </span>
-                    )}
-                    <button
-                      disabled={busy}
-                      onClick={() => {
-                        setEditingPlaceId(place.id);
-                        setEditingPlaceName(place.name);
-                      }}
-                    >
-                      Rename
-                    </button>
-                    <button
-                      disabled={busy}
-                      onClick={() =>
-                        void adminSave(
-                          `/admin/places/${place.id}`,
-                          'PATCH',
-                          { active: !place.active },
-                          place.active ? 'Place archived.' : 'Place restored.',
-                        )
-                      }
-                    >
-                      {place.active ? 'Archive' : 'Restore'}
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <div className="admin-tool-card">
-                <h3>Draw schedule</h3>
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void adminSave(
-                      '/admin/schedule',
-                      'PUT',
-                      schedule,
-                      'Schedule saved.',
-                    );
-                  }}
-                >
+              <section className="setup-step setup-schedule">
+                <h4>Draw schedule</h4>
+                <div className="setup-schedule-fields">
                   <label>
                     Time
                     <input
@@ -1200,122 +884,822 @@ export default function Home() {
                       }
                     />
                   </label>
-                  <div className="weekdays">
-                    {'MTWTFSS'.split('').map((label, index) => (
-                      <label key={`${label}${index}`}>
-                        <input
-                          type="checkbox"
-                          checked={schedule.weekdays.includes(index + 1)}
-                          onChange={(event) =>
-                            setSchedule({
-                              ...schedule,
-                              weekdays: event.target.checked
-                                ? [...schedule.weekdays, index + 1].sort()
-                                : schedule.weekdays.filter(
-                                    (day) => day !== index + 1,
-                                  ),
-                            })
-                          }
-                        />
-                        {label}
-                      </label>
-                    ))}
-                  </div>
-                  <button
-                    className="button button-dark"
-                    disabled={busy || !schedule.weekdays.length}
-                  >
-                    Save schedule
-                  </button>
-                </form>
-              </div>
-              <div className="admin-tool-card">
-                <h3>Token correction</h3>
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault();
+                </div>
+                <div className="weekday-options" aria-label="Draw weekdays">
+                  {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(
+                    (day, index) => {
+                      const weekday = index + 1;
+                      return (
+                        <label key={day}>
+                          <input
+                            type="checkbox"
+                            checked={schedule.weekdays.includes(weekday)}
+                            onChange={(event) =>
+                              setSchedule({
+                                ...schedule,
+                                weekdays: event.target.checked
+                                  ? [...schedule.weekdays, weekday].sort()
+                                  : schedule.weekdays.filter(
+                                      (value) => value !== weekday,
+                                    ),
+                              })
+                            }
+                          />
+                          {day}
+                        </label>
+                      );
+                    },
+                  )}
+                </div>
+                <button
+                  className="button button-light"
+                  disabled={busy}
+                  onClick={() =>
                     void adminSave(
-                      '/admin/token-corrections',
-                      'POST',
-                      correction,
-                      'Token correction recorded.',
-                    );
-                  }}
+                      '/admin/schedule',
+                      'PUT',
+                      schedule,
+                      'Schedule saved.',
+                    )
+                  }
                 >
-                  <label>
-                    Team member
-                    <select
-                      required
-                      value={correction.participantId}
-                      onChange={(event) =>
-                        setCorrection({
-                          ...correction,
-                          participantId: event.target.value,
-                        })
-                      }
-                    >
-                      <option value="">Choose a person</option>
-                      {allParticipants.map((person) => (
-                        <option key={person.id} value={person.id}>
-                          {person.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Token change
-                    <input
-                      type="number"
-                      required
-                      value={correction.delta}
-                      onChange={(event) =>
-                        setCorrection({
-                          ...correction,
-                          delta: Number(event.target.value),
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    Reason
-                    <input
-                      required
-                      maxLength={500}
-                      value={correction.reason}
-                      onChange={(event) =>
-                        setCorrection({
-                          ...correction,
-                          reason: event.target.value,
-                        })
-                      }
-                    />
-                  </label>
-                  <button
-                    className="button button-dark"
-                    disabled={
-                      busy ||
-                      !correction.participantId ||
-                      !correction.reason.trim()
-                    }
-                  >
-                    Record correction
-                  </button>
-                </form>
-              </div>
+                  Save schedule
+                </button>
+              </section>
               <button
-                className="quiet-link logout"
-                onClick={async () => {
-                  await request('/admin/session', { method: 'DELETE' });
-                  setAdmin(false);
-                  setPlaces([]);
-                }}
+                className="button button-dark setup-finish"
+                data-testid="setup-complete"
+                disabled={
+                  busy || finishingSetup || activePeople < 1 || activePlaces < 1
+                }
+                onClick={() => void completeFirstRunSetup()}
               >
-                Lock admin tools
+                {finishingSetup ? 'Finishing setup…' : 'Finish setup'}
               </button>
+              <p className="muted setup-hint">
+                You need at least one active person and one active lunch place.
+              </p>
             </div>
           )}
+          {error && (
+            <p className="setup-error" role="alert">
+              {error}
+            </p>
+          )}
         </section>
-      </details>
+      )}
+    </>
+  );
+
+  return (
+    <main
+      className={`site-shell${entryStage === 'game' ? '' : ' setup-shell'}`}
+    >
+      <header className="topbar">
+        <a className="brand" href="#top" aria-label="Lunch Roller home">
+          <span className="brand-mark">✳</span>{' '}
+          <h1 className="brand-title">Lunch Roller</h1>
+        </a>
+        <div className="top-actions">
+          <span className="date-chip">
+            {entryStage === 'setup'
+              ? 'FIRST-RUN SETUP'
+              : (today?.localDate ?? 'TODAY')}{' '}
+            · {today?.schedule.timezone ?? 'Europe/Dublin'}
+          </span>
+          {(entryStage === 'name' || entryStage === 'game') && (
+            <a
+              href="#admin"
+              className="quiet-link"
+              onClick={() => adminDisclosure.current?.setAttribute('open', '')}
+            >
+              Admin
+            </a>
+          )}
+        </div>
+      </header>
+
+      {entryStage !== 'game' ? (
+        entryGate
+      ) : (
+        <>
+          <section className="hero" id="top" aria-label="Lunch wheel">
+            <div className="wheel-card">
+              <div
+                className="wheel-wrap"
+                aria-label={
+                  drawnPlace
+                    ? `Today's committed result is ${drawnPlace}`
+                    : 'Lunch wheel'
+                }
+              >
+                <div className="pointer" aria-hidden="true">
+                  ◀
+                </div>
+                <div
+                  className={`wheel ${spin ? 'wheel-spinning' : ''}`}
+                  style={{
+                    background: gradient,
+                    transform: `rotate(${rotation}deg)`,
+                  }}
+                  role="img"
+                  aria-label={
+                    wheelOptions.length
+                      ? `Wheel with ${wheelOptions.length} lunch places, sized by the ${today?.result ? 'committed draw snapshot' : 'current odds'}`
+                      : 'Empty lunch wheel'
+                  }
+                >
+                  {wheelOptions.length
+                    ? wheelOptions
+                        .map((option, index) => ({ option, index }))
+                        .filter(({ option }) => option.probability >= 0.05)
+                        .map(({ option, index }) => (
+                          <span
+                            className="wheel-label"
+                            key={option.placeId}
+                            title={option.name}
+                            aria-label={option.name}
+                            style={{
+                              transform: `rotate(${(wheelOptions.slice(0, index).reduce((sum, item) => sum + item.probability, 0) + option.probability / 2) * 360}deg) translateY(-28cqw) rotate(-90deg)`,
+                            }}
+                          >
+                            {option.name.length > 14
+                              ? `${option.name.slice(0, 13)}…`
+                              : option.name}
+                          </span>
+                        ))
+                    : null}
+                </div>
+                <button
+                  type="button"
+                  className="wheel-hub"
+                  disabled={!today?.result || spin}
+                  onClick={replayResult}
+                  aria-label={
+                    today?.result
+                      ? 'Replay wheel animation'
+                      : 'Waiting for the scheduled draw'
+                  }
+                  title={
+                    today?.result
+                      ? 'Replay the saved result'
+                      : 'The next draw runs on the schedule'
+                  }
+                >
+                  <span aria-hidden="true">{today?.result ? '↻' : '◷'}</span>
+                </button>
+              </div>
+              <div className="wheel-footer">
+                <span className="wheel-state">
+                  {today?.status === 'drawn'
+                    ? 'TODAY’S PICK'
+                    : today?.status === 'not-scheduled'
+                      ? 'NO DRAW TODAY'
+                      : today?.status === 'no-options'
+                        ? 'ADD A PLACE TO BEGIN'
+                        : 'NEXT DRAW'}
+                </span>
+                <strong>
+                  {drawnPlace ??
+                    (today?.status === 'not-scheduled'
+                      ? 'Rest day'
+                      : 'The wheel is waiting')}
+                </strong>
+                {today?.result && (
+                  <button
+                    className="replay-button"
+                    type="button"
+                    onClick={replayResult}
+                    disabled={spin}
+                    aria-label="Replay today's result"
+                  >
+                    ↻ Replay today&apos;s result
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="wheel-status">
+              <Readiness />
+              {pollingError && (
+                <p className="refresh-error" role="status" aria-live="polite">
+                  {pollingError}
+                </p>
+              )}
+            </div>
+          </section>
+
+          <section
+            className="play-grid"
+            aria-label="Lunch wheel and member controls"
+          >
+            <div className="panel roster-panel">
+              <div className="section-heading">
+                <div>
+                  <p className="eyebrow">01 / YOUR SEAT AT THE TABLE</p>
+                  <h2>You</h2>
+                </div>
+                <span className="mini-icon">↗</span>
+              </div>
+              <p className="muted">
+                Check in and use your tokens to influence future lunches.
+              </p>
+              {currentName && (
+                <button
+                  type="button"
+                  className="quiet-link change-name"
+                  data-testid="change-name"
+                  onClick={changeName}
+                >
+                  Change name
+                </button>
+              )}
+              <div className="member-status">
+                <div>
+                  <span className="status-label">SELECTED NAME</span>
+                  <strong>{currentName ?? 'No one yet'}</strong>
+                </div>
+                <div className="balance">
+                  <span className="status-label">YOUR TOKENS</span>
+                  <strong>
+                    {wallet?.balance ?? '—'} <span>✳</span>
+                  </strong>
+                </div>
+              </div>
+              <div className="button-row">
+                <button
+                  className="button button-yellow"
+                  disabled={busy || !participantId || !today?.result}
+                  onClick={() =>
+                    today?.result &&
+                    void mutate(
+                      '/attendance',
+                      { drawId: today.result.id },
+                      'Check-in complete — 10 tokens added.',
+                    )
+                  }
+                >
+                  Check in <span>+10 ✳</span>
+                </button>
+                <button
+                  className="button button-light"
+                  disabled={
+                    !participantId ||
+                    (!pushOn &&
+                      (typeof window === 'undefined' ||
+                        !('Notification' in window) ||
+                        !('serviceWorker' in navigator) ||
+                        !('PushManager' in window)))
+                  }
+                  onClick={() =>
+                    pushOn ? void disablePush() : void togglePush()
+                  }
+                >
+                  {pushOn ? 'Turn alerts off' : 'Get lunch alerts'}
+                </button>
+              </div>
+              <div className="ledger">
+                <div className="ledger-heading">
+                  <h3>Recent token activity</h3>
+                  {wallet && wallet.ledger.length > 5 ? (
+                    <button
+                      className="ledger-toggle"
+                      aria-expanded={showAllLedger}
+                      aria-controls="token-ledger"
+                      onClick={() => setShowAllLedger((showing) => !showing)}
+                    >
+                      {showAllLedger ? 'Show recent' : 'Show all'}
+                    </button>
+                  ) : (
+                    <span>YOUR WALLET</span>
+                  )}
+                </div>
+                {wallet?.ledger.length ? (
+                  <div id="token-ledger">
+                    {wallet.ledger
+                      .slice(0, showAllLedger ? undefined : 5)
+                      .map((entry) => (
+                        <div className="ledger-row" key={entry.id}>
+                          <span>
+                            {entry.reason ?? entry.kind.replaceAll('-', ' ')}
+                          </span>
+                          <span className="ledger-date">
+                            <time dateTime={entry.createdAt}>
+                              {new Intl.DateTimeFormat(undefined, {
+                                dateStyle: 'short',
+                                timeStyle: 'short',
+                              }).format(new Date(entry.createdAt))}
+                            </time>
+                          </span>
+                          <strong className={entry.delta > 0 ? 'positive' : ''}>
+                            {moneyLabel(entry.delta)}
+                          </strong>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <p className="empty-note">
+                    Your token activity will show up here.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="panel odds-panel">
+              <div className="section-heading">
+                <div>
+                  <p className="eyebrow">02 / THE ODDS</p>
+                  <h2>Places</h2>
+                </div>
+                <span className="odds-total">{odds.length} PLACES</span>
+              </div>
+              <p className="muted">
+                Current chances for the next draw. More tokens can nudge the
+                odds.
+              </p>
+              <div className="odds-list">
+                {odds.map((option, index) => {
+                  const placeId = 'placeId' in option ? option.placeId : '';
+                  return (
+                    <div className="odds-row" key={placeId}>
+                      <span
+                        className="odds-color"
+                        style={{ background: colors[index % colors.length] }}
+                      />
+                      <span className="odds-name">{option.name}</span>
+                      <span className="odds-bar">
+                        <span
+                          style={{
+                            width: `${Math.max(option.probability * 100, option.probability > 0 ? 0.5 : 0)}%`,
+                            background: colors[index % colors.length],
+                          }}
+                        />
+                      </span>
+                      <strong>{(option.probability * 100).toFixed(1)}%</strong>
+                      <div className="influence-buttons">
+                        <button
+                          title="Boost place (5 tokens)"
+                          disabled={busy || !participantId}
+                          onClick={() =>
+                            void mutate(
+                              '/purchases',
+                              { placeId, action: 'boost' },
+                              'Place boosted for the next draw.',
+                            )
+                          }
+                        >
+                          + ↗
+                        </button>
+                        <button
+                          title="Reduce place (5 tokens)"
+                          disabled={busy || !participantId}
+                          onClick={() =>
+                            void mutate(
+                              '/purchases',
+                              { placeId, action: 'reduce' },
+                              'Place reduced for the next draw.',
+                            )
+                          }
+                        >
+                          − ↘
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {!odds.length && (
+                  <p className="empty-note">
+                    The admin can add places to get the wheel rolling.
+                  </p>
+                )}
+              </div>
+              <form
+                className="add-place"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const form = event.currentTarget;
+                  const input = new FormData(form)
+                    .get('place')
+                    ?.toString()
+                    .trim();
+                  if (input)
+                    void mutate(
+                      '/places',
+                      { name: input },
+                      'New lunch place added for 20 tokens.',
+                    ).then((saved) => {
+                      if (saved) form.reset();
+                    });
+                }}
+              >
+                <label htmlFor="place-name">Have a new spot in mind?</label>
+                <div className="inline-form">
+                  <input
+                    id="place-name"
+                    name="place"
+                    placeholder="Add a lunch place · 20 tokens"
+                    maxLength={100}
+                    required
+                    disabled={!participantId || busy}
+                  />
+                  <button
+                    className="button button-light"
+                    disabled={!participantId || busy}
+                  >
+                    Add place
+                  </button>
+                </div>
+              </form>
+              {today?.result && (
+                <div className="result-note">
+                  <span>✳</span>
+                  <p>
+                    The team picked <strong>{today.result.placeName}</strong>.
+                    Winner’s weight is halved for next time.
+                  </p>
+                </div>
+              )}
+            </div>
+          </section>
+        </>
+      )}
+      {(entryStage === 'name' || entryStage === 'game') && (
+        <details className="admin-disclosure" id="admin" ref={adminDisclosure}>
+          <summary>Admin tools</summary>
+          <section className="admin-section">
+            <div className="admin-intro">
+              <p className="eyebrow">THE BACK OFFICE</p>
+              <h2>Admin corner</h2>
+              <p>Keep the roster, lunch spots and schedule in good order.</p>
+            </div>
+            {!admin ? (
+              <form className="admin-login" onSubmit={login}>
+                <label htmlFor="admin-password">Administrator password</label>
+                <div className="inline-form">
+                  <input
+                    id="admin-password"
+                    type="password"
+                    value={adminPassword}
+                    onChange={(event) => setAdminPassword(event.target.value)}
+                    autoComplete="current-password"
+                  />
+                  <button
+                    className="button button-dark"
+                    disabled={busy || !adminPassword}
+                  >
+                    Unlock
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="admin-tools">
+                <div className="admin-tool-card" tabIndex={-1}>
+                  <h3>People</h3>
+                  <form
+                    className="inline-form"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      if (newName.trim())
+                        void adminSave(
+                          '/admin/participants',
+                          'POST',
+                          { name: newName },
+                          'Person added.',
+                        ).then(() => setNewName(''));
+                    }}
+                  >
+                    <input
+                      aria-label="New team member name"
+                      placeholder="New team member"
+                      value={newName}
+                      onChange={(event) => setNewName(event.target.value)}
+                      maxLength={100}
+                    />
+                    <button
+                      className="button button-light"
+                      disabled={busy || !newName.trim()}
+                    >
+                      Add
+                    </button>
+                  </form>
+                  {allParticipants.map((person) => (
+                    <div className="admin-row" key={person.id}>
+                      {editingPersonId === person.id ? (
+                        <form
+                          className="inline-form"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            void adminSave(
+                              `/admin/participants/${person.id}`,
+                              'PATCH',
+                              { name: editingPersonName },
+                              'Name updated.',
+                            ).then(() => setEditingPersonId(''));
+                          }}
+                        >
+                          <input
+                            aria-label={`Rename ${person.name}`}
+                            value={editingPersonName}
+                            onChange={(event) =>
+                              setEditingPersonName(event.target.value)
+                            }
+                            maxLength={100}
+                          />
+                          <button
+                            className="button button-light"
+                            disabled={busy || !editingPersonName.trim()}
+                          >
+                            Save
+                          </button>
+                        </form>
+                      ) : (
+                        <span>{person.name}</span>
+                      )}
+                      <button
+                        disabled={busy}
+                        onClick={() => {
+                          setEditingPersonId(person.id);
+                          setEditingPersonName(person.name);
+                        }}
+                      >
+                        Rename
+                      </button>
+                      <button
+                        disabled={busy}
+                        onClick={() =>
+                          void adminSave(
+                            `/admin/participants/${person.id}`,
+                            'PATCH',
+                            { active: !person.active },
+                            person.active
+                              ? 'Person archived.'
+                              : 'Person restored.',
+                          )
+                        }
+                      >
+                        {person.active ? 'Archive' : 'Restore'}
+                      </button>
+                      <button
+                        ref={removeTrigger}
+                        aria-label={`Remove ${person.name}`}
+                        disabled={busy}
+                        onClick={(event) => {
+                          removeTrigger.current = event.currentTarget;
+                          setRemoveTarget(person);
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="admin-tool-card">
+                  <h3>Places</h3>
+                  <form
+                    className="inline-form"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      const name = new FormData(event.currentTarget)
+                        .get('admin-place')
+                        ?.toString()
+                        .trim();
+                      if (name)
+                        void adminSave(
+                          '/admin/places',
+                          'POST',
+                          { name },
+                          'Place added.',
+                        );
+                    }}
+                  >
+                    <input
+                      name="admin-place"
+                      aria-label="New lunch place"
+                      placeholder="New lunch place"
+                      maxLength={100}
+                    />
+                    <button className="button button-light" disabled={busy}>
+                      Add
+                    </button>
+                  </form>
+                  {places.map((place) => (
+                    <div className="admin-row" key={place.id}>
+                      {editingPlaceId === place.id ? (
+                        <form
+                          className="inline-form"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            void adminSave(
+                              `/admin/places/${place.id}`,
+                              'PATCH',
+                              { name: editingPlaceName },
+                              'Name updated.',
+                            ).then(() => setEditingPlaceId(''));
+                          }}
+                        >
+                          <input
+                            aria-label={`Rename ${place.name}`}
+                            value={editingPlaceName}
+                            onChange={(event) =>
+                              setEditingPlaceName(event.target.value)
+                            }
+                            maxLength={100}
+                          />
+                          <button
+                            className="button button-light"
+                            disabled={busy || !editingPlaceName.trim()}
+                          >
+                            Save
+                          </button>
+                        </form>
+                      ) : (
+                        <span>
+                          {place.name}{' '}
+                          <small>
+                            {place.active
+                              ? `${Math.exp(place.logWeight).toFixed(2)}× weight`
+                              : 'archived'}
+                          </small>
+                        </span>
+                      )}
+                      <button
+                        disabled={busy}
+                        onClick={() => {
+                          setEditingPlaceId(place.id);
+                          setEditingPlaceName(place.name);
+                        }}
+                      >
+                        Rename
+                      </button>
+                      <button
+                        disabled={busy}
+                        onClick={() =>
+                          void adminSave(
+                            `/admin/places/${place.id}`,
+                            'PATCH',
+                            { active: !place.active },
+                            place.active
+                              ? 'Place archived.'
+                              : 'Place restored.',
+                          )
+                        }
+                      >
+                        {place.active ? 'Archive' : 'Restore'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="admin-tool-card">
+                  <h3>Draw schedule</h3>
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void adminSave(
+                        '/admin/schedule',
+                        'PUT',
+                        schedule,
+                        'Schedule saved.',
+                      );
+                    }}
+                  >
+                    <label>
+                      Time
+                      <input
+                        type="time"
+                        value={schedule.time}
+                        onChange={(event) =>
+                          setSchedule({ ...schedule, time: event.target.value })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Timezone
+                      <input
+                        value={schedule.timezone}
+                        onChange={(event) =>
+                          setSchedule({
+                            ...schedule,
+                            timezone: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <div className="weekdays">
+                      {'MTWTFSS'.split('').map((label, index) => (
+                        <label key={`${label}${index}`}>
+                          <input
+                            type="checkbox"
+                            checked={schedule.weekdays.includes(index + 1)}
+                            onChange={(event) =>
+                              setSchedule({
+                                ...schedule,
+                                weekdays: event.target.checked
+                                  ? [...schedule.weekdays, index + 1].sort()
+                                  : schedule.weekdays.filter(
+                                      (day) => day !== index + 1,
+                                    ),
+                              })
+                            }
+                          />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+                    <button
+                      className="button button-dark"
+                      disabled={busy || !schedule.weekdays.length}
+                    >
+                      Save schedule
+                    </button>
+                  </form>
+                </div>
+                <div className="admin-tool-card">
+                  <h3>Token correction</h3>
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void adminSave(
+                        '/admin/token-corrections',
+                        'POST',
+                        correction,
+                        'Token correction recorded.',
+                      );
+                    }}
+                  >
+                    <label>
+                      Team member
+                      <select
+                        required
+                        value={correction.participantId}
+                        onChange={(event) =>
+                          setCorrection({
+                            ...correction,
+                            participantId: event.target.value,
+                          })
+                        }
+                      >
+                        <option value="">Choose a person</option>
+                        {allParticipants.map((person) => (
+                          <option key={person.id} value={person.id}>
+                            {person.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Token change
+                      <input
+                        type="number"
+                        required
+                        value={correction.delta}
+                        onChange={(event) =>
+                          setCorrection({
+                            ...correction,
+                            delta: Number(event.target.value),
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Reason
+                      <input
+                        required
+                        maxLength={500}
+                        value={correction.reason}
+                        onChange={(event) =>
+                          setCorrection({
+                            ...correction,
+                            reason: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <button
+                      className="button button-dark"
+                      disabled={
+                        busy ||
+                        !correction.participantId ||
+                        !correction.reason.trim()
+                      }
+                    >
+                      Record correction
+                    </button>
+                  </form>
+                </div>
+                <button
+                  className="quiet-link logout"
+                  onClick={async () => {
+                    await request('/admin/session', { method: 'DELETE' });
+                    setAdmin(false);
+                    setPlaces([]);
+                  }}
+                >
+                  Lock admin tools
+                </button>
+              </div>
+            )}
+          </section>
+        </details>
+      )}
 
       <footer className="footer">
         <span className="brand">

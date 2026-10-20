@@ -110,6 +110,10 @@ it('starts empty, blocks member activity, and completes setup once active option
     participantCount: 1,
     placeCount: 1,
   });
+  // Partial configuration must not allow a worker to draw before the admin finishes.
+  expect(
+    await service.drawIfDue(new Date('2099-03-02T12:00:00.000Z')),
+  ).toBeNull();
   await expect(service.wallet(person.id)).rejects.toMatchObject({
     status: 403,
     code: 'SETUP_REQUIRED',

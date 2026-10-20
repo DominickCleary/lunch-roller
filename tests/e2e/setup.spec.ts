@@ -106,18 +106,36 @@ test('empty first run gates the wheel until an administrator configures it', asy
   await expect(
     page.getByRole('heading', { name: 'Set up your lunch wheel' }),
   ).toBeVisible();
+  await page.screenshot({
+    path: 'test-results/setup-desktop.png',
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: 'test-results/setup-mobile.png',
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 1280, height: 900 });
   await page.getByLabel('Administrator password').fill(adminPassword);
   await page.getByRole('button', { name: 'Sign in as administrator' }).click();
   await expect(page.getByText('Build your lunch wheel')).toBeVisible();
+  await expect(page.getByTestId('setup-complete')).toBeDisabled();
 
   await page.getByLabel('New team member name').fill(personName);
   await page.getByRole('button', { name: 'Add person' }).click();
   await expect(page.getByText(personName, { exact: true })).toBeVisible();
+  await expect(page.getByTestId('setup-complete')).toBeDisabled();
   await page.getByLabel('New lunch place').fill(placeName);
   await page.getByRole('button', { name: 'Add place', exact: true }).click();
   await expect(page.getByText(placeName, { exact: true })).toBeVisible();
   await expect(page.getByTestId('setup-complete')).toBeEnabled();
   await page.getByTestId('setup-complete').click();
+  await expect(page.getByTestId('name-picker')).toBeVisible();
   expect(await (await request.get('/api/v1/setup')).json()).toEqual({
     completed: true,
     participantCount: 1,
@@ -126,6 +144,14 @@ test('empty first run gates the wheel until an administrator configures it', asy
 
   await expect(page.getByTestId('name-picker')).toBeVisible();
   await expect(page.getByLabel('Your name')).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({ path: 'test-results/name-picker-mobile.png' });
+  await page.setViewportSize({ width: 1280, height: 900 });
   await page.getByLabel('Your name').selectOption({ label: personName });
   await page.getByRole('button', { name: 'Enter lunch wheel' }).click();
   await expect(page.locator('.member-status')).toContainText(personName);

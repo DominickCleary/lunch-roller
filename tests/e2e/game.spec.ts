@@ -108,7 +108,8 @@ async function exerciseAdminUiAndGame(
     .locator('..')
     .getByRole('button', { name: 'Archive', exact: true })
     .click();
-  await expect(page.locator('.member-status')).toContainText('No one yet');
+  await expect(page.getByTestId('name-picker')).toBeVisible();
+  await expect(page.locator('.wheel')).toHaveCount(0);
   await expect(page.getByLabel('Your name')).not.toContainText(archivedName);
 
   await page.getByLabel('Your name').selectOption({ label: memberName });
