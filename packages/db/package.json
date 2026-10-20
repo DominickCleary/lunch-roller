@@ -15,6 +15,8 @@
     "seed": "tsx src/seed.ts"
   },
   "dependencies": {
+    "@lunch/contracts": "workspace:*",
+    "@lunch/domain": "workspace:*",
     "dotenv": "18.0.8",
     "drizzle-orm": "0.45.4",
     "postgres": "3.4.9"

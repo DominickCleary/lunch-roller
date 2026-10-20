@@ -142,6 +142,7 @@ export const tokenLedger = pgTable(
     }).notNull(),
     idempotencyKey: text('idempotency_key').notNull(),
     requestHash: text('request_hash').notNull(),
+    response: jsonb().$type<unknown>(),
     attendanceId: uuid('attendance_id').references(() => attendance.id),
     placeId: uuid('place_id').references(() => places.id),
     reason: text(),
@@ -171,6 +172,7 @@ export const pushSubscriptions = pgTable('push_subscriptions', {
   endpoint: text().notNull().unique(),
   p256dh: text().notNull(),
   auth: text().notNull(),
+  active: boolean().default(true).notNull(),
   createdAt: createdAt(),
 });
 
@@ -192,6 +194,7 @@ export const notificationOutbox = pgTable(
       .defaultNow()
       .notNull(),
     lockedUntil: timestamp('locked_until', { withTimezone: true }),
+    leaseToken: uuid('lease_token'),
     sentAt: timestamp('sent_at', { withTimezone: true }),
     lastError: text('last_error'),
     createdAt: createdAt(),

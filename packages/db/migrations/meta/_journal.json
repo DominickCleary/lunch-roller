@@ -8,6 +8,13 @@
       "when": 1792529734950,
       "tag": "0000_polite_stick",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792530493484,
+      "tag": "0001_mushy_anthem",
+      "breakpoints": true
     }
   ]
 }

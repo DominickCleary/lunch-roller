@@ -52,6 +52,15 @@ export const draw = z.object({
   placeId: id,
   placeName: name,
   drawnAt: z.iso.datetime(),
+  timezone: z.string(),
+  snapshot: z.array(
+    z.object({
+      placeId: id,
+      name,
+      logWeight: z.number().finite(),
+      probability: z.number().min(0).max(1),
+    }),
+  ),
 });
 export const todayResponse = z.object({
   localDate: z.iso.date(),
@@ -64,6 +73,15 @@ export const todayResponse = z.object({
 });
 export const walletResponse = z.object({
   balance: z.number().int().nonnegative(),
+  ledger: z.array(
+    z.object({
+      id,
+      delta: z.number().int(),
+      kind: z.string(),
+      reason: z.string().nullable(),
+      createdAt: z.iso.datetime(),
+    }),
+  ),
 });
 export const attendanceResponse = z.object({
   drawId: id,
@@ -88,6 +106,20 @@ export const pushSubscription = z.object({
   endpoint: z.url().startsWith('https://'),
   keys: z.object({ p256dh: z.string().min(1), auth: z.string().min(1) }),
 });
+export const pushConfigResponse = z.object({
+  publicKey: z.string().nullable(),
+});
+export const participantsResponse = z.object({
+  participants: z.array(participant),
+});
+export const placesResponse = z.object({ places: z.array(place) });
+export type Participant = z.infer<typeof participant>;
+export type Place = z.infer<typeof place>;
+export type WalletResponse = z.infer<typeof walletResponse>;
+export type Draw = z.infer<typeof draw>;
+export type AttendanceResponse = z.infer<typeof attendanceResponse>;
+export type PurchaseResponse = z.infer<typeof purchaseResponse>;
+export type PushSubscriptionInput = z.infer<typeof pushSubscription>;
 export const healthResponse = z.object({
   status: z.enum(['ok', 'unavailable']),
   database: z.enum(['ok', 'unavailable']),

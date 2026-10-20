@@ -10,8 +10,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@lunch/contracts": "workspace:*",
     "@lunch/db": "workspace:*",
     "@lunch/domain": "workspace:*",
-    "@lunch/contracts": "workspace:*"
+    "web-push": "3.6.7"
+  },
+  "devDependencies": {
+    "@types/web-push": "3.6.4"
   }
 }
