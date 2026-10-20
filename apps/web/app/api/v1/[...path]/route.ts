@@ -12,8 +12,14 @@ import {
   schedule as scheduleSchema,
   setupStatus,
   gamePreferences,
+  economySettings,
   attendanceStatus,
   tokenCorrection,
+  tokenBalanceList,
+  tokenBalanceSetRequest,
+  tokenBalanceSetResponse,
+  restaurantOddsResponse,
+  setRestaurantOddsRequest,
   updateParticipant,
   updatePlace,
 } from '@lunch/contracts';
@@ -298,6 +304,14 @@ async function dispatch(request: NextRequest, context: Context) {
       return response(undefined, 204);
     }
     if (route.startsWith('/admin/')) requireAdmin(request);
+    if (route === '/admin/economy' && method === 'GET')
+      return response(economySettings.parse(await game.getEconomy()));
+    if (route === '/admin/economy' && method === 'PUT')
+      return response(
+        economySettings.parse(
+          await game.setEconomy(parse(economySettings, await body(request))),
+        ),
+      );
     if (route === '/admin/preferences' && method === 'GET')
       return response(gamePreferences.parse(await game.getPreferences()));
     if (route === '/admin/preferences' && method === 'PUT')
@@ -312,6 +326,17 @@ async function dispatch(request: NextRequest, context: Context) {
       return response(setupStatus.parse(await game.completeSetup()));
     if (route === '/admin/participants' && method === 'GET')
       return response({ participants: await game.listParticipants(true) });
+    if (route === '/admin/token-balances' && method === 'GET')
+      return response(tokenBalanceList.parse(await game.listTokenBalances()));
+    if (route === '/admin/token-balances' && method === 'POST')
+      return response(
+        tokenBalanceSetResponse.parse(
+          await game.setTokenBalance(
+            parse(tokenBalanceSetRequest, await body(request)),
+            idempotencyKey(request),
+          ),
+        ),
+      );
     if (route === '/admin/participants' && method === 'POST')
       return response(
         await game.saveParticipant(
@@ -335,6 +360,18 @@ async function dispatch(request: NextRequest, context: Context) {
       );
     if (route === '/admin/places' && method === 'GET')
       return response({ places: await game.listPlaces(true) });
+    if (route === '/admin/restaurant-odds' && method === 'GET')
+      return response(
+        restaurantOddsResponse.parse(await game.listRestaurantOdds()),
+      );
+    if (route === '/admin/restaurant-odds' && method === 'PUT')
+      return response(
+        restaurantOddsResponse.parse(
+          await game.setRestaurantOdds(
+            parse(setRestaurantOddsRequest, await body(request)),
+          ),
+        ),
+      );
     if (route === '/admin/places' && method === 'POST')
       return response(
         await game.savePlace(parse(createPlace, await body(request))),

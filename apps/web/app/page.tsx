@@ -3,9 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import Link from 'next/link';
-import { defaultGamePreferences } from '@lunch/contracts';
+import {
+  defaultEconomySettings,
+  defaultGamePreferences,
+} from '@lunch/contracts';
 import type {
   AttendanceStatus,
+  EconomySettings,
   GamePreferences,
   Participant,
   ParticipantRemoval,
@@ -20,6 +24,8 @@ import { ThemeToggle } from './theme-toggle';
 import { TeamActivity } from './team-activity';
 
 type ApiError = { error?: { code?: string; message?: string } };
+type TokenBalanceRow = { participantId: string; balance: number };
+type RestaurantOdd = { placeId: string; name: string; percent: number };
 type Pending = {
   key: string;
   route: string;
@@ -98,6 +104,16 @@ export default function Home() {
   >('loading');
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [allParticipants, setAllParticipants] = useState<Participant[]>([]);
+  const [tokenBalances, setTokenBalances] = useState<Record<string, number>>(
+    {},
+  );
+  const [balanceDrafts, setBalanceDrafts] = useState<
+    Record<string, { balance: string; reason: string }>
+  >({});
+  const [restaurantOdds, setRestaurantOdds] = useState<RestaurantOdd[]>([]);
+  const [restaurantOddsDraft, setRestaurantOddsDraft] = useState<
+    Record<string, string>
+  >({});
   const [places, setPlaces] = useState<Place[]>([]);
   const [today, setToday] = useState<TodayResponse | null>(null);
   const wheelDisplayKey = today
@@ -146,11 +162,9 @@ export default function Home() {
   const [preferences, setPreferences] = useState<GamePreferences>(
     defaultGamePreferences,
   );
-  const [correction, setCorrection] = useState({
-    participantId: '',
-    delta: 1,
-    reason: '',
-  });
+  const [economy, setEconomy] = useState<EconomySettings>(
+    defaultEconomySettings,
+  );
   const [pushOn, setPushOn] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const pushBusyRef = useRef(false);
@@ -203,17 +217,52 @@ export default function Home() {
   }, []);
 
   const refreshAdmin = useCallback(async () => {
-    const [people, locations, savedSchedule, savedPreferences] =
-      await Promise.all([
-        request<{ participants: Participant[] }>('/admin/participants'),
-        request<{ places: Place[] }>('/admin/places'),
-        request<Schedule>('/admin/schedule'),
-        request<GamePreferences>('/admin/preferences'),
-      ]);
+    const [
+      people,
+      locations,
+      balances,
+      savedOdds,
+      savedSchedule,
+      savedPreferences,
+      savedEconomy,
+    ] = await Promise.all([
+      request<{ participants: Participant[] }>('/admin/participants'),
+      request<{ places: Place[] }>('/admin/places'),
+      request<{ balances: TokenBalanceRow[] }>('/admin/token-balances'),
+      request<{ places: RestaurantOdd[] }>('/admin/restaurant-odds'),
+      request<Schedule>('/admin/schedule'),
+      request<GamePreferences>('/admin/preferences'),
+      request<EconomySettings>('/admin/economy'),
+    ]);
     setAllParticipants(people.participants);
+    const balanceMap = Object.fromEntries(
+      balances.balances.map(({ participantId, balance }) => [
+        participantId,
+        balance,
+      ]),
+    );
+    setTokenBalances(balanceMap);
+    setBalanceDrafts(
+      Object.fromEntries(
+        balances.balances.map(({ participantId, balance }) => [
+          participantId,
+          { balance: String(balance), reason: '' },
+        ]),
+      ),
+    );
     setPlaces(locations.places);
+    setRestaurantOdds(savedOdds.places);
+    setRestaurantOddsDraft(
+      Object.fromEntries(
+        savedOdds.places.map(({ placeId, percent }) => [
+          placeId,
+          String(percent),
+        ]),
+      ),
+    );
     setSchedule(savedSchedule);
     setPreferences(savedPreferences);
+    setEconomy(savedEconomy);
     setAdmin(true);
   }, []);
 
@@ -345,6 +394,7 @@ export default function Home() {
   }
 
   const odds = useMemo(() => today?.odds ?? [], [today]);
+  const currentEconomy = today?.economy ?? defaultEconomySettings;
   const baselineOptions =
     today?.wheel.mode === 'result' && today.result
       ? today.result.snapshot
@@ -569,7 +619,10 @@ export default function Home() {
     setBusy(true);
     setError('');
     try {
-      await request(
+      const result = await request<{
+        awardedTokens?: number;
+        spentTokens?: number;
+      }>(
         route,
         {
           method: 'POST',
@@ -587,7 +640,11 @@ export default function Home() {
           drawId,
           status: { drawId, checkedIn: true, open: true },
         });
-        setNotice(message);
+        setNotice(
+          route === '/attendance' && result.awardedTokens !== undefined
+            ? `Check-in complete — ${result.awardedTokens} tokens added.`
+            : message,
+        );
         try {
           await refresh(participantId);
         } catch {
@@ -597,7 +654,14 @@ export default function Home() {
       }
       await refresh(participantId);
       localStorage.removeItem(pendingKey);
-      setNotice(message);
+      setNotice(
+        (route === '/places' || route === '/purchases') &&
+          result.spentTokens !== undefined
+          ? route === '/places'
+            ? `New lunch place added for ${result.spentTokens} tokens.`
+            : message
+          : message,
+      );
       return true;
     } catch (caught) {
       if (
@@ -669,8 +733,11 @@ export default function Home() {
     setError('');
     try {
       let headers: HeadersInit | undefined;
-      if (route === '/admin/token-corrections') {
-        const key = 'lunch-roller.admin-correction';
+      if (
+        route === '/admin/token-corrections' ||
+        route === '/admin/token-balances'
+      ) {
+        const key = `lunch-roller.${route.split('/').at(-1)}-request`;
         const prior = sessionStorage.getItem(key);
         const candidate = prior ? (JSON.parse(prior) as Pending) : null;
         const pending =
@@ -687,8 +754,13 @@ export default function Home() {
       const status = await loadSetupStatus();
       if (status.completed) await refresh(participantId);
       setNotice(done);
-      if (route === '/admin/token-corrections')
-        sessionStorage.removeItem('lunch-roller.admin-correction');
+      if (
+        route === '/admin/token-corrections' ||
+        route === '/admin/token-balances'
+      )
+        sessionStorage.removeItem(
+          `lunch-roller.${route.split('/').at(-1)}-request`,
+        );
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : 'Could not save changes.',
@@ -905,6 +977,17 @@ export default function Home() {
 
   const activePeople = allParticipants.filter((person) => person.active).length;
   const activePlaces = places.filter((place) => place.active).length;
+  const restaurantOddsTotal = restaurantOdds.reduce(
+    (total, place) => total + Number(restaurantOddsDraft[place.placeId]),
+    0,
+  );
+  const restaurantOddsAreValid =
+    restaurantOdds.length > 0 &&
+    restaurantOdds.every((place) => {
+      const percent = Number(restaurantOddsDraft[place.placeId]);
+      return Number.isFinite(percent) && percent > 0 && percent <= 100;
+    }) &&
+    Math.abs(restaurantOddsTotal - 100) <= 0.01;
   const entryGate = (
     <>
       {entryStage === 'loading' ? (
@@ -1398,7 +1481,7 @@ export default function Home() {
                     void mutate(
                       '/attendance',
                       { drawId: today.result.id },
-                      'Check-in complete — 10 tokens added.',
+                      `Check-in complete — ${currentEconomy.attendanceReward} tokens added.`,
                     )
                   }
                 >
@@ -1406,7 +1489,7 @@ export default function Home() {
                     'Checked in'
                   ) : (
                     <>
-                      Check in <span>+10 ✳</span>
+                      Check in <span>+{currentEconomy.attendanceReward} ✳</span>
                     </>
                   )}
                 </button>
@@ -1524,7 +1607,7 @@ export default function Home() {
                       <strong>{(option.probability * 100).toFixed(1)}%</strong>
                       <div className="influence-buttons">
                         <button
-                          title="Boost place (5 tokens)"
+                          title={`Boost place (${currentEconomy.boostCost} tokens)`}
                           disabled={busy || !participantId}
                           onClick={() =>
                             void mutate(
@@ -1537,7 +1620,7 @@ export default function Home() {
                           + ↗
                         </button>
                         <button
-                          title="Reduce place (5 tokens)"
+                          title={`Reduce place (${currentEconomy.reduceCost} tokens)`}
                           disabled={busy || !participantId}
                           onClick={() =>
                             void mutate(
@@ -1572,7 +1655,7 @@ export default function Home() {
                     void mutate(
                       '/places',
                       { name: input },
-                      'New lunch place added for 20 tokens.',
+                      `New lunch place added for ${currentEconomy.addPlaceCost} tokens.`,
                     ).then((saved) => {
                       if (saved) form.reset();
                     });
@@ -1583,7 +1666,7 @@ export default function Home() {
                   <input
                     id="place-name"
                     name="place"
-                    placeholder="Add a lunch place · 20 tokens"
+                    placeholder={`Add a lunch place · ${currentEconomy.addPlaceCost} tokens`}
                     maxLength={100}
                     required
                     disabled={!participantId || busy}
@@ -1648,10 +1731,15 @@ export default function Home() {
               </form>
             ) : (
               <div className="admin-tools">
-                <div className="admin-tool-card" tabIndex={-1}>
+                <div className="admin-tool-card admin-wide-card" tabIndex={-1}>
                   <h3>People</h3>
+                  <p className="muted">
+                    Add people, disable or restore access, and set each balance
+                    with a reason. Balance changes are saved in the person’s
+                    token history.
+                  </p>
                   <form
-                    className="inline-form"
+                    className="inline-form admin-add-person"
                     onSubmit={(event) => {
                       event.preventDefault();
                       if (newName.trim())
@@ -1674,79 +1762,190 @@ export default function Home() {
                       className="button button-light"
                       disabled={busy || !newName.trim()}
                     >
-                      Add
+                      Add person
                     </button>
                   </form>
-                  {allParticipants.map((person) => (
-                    <div className="admin-row" key={person.id}>
-                      {editingPersonId === person.id ? (
-                        <form
-                          className="inline-form"
-                          onSubmit={(event) => {
-                            event.preventDefault();
-                            void adminSave(
-                              `/admin/participants/${person.id}`,
-                              'PATCH',
-                              { name: editingPersonName },
-                              'Name updated.',
-                            ).then(() => setEditingPersonId(''));
-                          }}
-                        >
-                          <input
-                            aria-label={`Rename ${person.name}`}
-                            value={editingPersonName}
-                            onChange={(event) =>
-                              setEditingPersonName(event.target.value)
-                            }
-                            maxLength={100}
-                          />
-                          <button
-                            className="button button-light"
-                            disabled={busy || !editingPersonName.trim()}
-                          >
-                            Save
-                          </button>
-                        </form>
-                      ) : (
-                        <span>{person.name}</span>
-                      )}
-                      <button
-                        disabled={busy}
-                        onClick={() => {
-                          setEditingPersonId(person.id);
-                          setEditingPersonName(person.name);
-                        }}
-                      >
-                        Rename
-                      </button>
-                      <button
-                        disabled={busy}
-                        onClick={() =>
-                          void adminSave(
-                            `/admin/participants/${person.id}`,
-                            'PATCH',
-                            { active: !person.active },
-                            person.active
-                              ? 'Person archived.'
-                              : 'Person restored.',
-                          )
-                        }
-                      >
-                        {person.active ? 'Archive' : 'Restore'}
-                      </button>
-                      <button
-                        ref={removeTrigger}
-                        aria-label={`Remove ${person.name}`}
-                        disabled={busy}
-                        onClick={(event) => {
-                          removeTrigger.current = event.currentTarget;
-                          setRemoveTarget(person);
-                        }}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
+                  <div className="admin-table-scroll">
+                    <table className="admin-data-table people-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Person</th>
+                          <th scope="col">Status</th>
+                          <th scope="col">Balance</th>
+                          <th scope="col">Set balance</th>
+                          <th scope="col">Reason</th>
+                          <th scope="col">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {allParticipants.map((person) => {
+                          const draft = balanceDrafts[person.id] ?? {
+                            balance: String(tokenBalances[person.id] ?? 0),
+                            reason: '',
+                          };
+                          return (
+                            <tr key={person.id}>
+                              <td>
+                                {editingPersonId === person.id ? (
+                                  <form
+                                    className="inline-form"
+                                    onSubmit={(event) => {
+                                      event.preventDefault();
+                                      void adminSave(
+                                        `/admin/participants/${person.id}`,
+                                        'PATCH',
+                                        { name: editingPersonName },
+                                        'Name updated.',
+                                      ).then(() => setEditingPersonId(''));
+                                    }}
+                                  >
+                                    <input
+                                      aria-label={`Rename ${person.name}`}
+                                      value={editingPersonName}
+                                      onChange={(event) =>
+                                        setEditingPersonName(event.target.value)
+                                      }
+                                      maxLength={100}
+                                    />
+                                    <button
+                                      className="button button-light"
+                                      disabled={
+                                        busy || !editingPersonName.trim()
+                                      }
+                                    >
+                                      Save
+                                    </button>
+                                  </form>
+                                ) : (
+                                  <strong>{person.name}</strong>
+                                )}
+                              </td>
+                              <td>
+                                <span
+                                  className={
+                                    person.active
+                                      ? 'status-active'
+                                      : 'status-inactive'
+                                  }
+                                >
+                                  {person.active ? 'Active' : 'Disabled'}
+                                </span>
+                              </td>
+                              <td>{tokenBalances[person.id] ?? 0} ✳</td>
+                              <td>
+                                <input
+                                  aria-label={`${person.name} new token balance`}
+                                  className="table-input"
+                                  type="number"
+                                  min={0}
+                                  max={2147483647}
+                                  step={1}
+                                  required
+                                  value={draft.balance}
+                                  onChange={(event) =>
+                                    setBalanceDrafts({
+                                      ...balanceDrafts,
+                                      [person.id]: {
+                                        ...draft,
+                                        balance: event.target.value,
+                                      },
+                                    })
+                                  }
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  aria-label={`Reason for ${person.name} balance`}
+                                  className="table-input reason-input"
+                                  maxLength={500}
+                                  required
+                                  value={draft.reason}
+                                  onChange={(event) =>
+                                    setBalanceDrafts({
+                                      ...balanceDrafts,
+                                      [person.id]: {
+                                        ...draft,
+                                        reason: event.target.value,
+                                      },
+                                    })
+                                  }
+                                />
+                              </td>
+                              <td>
+                                <div className="table-actions">
+                                  <button
+                                    className="button button-light"
+                                    disabled={
+                                      busy ||
+                                      !draft.reason.trim() ||
+                                      !Number.isSafeInteger(
+                                        Number(draft.balance),
+                                      ) ||
+                                      Number(draft.balance) ===
+                                        tokenBalances[person.id]
+                                    }
+                                    onClick={() =>
+                                      void adminSave(
+                                        '/admin/token-balances',
+                                        'POST',
+                                        {
+                                          participantId: person.id,
+                                          balance: Number(draft.balance),
+                                          reason: draft.reason,
+                                        },
+                                        `Balance set for ${person.name}.`,
+                                      )
+                                    }
+                                  >
+                                    Set
+                                  </button>
+                                  <button
+                                    className="quiet-link"
+                                    disabled={busy}
+                                    onClick={() => {
+                                      setEditingPersonId(person.id);
+                                      setEditingPersonName(person.name);
+                                    }}
+                                  >
+                                    Rename
+                                  </button>
+                                  <button
+                                    className="quiet-link"
+                                    disabled={busy}
+                                    onClick={() =>
+                                      void adminSave(
+                                        `/admin/participants/${person.id}`,
+                                        'PATCH',
+                                        { active: !person.active },
+                                        person.active
+                                          ? 'Person disabled.'
+                                          : 'Person restored.',
+                                      )
+                                    }
+                                  >
+                                    {person.active ? 'Disable' : 'Restore'}
+                                  </button>
+                                  <button
+                                    ref={removeTrigger}
+                                    className="quiet-link"
+                                    aria-label={`Remove ${person.name}`}
+                                    disabled={busy}
+                                    onClick={(event) => {
+                                      removeTrigger.current =
+                                        event.currentTarget;
+                                      setRemoveTarget(person);
+                                    }}
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
                 <div className="admin-tool-card">
                   <h3>Places</h3>
@@ -1843,6 +2042,93 @@ export default function Home() {
                       </button>
                     </div>
                   ))}
+                </div>
+                <div
+                  className="admin-tool-card admin-wide-card"
+                  data-testid="admin-restaurant-odds"
+                >
+                  <h3>Restaurant odds</h3>
+                  <p className="muted">
+                    Set the share of the wheel for each active restaurant.
+                    Values must total 100%. Saving changes future draws and
+                    keeps completed results as they were.
+                  </p>
+                  {restaurantOdds.length ? (
+                    <>
+                      <div className="admin-table-scroll">
+                        <table className="admin-data-table odds-table">
+                          <thead>
+                            <tr>
+                              <th scope="col">Restaurant</th>
+                              <th scope="col">Current wheel share</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {restaurantOdds.map((place) => (
+                              <tr key={place.placeId}>
+                                <th scope="row">{place.name}</th>
+                                <td>
+                                  <label className="odds-input-label">
+                                    <input
+                                      className="table-input odds-input"
+                                      aria-label={`${place.name} percentage`}
+                                      type="number"
+                                      min={0.000001}
+                                      max={100}
+                                      step="0.000001"
+                                      required
+                                      value={
+                                        restaurantOddsDraft[place.placeId] ?? ''
+                                      }
+                                      onChange={(event) =>
+                                        setRestaurantOddsDraft({
+                                          ...restaurantOddsDraft,
+                                          [place.placeId]: event.target.value,
+                                        })
+                                      }
+                                    />{' '}
+                                    <span>%</span>
+                                  </label>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="odds-save-row">
+                        <span aria-live="polite">
+                          Total:{' '}
+                          {Number.isFinite(restaurantOddsTotal)
+                            ? restaurantOddsTotal.toFixed(4)
+                            : '—'}
+                          %
+                        </span>
+                        <button
+                          className="button button-dark"
+                          disabled={busy || !restaurantOddsAreValid}
+                          onClick={() =>
+                            void adminSave(
+                              '/admin/restaurant-odds',
+                              'PUT',
+                              {
+                                places: restaurantOdds.map(({ placeId }) => ({
+                                  placeId,
+                                  percent: Number(restaurantOddsDraft[placeId]),
+                                })),
+                              },
+                              'Restaurant odds saved.',
+                            )
+                          }
+                        >
+                          Save percentages
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="muted">
+                      Add an active restaurant to set wheel percentages.
+                    </p>
+                  )}
                 </div>
                 <div className="admin-tool-card">
                   <h3>Draw schedule</h3>
@@ -1959,76 +2245,128 @@ export default function Home() {
                     </button>
                   </form>
                 </div>
-                <div className="admin-tool-card">
-                  <h3>Token correction</h3>
+                <div className="admin-tool-card" data-testid="admin-economy">
+                  <h3>Tokens and odds</h3>
+                  <p className="muted">
+                    Token costs and rewards apply to future actions. Boost and
+                    reduce multiply a place&apos;s relative weight for future
+                    draws; they do not change a saved result.
+                  </p>
                   <form
                     onSubmit={(event) => {
                       event.preventDefault();
                       void adminSave(
-                        '/admin/token-corrections',
-                        'POST',
-                        correction,
-                        'Token correction recorded.',
+                        '/admin/economy',
+                        'PUT',
+                        economy,
+                        'Token settings saved.',
                       );
                     }}
                   >
                     <label>
-                      Team member
-                      <select
-                        required
-                        value={correction.participantId}
-                        onChange={(event) =>
-                          setCorrection({
-                            ...correction,
-                            participantId: event.target.value,
-                          })
-                        }
-                      >
-                        <option value="">Choose a person</option>
-                        {allParticipants.map((person) => (
-                          <option key={person.id} value={person.id}>
-                            {person.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      Token change
+                      Attendance reward (tokens)
                       <input
                         type="number"
                         required
-                        value={correction.delta}
+                        min={1}
+                        max={2147483647}
+                        step={1}
+                        value={economy.attendanceReward}
                         onChange={(event) =>
-                          setCorrection({
-                            ...correction,
-                            delta: Number(event.target.value),
+                          setEconomy({
+                            ...economy,
+                            attendanceReward: Number(event.target.value),
                           })
                         }
                       />
                     </label>
                     <label>
-                      Reason
+                      Add place cost (tokens)
                       <input
+                        type="number"
                         required
-                        maxLength={500}
-                        value={correction.reason}
+                        min={1}
+                        max={2147483647}
+                        step={1}
+                        value={economy.addPlaceCost}
                         onChange={(event) =>
-                          setCorrection({
-                            ...correction,
-                            reason: event.target.value,
+                          setEconomy({
+                            ...economy,
+                            addPlaceCost: Number(event.target.value),
                           })
                         }
                       />
                     </label>
-                    <button
-                      className="button button-dark"
-                      disabled={
-                        busy ||
-                        !correction.participantId ||
-                        !correction.reason.trim()
-                      }
-                    >
-                      Record correction
+                    <label>
+                      Boost cost (tokens)
+                      <input
+                        type="number"
+                        required
+                        min={1}
+                        max={2147483647}
+                        step={1}
+                        value={economy.boostCost}
+                        onChange={(event) =>
+                          setEconomy({
+                            ...economy,
+                            boostCost: Number(event.target.value),
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Reduce cost (tokens)
+                      <input
+                        type="number"
+                        required
+                        min={1}
+                        max={2147483647}
+                        step={1}
+                        value={economy.reduceCost}
+                        onChange={(event) =>
+                          setEconomy({
+                            ...economy,
+                            reduceCost: Number(event.target.value),
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Boost relative-weight multiplier
+                      <input
+                        type="number"
+                        required
+                        min={1.0000000000000002}
+                        max={100}
+                        step="any"
+                        value={economy.boostMultiplier}
+                        onChange={(event) =>
+                          setEconomy({
+                            ...economy,
+                            boostMultiplier: Number(event.target.value),
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Reduce relative-weight multiplier
+                      <input
+                        type="number"
+                        required
+                        min={0.01}
+                        max={0.9999999999999999}
+                        step="any"
+                        value={economy.reduceMultiplier}
+                        onChange={(event) =>
+                          setEconomy({
+                            ...economy,
+                            reduceMultiplier: Number(event.target.value),
+                          })
+                        }
+                      />
+                    </label>
+                    <button className="button button-dark" disabled={busy}>
+                      Save token settings
                     </button>
                   </form>
                 </div>

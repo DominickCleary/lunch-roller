@@ -13,6 +13,27 @@ const places = [
   { id: 'a', logWeight: Math.log(1) },
   { id: 'b', logWeight: Math.log(3) },
 ];
+it('uses configured prices and relative weight changes without changing winner decay', () => {
+  const prices = { addPlaceCost: 30, boostCost: 7, reduceCost: 3 };
+  expect(spendTokens(30, 'add-place', prices)).toBe(0);
+  expect(spendTokens(10, 'boost', prices)).toBe(3);
+  expect(spendTokens(10, 'reduce', prices)).toBe(7);
+  expect(() => spendTokens(6, 'boost', prices)).toThrow('Insufficient');
+  const multipliers = { boostMultiplier: 2, reduceMultiplier: 0.25 };
+  expect(influenceWeight(-10000, 'boost', multipliers)).toBeCloseTo(
+    -10000 + Math.log(2),
+  );
+  expect(influenceWeight(-10000, 'reduce', multipliers)).toBeCloseTo(
+    -10000 + Math.log(0.25),
+  );
+  expect(() =>
+    influenceWeight(0, 'boost', { ...multipliers, boostMultiplier: Infinity }),
+  ).toThrow();
+  expect(() =>
+    influenceWeight(0, 'reduce', { ...multipliers, reduceMultiplier: 1 }),
+  ).toThrow();
+  expect(halveWeight(0)).toBe(-Math.LN2);
+});
 describe('weighted wheel', () => {
   it('selects proportionally at interval boundaries', () => {
     expect(probabilities(places)[0]!.probability).toBeCloseTo(0.25);

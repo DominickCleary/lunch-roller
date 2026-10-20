@@ -1,5 +1,7 @@
 # Local milestone verification
 
+The configurable token economy update was verified on 21 October 2026. All six admin values persist, member prices follow the current settings, and actual reward/purchase responses supply success amounts. The additive `0004_organic_jackpot.sql` migration preserves existing game history and backfills the previous defaults. Reviewed transaction ordering, admin authorization, idempotent replay and saved-timezone attendance behavior; no dependency or environment-variable changes are required. Required format/lint/type/build checks passed, alongside 40 unit tests, 29 integration tests and 20 Chromium scenarios. Migration and initialization each passed twice against a fresh disposable database.
+
 Verified on 20 October 2026 with Node 24.19.0, pnpm 11.21.0, PostgreSQL 17.6, Chromium and Docker Desktop Linux containers. Three bounded Luna agents implemented the data, web and worker lanes in separate branches/worktrees, with coordinator-owned contracts, dependencies, migration generation and final integration. All five backlog milestones are implemented. No remote push or deployment was performed.
 
 ## Required checks

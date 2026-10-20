@@ -20,6 +20,10 @@ Use the header's Dark mode / Light mode toggle to change the theme. The site fol
 
 Open Team token activity below your own token history to view another active roster member's balance, transactions, reasons and dates. Viewing activity leaves your selected name and game actions unchanged.
 
+Under Admin tools → Tokens and odds, admins can change the participation reward, new-place cost, separate boost/reduce costs, and their relative-weight multipliers. Defaults remain 10, 20, 5, 5, ×1.25 and ×0.8. Changes apply to future actions; saved draw results and token history stay intact. Member labels show current prices.
+
+Admin tools show people in a table where you can add, disable/restore, rename, and set an exact token balance with a reason. Balance changes appear as correction entries in that person's history. The Restaurant odds table lets you edit each active restaurant's wheel percentage; the complete set must total 100% before saving.
+
 Compose binds web/database to localhost and uses development credentials. It is a local setup, not a production deployment. The seed service initializes the settings singleton only and preserves existing data.
 
 If port 5432 is already occupied, set `POSTGRES_PORT` to a free port in `.env` and update the port in `DATABASE_URL` to match. Containers still connect to `db:5432` internally.

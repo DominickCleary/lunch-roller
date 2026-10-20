@@ -69,6 +69,16 @@ export const settings = pgTable(
     timezone: text().default('Europe/Dublin').notNull(),
     setupCompleted: boolean('setup_completed').default(false).notNull(),
     spinTime: text('spin_time').default('11:30').notNull(),
+    attendanceReward: integer('attendance_reward').default(10).notNull(),
+    addPlaceCost: integer('add_place_cost').default(20).notNull(),
+    boostCost: integer('boost_cost').default(5).notNull(),
+    reduceCost: integer('reduce_cost').default(5).notNull(),
+    boostMultiplier: doublePrecision('boost_multiplier')
+      .default(1.25)
+      .notNull(),
+    reduceMultiplier: doublePrecision('reduce_multiplier')
+      .default(0.8)
+      .notNull(),
     wheelSwitchTime: text('wheel_switch_time').default('15:00').notNull(),
     checkInPledge: text('check_in_pledge')
       .default('I pledge that I actually obeyed the wheel')
@@ -80,6 +90,18 @@ export const settings = pgTable(
   },
   (t) => [
     check('settings_singleton', sql`${t.id} = 1`),
+    check(
+      'settings_token_amounts',
+      sql`${t.attendanceReward} > 0 and ${t.addPlaceCost} > 0 and ${t.boostCost} > 0 and ${t.reduceCost} > 0`,
+    ),
+    check(
+      'settings_boost_multiplier',
+      sql`${t.boostMultiplier} > 1 and ${t.boostMultiplier} <= 100`,
+    ),
+    check(
+      'settings_reduce_multiplier',
+      sql`${t.reduceMultiplier} >= 0.01 and ${t.reduceMultiplier} < 1`,
+    ),
     check(
       'settings_wheel_switch_time',
       sql`${t.wheelSwitchTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`,

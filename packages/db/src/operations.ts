@@ -16,7 +16,6 @@ import {
   sql,
 } from 'drizzle-orm';
 import {
-  RULES,
   evaluateSchedule,
   halveWeight,
   influenceWeight,
@@ -38,11 +37,18 @@ import type {
   PushSubscriptionInput,
   Schedule,
   GamePreferences,
+  EconomySettings,
   SetupStatus,
   TodayResponse,
   WalletResponse,
+  TokenBalanceSetResponse,
 } from '@lunch/contracts';
-import { gamePreferences } from '@lunch/contracts';
+import {
+  gamePreferences,
+  economySettings,
+  tokenBalanceSetRequest,
+  setRestaurantOddsRequest,
+} from '@lunch/contracts';
 import type { createDatabase } from './index';
 import {
   attendance,
@@ -181,6 +187,23 @@ function preferencesFromRow(
     wheelSwitchTime: row.wheelSwitchTime,
     checkInPledge: row.checkInPledge,
   };
+}
+
+function economyFromRow(row: typeof settings.$inferSelect): EconomySettings {
+  return {
+    attendanceReward: row.attendanceReward,
+    addPlaceCost: row.addPlaceCost,
+    boostCost: row.boostCost,
+    reduceCost: row.reduceCost,
+    boostMultiplier: row.boostMultiplier,
+    reduceMultiplier: row.reduceMultiplier,
+  };
+}
+
+async function currentEconomy(tx: Tx): Promise<EconomySettings> {
+  const [row] = await tx.select().from(settings).where(eq(settings.id, 1));
+  if (!row) fail(503, 'NOT_INITIALIZED', 'Game settings are not initialized.');
+  return economyFromRow(row);
 }
 
 async function deactivateParticipant(tx: Tx, id: string): Promise<void> {
@@ -395,6 +418,84 @@ export class GameService {
     return rows.map(participantView);
   }
 
+  async listTokenBalances(): Promise<{
+    balances: { participantId: string; balance: number }[];
+  }> {
+    const rows = await this.database.db
+      .select({
+        participantId: participants.id,
+        balance: sql<number>`coalesce(sum(${tokenLedger.delta}), 0)::float8`,
+      })
+      .from(participants)
+      .leftJoin(tokenLedger, eq(tokenLedger.participantId, participants.id))
+      .groupBy(participants.id, participants.name)
+      .orderBy(asc(participants.name));
+    for (const row of rows) {
+      if (!Number.isSafeInteger(row.balance) || row.balance < 0)
+        fail(
+          409,
+          'BALANCE_OVERFLOW',
+          'A token balance exceeds the supported range.',
+        );
+    }
+    return { balances: rows };
+  }
+
+  async setTokenBalance(
+    input: { participantId: string; balance: number; reason: string },
+    key: string,
+  ): Promise<TokenBalanceSetResponse> {
+    const parsed = tokenBalanceSetRequest.safeParse(input);
+    if (!parsed.success)
+      fail(
+        400,
+        'INVALID_BALANCE',
+        'Provide a valid target balance and reason.',
+      );
+    const body = { ...parsed.data, reason: parsed.data.reason.trim() };
+    const hash = requestHash('POST', '/api/v1/admin/token-balances', body);
+    return transaction(this.database, async (tx) => {
+      const [person] = await tx
+        .select({ id: participants.id })
+        .from(participants)
+        .where(eq(participants.id, body.participantId));
+      if (!person)
+        fail(404, 'PARTICIPANT_NOT_FOUND', 'Participant was not found.');
+      const prior = await existingKey(tx, body.participantId, key, hash);
+      if (prior) return replay<TokenBalanceSetResponse>(prior);
+      const current = await balance(tx, body.participantId);
+      const delta = body.balance - current;
+      if (delta === 0)
+        fail(
+          409,
+          'BALANCE_UNCHANGED',
+          'This person already has that token balance.',
+        );
+      if (delta < -2147483648 || delta > 2147483647)
+        fail(
+          409,
+          'BALANCE_RANGE',
+          'The requested balance change exceeds the ledger range.',
+        );
+      const response: TokenBalanceSetResponse = {
+        participantId: body.participantId,
+        balance: body.balance,
+        delta,
+        reason: body.reason,
+      };
+      await tx.insert(tokenLedger).values({
+        participantId: body.participantId,
+        delta,
+        kind: 'correction',
+        idempotencyKey: key,
+        requestHash: hash,
+        response,
+        reason: body.reason,
+      });
+      return response;
+    });
+  }
+
   async selectParticipant(id: string): Promise<Participant> {
     const setup = await this.database.db
       .select({ completed: settings.setupCompleted })
@@ -484,6 +585,90 @@ export class GameService {
       ? await query.orderBy(asc(places.name))
       : await query.where(eq(places.active, true)).orderBy(asc(places.name));
     return rows.map(placeView);
+  }
+
+  async listRestaurantOdds(): Promise<{
+    places: { placeId: string; name: string; percent: number }[];
+  }> {
+    const active = await this.database.db
+      .select({ id: places.id, name: places.name, logWeight: places.logWeight })
+      .from(places)
+      .where(eq(places.active, true))
+      .orderBy(asc(places.name));
+    const odds = probabilities(active);
+    return {
+      places: odds.map(({ id, probability }) => ({
+        placeId: id,
+        name: active.find((place) => place.id === id)!.name,
+        percent: probability * 100,
+      })),
+    };
+  }
+
+  async setRestaurantOdds(input: {
+    places: { placeId: string; percent: number }[];
+  }): Promise<{
+    places: { placeId: string; name: string; percent: number }[];
+  }> {
+    const parsed = setRestaurantOddsRequest.safeParse(input);
+    if (!parsed.success)
+      fail(
+        400,
+        'INVALID_RESTAURANT_ODDS',
+        'Provide one positive percentage for every active restaurant; the total must be 100%.',
+      );
+    return transaction(this.database, async (tx) => {
+      const active = await tx
+        .select({ id: places.id, name: places.name })
+        .from(places)
+        .where(eq(places.active, true))
+        .orderBy(asc(places.id));
+      const supplied = parsed.data.places;
+      if (
+        active.length !== supplied.length ||
+        active.some(
+          (place) => !supplied.some((entry) => entry.placeId === place.id),
+        )
+      )
+        fail(
+          409,
+          'RESTAURANT_LIST_CHANGED',
+          'The active restaurant list changed. Refresh and try again.',
+        );
+      const total = supplied.reduce((sum, entry) => sum + entry.percent, 0);
+      for (const entry of supplied) {
+        const weight = entry.percent / total;
+        if (!Number.isFinite(weight) || weight <= 0)
+          fail(
+            400,
+            'INVALID_RESTAURANT_ODDS',
+            'Each restaurant must have a representable positive percentage.',
+          );
+        await tx
+          .update(places)
+          .set({ logWeight: Math.log(weight) })
+          .where(eq(places.id, entry.placeId));
+      }
+      return this.listRestaurantOddsIn(tx);
+    });
+  }
+
+  private async listRestaurantOddsIn(
+    tx: Tx,
+  ): Promise<{ places: { placeId: string; name: string; percent: number }[] }> {
+    const active = await tx
+      .select({ id: places.id, name: places.name, logWeight: places.logWeight })
+      .from(places)
+      .where(eq(places.active, true))
+      .orderBy(asc(places.name));
+    const odds = probabilities(active);
+    return {
+      places: odds.map(({ id, probability }) => ({
+        placeId: id,
+        name: active.find((place) => place.id === id)!.name,
+        percent: probability * 100,
+      })),
+    };
   }
 
   async savePlace(
@@ -606,6 +791,36 @@ export class GameService {
     return preferencesFromRow(row);
   }
 
+  async getEconomy(): Promise<EconomySettings> {
+    const [row] = await this.database.db
+      .select()
+      .from(settings)
+      .where(eq(settings.id, 1));
+    if (!row)
+      fail(503, 'NOT_INITIALIZED', 'Game settings are not initialized.');
+    return economyFromRow(row);
+  }
+
+  async setEconomy(input: EconomySettings): Promise<EconomySettings> {
+    const parsed = economySettings.safeParse(input);
+    if (!parsed.success)
+      fail(
+        400,
+        'INVALID_ECONOMY',
+        'Provide positive whole token amounts and valid odds multipliers.',
+      );
+    return transaction(this.database, async (tx) => {
+      const [row] = await tx
+        .update(settings)
+        .set(parsed.data)
+        .where(eq(settings.id, 1))
+        .returning();
+      if (!row)
+        fail(503, 'NOT_INITIALIZED', 'Game settings are not initialized.');
+      return economyFromRow(row);
+    });
+  }
+
   async setPreferences(input: GamePreferences): Promise<GamePreferences> {
     const parsed = gamePreferences.safeParse(input);
     if (!parsed.success)
@@ -704,6 +919,7 @@ export class GameService {
           localDate: clock.localDate,
           schedule,
           preferences: preferencesFromRow(settingsRow),
+          economy: economyFromRow(settingsRow),
           status,
           wheel: wheelDisplay(
             now,
@@ -840,16 +1056,23 @@ export class GameService {
         .insert(attendance)
         .values({ participantId, drawId: draw.id })
         .returning();
-      const total = (await balance(tx, participantId)) + RULES.attendanceReward;
+      const { attendanceReward } = await currentEconomy(tx);
+      const total = (await balance(tx, participantId)) + attendanceReward;
+      if (!Number.isSafeInteger(total))
+        fail(
+          409,
+          'BALANCE_OVERFLOW',
+          'The token balance exceeds the supported range.',
+        );
       const response = {
         drawId: draw.id,
-        awardedTokens: RULES.attendanceReward,
+        awardedTokens: attendanceReward,
         balance: total,
       } satisfies AttendanceResponse;
       await tx.insert(tokenLedger).values({
         participantId,
         attendanceId: checkin!.id,
-        delta: RULES.attendanceReward,
+        delta: attendanceReward,
         kind: 'attendance',
         idempotencyKey: key,
         requestHash: hash,
@@ -886,7 +1109,9 @@ export class GameService {
         .where(and(eq(places.id, input.placeId), eq(places.active, true)));
       if (!place) fail(404, 'PLACE_NOT_FOUND', 'Active place was not found.');
       const current = await balance(tx, participantId);
-      const cost = RULES.influenceCost;
+      const economy = await currentEconomy(tx);
+      const cost =
+        input.action === 'boost' ? economy.boostCost : economy.reduceCost;
       if (current < cost)
         fail(
           409,
@@ -895,7 +1120,9 @@ export class GameService {
         );
       const [changed] = await tx
         .update(places)
-        .set({ logWeight: influenceWeight(place.logWeight, input.action) })
+        .set({
+          logWeight: influenceWeight(place.logWeight, input.action, economy),
+        })
         .where(eq(places.id, place.id))
         .returning();
       const response = {
@@ -929,7 +1156,8 @@ export class GameService {
       const prior = await existingKey(tx, participantId, key, hash);
       if (prior) return replay<PurchaseResponse>(prior);
       const current = await balance(tx, participantId);
-      if (current < RULES.addPlaceCost)
+      const { addPlaceCost } = await currentEconomy(tx);
+      if (current < addPlaceCost)
         fail(
           409,
           'INSUFFICIENT_TOKENS',
@@ -949,12 +1177,12 @@ export class GameService {
         .returning();
       const response = {
         place: placeView(place!),
-        spentTokens: RULES.addPlaceCost,
-        balance: current - RULES.addPlaceCost,
+        spentTokens: addPlaceCost,
+        balance: current - addPlaceCost,
       } satisfies PurchaseResponse;
       await tx.insert(tokenLedger).values({
         participantId,
-        delta: -RULES.addPlaceCost,
+        delta: -addPlaceCost,
         kind: 'add-place',
         idempotencyKey: key,
         requestHash: hash,

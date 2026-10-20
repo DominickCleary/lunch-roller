@@ -19,10 +19,12 @@ A fresh workplace starts without people or places. An administrator must add at 
 ## Tokens
 
 - Initial balance is zero. Balance is the sum of immutable ledger entries.
-- One self check-in earns 10 tokens for that day's result, from the draw until local midnight, using the timezone saved on the draw. Changing settings must not move an existing attendance deadline.
+- One self check-in earns the configured participation reward (default 10 tokens) for that day's result, from the draw until local midnight, using the timezone saved on the draw. Changing settings must not move an existing attendance deadline.
 - Check-in displays the admin-editable pledge (default “I pledge that I actually obeyed the wheel”). A confirmed check-in becomes grey and disabled for that person/draw, including after reload or in another tab. The pledge is an assertion shown to the participant; the server's one-reward attendance rule remains authoritative.
-- Spend 5 to boost an active place by 1.25, or reduce it by 0.8. A purchase affects the next uncommitted draw, never an existing result.
-- Spend 20 to add an active place immediately. Starting weight is the arithmetic mean of current active weights, calculated in log space; use 1 if the wheel is empty.
+- Spend the configured boost/reduce price (default 5 each) to multiply an active place's relative weight by the configured factor (defaults 1.25 and 0.8). A purchase affects the next uncommitted draw, never an existing result.
+- Spend the configured new-place price (default 20) to add an active place immediately. Starting weight is the arithmetic mean of current active weights, calculated in log space; use 1 if the wheel is empty.
+- Admin can edit these six values under Tokens and odds. Token values must be positive whole numbers; boost factors are greater than 1 up to 100 and reduce factors range from 0.01 to below 1. Settings apply to future actions; historical ledger entries and idempotent retries retain their original amounts and effects. Winner decay remains one half after each draw.
+- Admin can set an exact participant token balance with a required reason. The server appends the difference to that person's ledger; prior entries are never rewritten. Admin can also edit the current percentage share of every active restaurant as one distribution totaling 100%. The percentages become the stored relative weights for future draws and do not change saved results.
 - No overdrafts. Repeated requests cannot double-charge or double-reward. Admin corrections append a signed delta with a reason, also without making the balance negative.
 - Names are trimmed, 1–100 characters, and case-insensitively unique among active records. Blank/duplicate additions are rejected without charging. Archiving preserves history; reactivating a conflicting name is rejected.
 - Admins may remove roster members. Unused profiles are permanently deleted; profiles referenced by attendance, ledger entries, added places or subscriptions are archived, with history retained and notifications retired.

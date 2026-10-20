@@ -145,10 +145,25 @@ export function halveWeight(logWeight: number): number {
   return finite(logWeight) - Math.LN2;
 }
 
-export function influenceWeight(logWeight: number, action: Influence): number {
+export function influenceWeight(
+  logWeight: number,
+  action: Influence,
+  multipliers = { boostMultiplier: 1.25, reduceMultiplier: 0.8 },
+): number {
   if (action !== 'boost' && action !== 'reduce')
     throw new Error('Unknown influence action');
-  return finite(logWeight) + Math.log(action === 'boost' ? 1.25 : 0.8);
+  const multiplier =
+    action === 'boost'
+      ? multipliers.boostMultiplier
+      : multipliers.reduceMultiplier;
+  if (
+    !Number.isFinite(multiplier) ||
+    (action === 'boost'
+      ? multiplier <= 1 || multiplier > 100
+      : multiplier < 0.01 || multiplier >= 1)
+  )
+    throw new Error('Invalid influence multiplier');
+  return finite(finite(logWeight) + Math.log(multiplier));
 }
 
 export function newPlaceLogWeight(places: readonly WeightedPlace[]): number {
@@ -158,13 +173,24 @@ export function newPlaceLogWeight(places: readonly WeightedPlace[]): number {
 export function spendTokens(
   balance: number,
   action: Influence | 'add-place',
+  prices: { addPlaceCost: number; boostCost: number; reduceCost: number } = {
+    addPlaceCost: RULES.addPlaceCost,
+    boostCost: RULES.influenceCost,
+    reduceCost: RULES.influenceCost,
+  },
 ): number {
   if (!Number.isSafeInteger(balance) || balance < 0)
     throw new Error('Invalid token balance');
   if (!['boost', 'reduce', 'add-place'].includes(action))
     throw new Error('Unknown purchase');
   const cost =
-    action === 'add-place' ? RULES.addPlaceCost : RULES.influenceCost;
+    action === 'add-place'
+      ? prices.addPlaceCost
+      : action === 'boost'
+        ? prices.boostCost
+        : prices.reduceCost;
+  if (!Number.isSafeInteger(cost) || cost < 1 || cost > 2147483647)
+    throw new Error('Invalid token cost');
   if (balance < cost) throw new Error('Insufficient tokens');
   return balance - cost;
 }

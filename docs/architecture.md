@@ -25,6 +25,10 @@ One settings row is seeded and constrained to ID 1. Daily date uniqueness is int
 
 Admin participant removal uses the same settings-first transaction. It deletes only profiles with no attendance, ledger, added-place or subscription references; otherwise it archives and retires notification work. Foreign keys guard against references inserted outside the shared mutation path. The wheel-first UI keeps admin tools in a secondary disclosure and confirms removals before calling this operation.
 
+Token economy settings live on the same settings singleton: attendance reward, new-place price, separate boost/reduce prices and weight multipliers. The admin setter validates the complete object and uses the game mutation lock. Each new attendance/purchase reads its configuration under that lock after checking for an idempotent replay. Replays return the original persisted response, and public today reads expose the economy from the same snapshot as live odds. This preserves historical token amounts, draw snapshots and saved-timezone attendance deadlines when an admin edits prices or rewards.
+
+Admin balance setting computes a correction against the participant's ledger sum inside the settings-first transaction, and stores the requested result and reason in the idempotent ledger receipt. Restaurant percentage edits require the complete active set and replace its log weights in one settings-first transaction. A concurrent draw or place/economy mutation therefore sees either the old or the new distribution, while committed draw snapshots remain immutable.
+
 ## Identity and transport
 
 Store the participant ID as `lunch-roller.participant-id` in localStorage, send it as `X-Participant-Id`, and validate that the participant is active. It is identity selection, not authentication. Reset stale selection when an ID is inactive or unknown.

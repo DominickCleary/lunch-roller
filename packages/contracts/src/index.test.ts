@@ -5,7 +5,46 @@ import {
   schedule,
   pushSubscription,
   participantRemoval,
+  economySettings,
+  defaultEconomySettings,
 } from './index';
+it('validates the complete token economy and directional weight multipliers', () => {
+  expect(economySettings.parse(defaultEconomySettings)).toEqual(
+    defaultEconomySettings,
+  );
+  expect(
+    economySettings.parse({
+      ...defaultEconomySettings,
+      attendanceReward: 2147483647,
+      boostMultiplier: 100,
+      reduceMultiplier: 0.01,
+    }),
+  ).toBeTruthy();
+  for (const field of [
+    'attendanceReward',
+    'addPlaceCost',
+    'boostCost',
+    'reduceCost',
+  ]) {
+    for (const value of [0, -1, 1.5, 2147483648, Infinity, NaN])
+      expect(
+        economySettings.safeParse({ ...defaultEconomySettings, [field]: value })
+          .success,
+      ).toBe(false);
+  }
+  for (const [field, values] of [
+    ['boostMultiplier', [0, 1, 101, Infinity, NaN]],
+    ['reduceMultiplier', [0, 0.001, 1, Infinity, NaN]],
+  ] as const)
+    for (const value of values)
+      expect(
+        economySettings.safeParse({ ...defaultEconomySettings, [field]: value })
+          .success,
+      ).toBe(false);
+  expect(economySettings.safeParse({ attendanceReward: 10 }).success).toBe(
+    false,
+  );
+});
 it('distinguishes permanent participant deletion from history-preserving archival', () => {
   const participantId = 'ca982f50-f7c6-4eb3-8572-28fa01106ed7';
   for (const action of ['deleted', 'archived'])

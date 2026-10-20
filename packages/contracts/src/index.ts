@@ -24,6 +24,24 @@ export const defaultGamePreferences: GamePreferences = {
   wheelSwitchTime: '15:00',
   checkInPledge: 'I pledge that I actually obeyed the wheel',
 };
+const tokenAmount = z.number().int().min(1).max(2147483647);
+export const economySettings = z.object({
+  attendanceReward: tokenAmount,
+  addPlaceCost: tokenAmount,
+  boostCost: tokenAmount,
+  reduceCost: tokenAmount,
+  boostMultiplier: z.number().finite().gt(1).max(100),
+  reduceMultiplier: z.number().finite().min(0.01).lt(1),
+});
+export type EconomySettings = z.infer<typeof economySettings>;
+export const defaultEconomySettings: EconomySettings = {
+  attendanceReward: 10,
+  addPlaceCost: 20,
+  boostCost: 5,
+  reduceCost: 5,
+  boostMultiplier: 1.25,
+  reduceMultiplier: 0.8,
+};
 export const attendanceStatus = z.object({
   drawId: id.nullable(),
   checkedIn: z.boolean(),
@@ -92,6 +110,7 @@ export const todayResponse = z.object({
   localDate: z.iso.date(),
   schedule,
   preferences: gamePreferences,
+  economy: economySettings,
   wheel: z.object({
     mode: z.enum(['result', 'upcoming']),
     localDate: z.iso.date(),
@@ -134,6 +153,53 @@ export const tokenCorrection = z.object({
     .max(2147483647)
     .refine((value) => value !== 0),
   reason: z.string().trim().min(1).max(500),
+});
+export const tokenBalanceSetRequest = z.object({
+  participantId: id,
+  balance: z.number().int().min(0).max(2147483647),
+  reason: z.string().trim().min(1).max(500),
+});
+export const tokenBalanceRow = z.object({
+  participantId: id,
+  balance: z.number().int().nonnegative(),
+});
+export const tokenBalanceList = z.object({
+  balances: z.array(tokenBalanceRow),
+});
+export const tokenBalanceSetResponse = tokenBalanceRow.extend({
+  delta: z.number().int(),
+  reason: z.string().min(1).max(500),
+});
+export type TokenBalanceSetResponse = z.infer<typeof tokenBalanceSetResponse>;
+export const restaurantOdds = z.object({
+  placeId: id,
+  name,
+  percent: z.number().finite().positive().max(100),
+});
+export const restaurantOddsResponse = z.object({
+  places: z.array(restaurantOdds),
+});
+export const setRestaurantOddsRequest = z.object({
+  places: z
+    .array(
+      z.object({
+        placeId: id,
+        percent: z.number().finite().positive().max(100),
+      }),
+    )
+    .min(1)
+    .max(500)
+    .refine(
+      (places) =>
+        new Set(places.map(({ placeId }) => placeId)).size === places.length,
+      'Duplicate places',
+    )
+    .refine(
+      (places) =>
+        Math.abs(places.reduce((sum, { percent }) => sum + percent, 0) - 100) <=
+        0.01,
+      'Restaurant percentages must total 100',
+    ),
 });
 export const pushSubscription = z.object({
   endpoint: z.url().refine((value) => {
