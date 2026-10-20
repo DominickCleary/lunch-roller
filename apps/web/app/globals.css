@@ -706,6 +706,18 @@ button:disabled {
   align-items: center;
   gap: 5px;
 }
+.odds-equalizer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 8px 0 12px;
+}
+.odds-equalizer > span {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
 .odds-editor {
   display: grid;
   grid-template-columns: minmax(120px, 1fr) auto;

@@ -30,6 +30,20 @@ const oddsPrecision = 1_000_000;
 const minimumOddsPercent = 1 / oddsPrecision;
 const totalOddsUnits = 100 * oddsPrecision;
 
+function equalRestaurantOddsDraft(
+  places: RestaurantOdd[],
+): Record<string, string> {
+  if (!places.length) return {};
+  const shareUnits = Math.floor(totalOddsUnits / places.length);
+  const remainderUnits = totalOddsUnits % places.length;
+  return Object.fromEntries(
+    places.map((place, index) => [
+      place.placeId,
+      `${(shareUnits + (index < remainderUnits ? 1 : 0)) / oddsPrecision}`,
+    ]),
+  );
+}
+
 function redistributeRestaurantOdds(
   places: RestaurantOdd[],
   current: Record<string, string>,
@@ -2210,6 +2224,25 @@ export default function Home() {
                   </p>
                   {restaurantOdds.length ? (
                     <>
+                      <div className="odds-equalizer">
+                        <button
+                          className="button button-light"
+                          type="button"
+                          disabled={busy}
+                          onClick={() =>
+                            setRestaurantOddsDraft(
+                              equalRestaurantOddsDraft(restaurantOdds),
+                            )
+                          }
+                        >
+                          Set equal odds · 1 in {restaurantOdds.length} each
+                        </button>
+                        <span>
+                          Each chance is about{' '}
+                          {(100 / restaurantOdds.length).toFixed(6)}%. This
+                          updates the draft; save to apply it.
+                        </span>
+                      </div>
                       <div className="admin-table-scroll">
                         <table className="admin-data-table odds-table">
                           <thead>

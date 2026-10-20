@@ -22,7 +22,7 @@ Open Team token activity below your own token history to view another active ros
 
 Under Admin tools → Tokens and odds, admins can change the participation reward, new-place cost, separate boost/reduce costs, and their relative-weight multipliers. Defaults remain 10, 20, 5, 5, ×1.25 and ×0.8. Changes apply to future actions; saved draw results and token history stay intact. Member labels show current prices.
 
-Admin tools show people in a table where you can add, disable/restore, rename, and set an exact token balance with a reason. Balance changes appear as correction entries in that person's history. In Restaurant odds, adjust one restaurant's percentage with its slider or number field; all other shares grow or shrink proportionally, so the full distribution stays at 100% while their relative odds stay the same.
+Admin tools show people in a table where you can add, disable/restore, rename, and set an exact token balance with a reason. Balance changes appear as correction entries in that person's history. In Restaurant odds, set equal chances (1/N each) in one step, or adjust one restaurant's percentage with its slider or number field; all other shares grow or shrink proportionally, so the full distribution stays at 100% while their relative odds stay the same.
 
 Compose binds web/database to localhost and uses development credentials. It is a local setup, not a production deployment. The seed service initializes the settings singleton only and preserves existing data.
 
