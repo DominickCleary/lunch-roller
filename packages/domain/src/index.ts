@@ -64,6 +64,33 @@ export function evaluateSchedule(
   };
 }
 
+/** Decide which draw the wheel presents, using the workplace's calendar clock. */
+export function wheelDisplay(
+  now: Date,
+  schedule: { timezone: string; weekdays: number[] },
+  hasTodayResult: boolean,
+): { mode: 'result' | 'upcoming'; localDate: string } {
+  const clock = localClock(now, schedule.timezone);
+  if (hasTodayResult && clock.time < '15:00')
+    return { mode: 'result', localDate: clock.localDate };
+
+  // Keep an undrawn scheduled day visible, including delayed or late-time draws.
+  const firstOffset = hasTodayResult ? 1 : 0;
+  const [year, month, day] = clock.localDate.split('-').map(Number) as [
+    number,
+    number,
+    number,
+  ];
+  for (let offset = firstOffset; offset <= 7; offset++) {
+    const weekday = ((clock.weekday - 1 + offset) % 7) + 1;
+    if (!schedule.weekdays.includes(weekday)) continue;
+    // UTC is used only for calendar arithmetic, never to advance a zoned instant by 24h.
+    const date = new Date(Date.UTC(year, month - 1, day + offset));
+    return { mode: 'upcoming', localDate: date.toISOString().slice(0, 10) };
+  }
+  throw new Error('Schedule needs at least one valid weekday');
+}
+
 function finite(value: number): number {
   if (!Number.isFinite(value)) throw new Error('Weight must be finite');
   return value;

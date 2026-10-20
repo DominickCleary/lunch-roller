@@ -24,6 +24,7 @@ import {
   newPlaceLogWeight,
   probabilities,
   selectPlace,
+  wheelDisplay,
 } from '@lunch/domain';
 import type {
   AttendanceResponse,
@@ -624,6 +625,7 @@ export class GameService {
           localDate: clock.localDate,
           schedule,
           status,
+          wheel: wheelDisplay(now, schedule, Boolean(existing)),
           result: existing ? drawView(existing) : null,
           odds,
         };

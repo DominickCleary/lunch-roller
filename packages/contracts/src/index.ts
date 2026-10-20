@@ -76,6 +76,10 @@ export const draw = z.object({
 export const todayResponse = z.object({
   localDate: z.iso.date(),
   schedule,
+  wheel: z.object({
+    mode: z.enum(['result', 'upcoming']),
+    localDate: z.iso.date(),
+  }),
   status: z.enum(['pending', 'drawn', 'no-options', 'not-scheduled']),
   result: draw.nullable(),
   odds: z.array(
