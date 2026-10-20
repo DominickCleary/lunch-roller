@@ -69,6 +69,22 @@ function uuid() {
 function moneyLabel(delta: number) {
   return `${delta > 0 ? '+' : ''}${delta} tokens`;
 }
+function resultRotation(result: NonNullable<TodayResponse['result']>) {
+  const index = result.snapshot.findIndex(
+    (option) => option.placeId === result.placeId,
+  );
+  if (index < 0) return null;
+  const total = result.snapshot.reduce(
+    (sum, option) => sum + option.probability,
+    0,
+  );
+  const before = result.snapshot
+    .slice(0, index)
+    .reduce((sum, option) => sum + option.probability, 0);
+  const center =
+    ((before + result.snapshot[index]!.probability / 2) / (total || 1)) * 360;
+  return (90 - center + 360) % 360;
+}
 
 export default function Home() {
   const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
@@ -79,6 +95,12 @@ export default function Home() {
   const [allParticipants, setAllParticipants] = useState<Participant[]>([]);
   const [places, setPlaces] = useState<Place[]>([]);
   const [today, setToday] = useState<TodayResponse | null>(null);
+  const wheelDisplayKey = today
+    ? `${today.wheel.mode}:${today.wheel.localDate}`
+    : '';
+  const wheelMode = today?.wheel.mode;
+  const hasSavedResult = Boolean(today?.result);
+  const savedResult = today?.result;
   const [wallet, setWallet] = useState<WalletResponse | null>(null);
   const [participantId, setParticipantId] = useState('');
   const [admin, setAdmin] = useState(false);
@@ -89,8 +111,14 @@ export default function Home() {
   const [showAllLedger, setShowAllLedger] = useState(false);
   const [spin, setSpin] = useState(false);
   const [rotation, setRotation] = useState(0);
+  const [replaySnapshot, setReplaySnapshot] = useState<{
+    key: string;
+    options: NonNullable<TodayResponse['result']>['snapshot'];
+  } | null>(null);
   const rotationRef = useRef(0);
   const animationTimer = useRef<number | null>(null);
+  const upcomingRef = useRef(false);
+  const latestTodayRequest = useRef(0);
   const [nameDraft, setNameDraft] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [newName, setNewName] = useState('');
@@ -118,13 +146,14 @@ export default function Home() {
   const adminDisclosure = useRef<HTMLDetailsElement | null>(null);
 
   const refresh = useCallback(async (selected: string) => {
+    const todayRequest = ++latestTodayRequest.current;
     try {
       const [roster, todayResult] = await Promise.all([
         request<{ participants: Participant[] }>('/participants'),
         request<TodayResponse>('/today'),
       ]);
       setParticipants(roster.participants);
-      setToday(todayResult);
+      if (todayRequest === latestTodayRequest.current) setToday(todayResult);
       if (selected) {
         try {
           setWallet(await request<WalletResponse>('/wallet', {}, selected));
@@ -269,7 +298,13 @@ export default function Home() {
   }
 
   const odds = useMemo(() => today?.odds ?? [], [today]);
-  const wheelOptions = today?.result?.snapshot ?? odds;
+  const baselineOptions =
+    today?.wheel.mode === 'result' && today.result
+      ? today.result.snapshot
+      : odds;
+  const activeReplay =
+    replaySnapshot?.key === wheelDisplayKey ? replaySnapshot.options : null;
+  const wheelOptions = activeReplay ?? baselineOptions;
   const gradient = useMemo(() => {
     if (!wheelOptions.length) return '#d9ddd1';
     let at = 0;
@@ -285,10 +320,15 @@ export default function Home() {
     (result: NonNullable<TodayResponse['result']>) => {
       if (animationTimer.current !== null)
         window.clearTimeout(animationTimer.current);
+      upcomingRef.current = today?.wheel.mode === 'upcoming';
+      setReplaySnapshot({ key: wheelDisplayKey, options: result.snapshot });
       const index = result.snapshot.findIndex(
         (option) => option.placeId === result.placeId,
       );
-      if (index < 0) return;
+      if (index < 0) {
+        setReplaySnapshot(null);
+        return;
+      }
       const total = result.snapshot.reduce(
         (sum, option) => sum + option.probability,
         0,
@@ -312,44 +352,105 @@ export default function Home() {
       rotationRef.current = nextRotation;
       setRotation(nextRotation);
       if (reducedMotion) {
-        setSpin(false);
+        animationTimer.current = window.setTimeout(() => {
+          animationTimer.current = null;
+          setSpin(false);
+          setReplaySnapshot(null);
+          if (upcomingRef.current) {
+            rotationRef.current = 0;
+            setRotation(0);
+          }
+        }, 1500);
       } else {
         animationTimer.current = window.setTimeout(() => {
           animationTimer.current = null;
           setSpin(false);
+          setReplaySnapshot(null);
+          if (upcomingRef.current) {
+            rotationRef.current = 0;
+            setRotation(0);
+          }
         }, 4700);
       }
     },
-    [],
+    [today?.wheel.mode, wheelDisplayKey],
   );
 
   useEffect(() => {
-    const result = today?.result;
-    if (!result) {
-      const frame = window.requestAnimationFrame(() => {
-        if (animationTimer.current !== null) {
-          window.clearTimeout(animationTimer.current);
-          animationTimer.current = null;
-        }
-        rotationRef.current = 0;
-        setRotation(0);
-        setSpin(false);
-      });
-      return () => window.cancelAnimationFrame(frame);
+    if (!wheelMode) return;
+    if (animationTimer.current !== null) {
+      window.clearTimeout(animationTimer.current);
+      animationTimer.current = null;
     }
-    const frame = window.requestAnimationFrame(() =>
-      animateCommittedResult(result),
-    );
+    upcomingRef.current = false;
+    if (wheelMode === 'result' && hasSavedResult) return;
+    const frame = window.requestAnimationFrame(() => {
+      setReplaySnapshot(null);
+      setSpin(false);
+      rotationRef.current = 0;
+      setRotation(0);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [wheelMode, wheelDisplayKey, hasSavedResult]);
+
+  const lastObservedResultId = useRef<string | null | undefined>(undefined);
+  const lastObservedWheelMode = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!wheelMode) return;
+    let frame: number | null = null;
+    const result = savedResult;
+    const resultId = result?.id ?? null;
+    const previousMode = lastObservedWheelMode.current;
+    lastObservedWheelMode.current = wheelMode;
+    if (lastObservedResultId.current === undefined) {
+      lastObservedResultId.current = resultId;
+      if (result && wheelMode === 'result') {
+        const settledRotation = resultRotation(result);
+        if (settledRotation !== null) {
+          frame = window.requestAnimationFrame(() => {
+            rotationRef.current = settledRotation;
+            setRotation(settledRotation);
+          });
+        }
+      }
+      return () => {
+        if (frame !== null) window.cancelAnimationFrame(frame);
+      };
+    }
+    if (resultId === lastObservedResultId.current) {
+      if (result && wheelMode === 'result' && previousMode !== 'result') {
+        const settledRotation = resultRotation(result);
+        if (settledRotation !== null) {
+          frame = window.requestAnimationFrame(() => {
+            rotationRef.current = settledRotation;
+            setRotation(settledRotation);
+          });
+        }
+      }
+      return () => {
+        if (frame !== null) window.cancelAnimationFrame(frame);
+      };
+    }
+    lastObservedResultId.current = resultId;
+    if (result && wheelMode === 'result') {
+      frame = window.requestAnimationFrame(() =>
+        animateCommittedResult(result),
+      );
+    }
     return () => {
-      window.cancelAnimationFrame(frame);
+      if (frame !== null) window.cancelAnimationFrame(frame);
+    };
+  }, [savedResult, wheelMode, animateCommittedResult]);
+
+  useEffect(
+    () => () => {
       if (animationTimer.current !== null) {
         window.clearTimeout(animationTimer.current);
         animationTimer.current = null;
       }
-    };
-    // A saved result is immutable; only animate when its ID changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [today?.result?.id, animateCommittedResult]);
+    },
+    [],
+  );
 
   async function selectParticipant(event: FormEvent) {
     event.preventDefault();
@@ -620,6 +721,13 @@ export default function Home() {
     (person) => person.id === participantId,
   )?.name;
   const drawnPlace = today?.result?.placeName;
+  const wheelTargetDate = today?.wheel.localDate;
+  const wheelTargetLabel = wheelTargetDate
+    ? new Intl.DateTimeFormat('en-GB', {
+        dateStyle: 'full',
+        timeZone: 'UTC',
+      }).format(new Date(`${wheelTargetDate}T00:00:00Z`))
+    : '';
 
   const replayResult = useCallback(() => {
     const result = today?.result;
@@ -988,9 +1096,11 @@ export default function Home() {
               <div
                 className="wheel-wrap"
                 aria-label={
-                  drawnPlace
-                    ? `Today's committed result is ${drawnPlace}`
-                    : 'Lunch wheel'
+                  activeReplay
+                    ? `Replaying today's saved result for ${today?.result?.localDate ?? ''}`
+                    : today?.wheel.mode === 'result'
+                      ? `Today's committed result is ${drawnPlace ?? 'saved'} for ${wheelTargetLabel}`
+                      : `Live odds for the next scheduled draw on ${wheelTargetLabel}`
                 }
               >
                 <div className="pointer" aria-hidden="true">
@@ -998,6 +1108,7 @@ export default function Home() {
                 </div>
                 <div
                   className={`wheel ${spin ? 'wheel-spinning' : ''}`}
+                  data-testid="lunch-wheel"
                   style={{
                     background: gradient,
                     transform: `rotate(${rotation}deg)`,
@@ -1005,7 +1116,7 @@ export default function Home() {
                   role="img"
                   aria-label={
                     wheelOptions.length
-                      ? `Wheel with ${wheelOptions.length} lunch places, sized by the ${today?.result ? 'committed draw snapshot' : 'current odds'}`
+                      ? `Wheel with ${wheelOptions.length} lunch places, sized by ${activeReplay ? "today's saved result snapshot replay" : today?.wheel.mode === 'result' ? "today's committed draw snapshot" : 'live odds for the next scheduled draw'}`
                       : 'Empty lunch wheel'
                   }
                 >
@@ -1051,19 +1162,29 @@ export default function Home() {
               </div>
               <div className="wheel-footer">
                 <span className="wheel-state">
-                  {today?.status === 'drawn'
-                    ? 'TODAY’S PICK'
-                    : today?.status === 'not-scheduled'
-                      ? 'NO DRAW TODAY'
-                      : today?.status === 'no-options'
-                        ? 'ADD A PLACE TO BEGIN'
-                        : 'NEXT DRAW'}
+                  {activeReplay
+                    ? "REPLAYING TODAY'S RESULT"
+                    : today?.wheel.mode === 'result'
+                      ? "TODAY'S RESULT"
+                      : 'LIVE ODDS FOR NEXT DRAW'}
                 </span>
-                <strong>
-                  {drawnPlace ??
-                    (today?.status === 'not-scheduled'
-                      ? 'Rest day'
-                      : 'The wheel is waiting')}
+                <strong
+                  data-testid="wheel-target"
+                  data-target-date={
+                    activeReplay && today?.result
+                      ? today.result.localDate
+                      : wheelTargetDate
+                  }
+                >
+                  {activeReplay && today?.result
+                    ? `Saved pick · ${today.result.localDate}`
+                    : today?.wheel.mode === 'result'
+                      ? drawnPlace
+                        ? `${drawnPlace} · ${wheelTargetLabel}`
+                        : wheelTargetLabel
+                      : wheelTargetLabel
+                        ? `Scheduled for ${wheelTargetLabel}`
+                        : 'Loading schedule'}
                 </strong>
                 {today?.result && (
                   <button
@@ -1310,11 +1431,20 @@ export default function Home() {
                 </div>
               </form>
               {today?.result && (
-                <div className="result-note">
+                <div className="result-note" data-testid="today-result">
                   <span>✳</span>
                   <p>
-                    The team picked <strong>{today.result.placeName}</strong>.
-                    Winner’s weight is halved for next time.
+                    Today&apos;s pick was{' '}
+                    <strong>{today.result.placeName}</strong> on{' '}
+                    <time dateTime={today.result.localDate}>
+                      {new Intl.DateTimeFormat('en-GB', {
+                        dateStyle: 'medium',
+                        timeZone: 'UTC',
+                      }).format(
+                        new Date(`${today.result.localDate}T00:00:00Z`),
+                      )}
+                    </time>
+                    . The winner&apos;s weight is halved for next time.
                   </p>
                 </div>
               )}

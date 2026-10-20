@@ -121,11 +121,11 @@ body {
   box-shadow:
     0 1px 2px #15171a55,
     0 0 0 1px #c8cbd0;
-  transition: transform 4.5s cubic-bezier(0.12, 0.72, 0.12, 1);
+  transition: none;
   will-change: transform;
 }
 .wheel-spinning {
-  transition-duration: 4.5s;
+  transition: transform 4.5s cubic-bezier(0.12, 0.72, 0.12, 1);
 }
 .wheel-label {
   position: absolute;
