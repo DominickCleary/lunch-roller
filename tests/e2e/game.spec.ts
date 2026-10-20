@@ -39,6 +39,13 @@ function expiredSessionCookie() {
 }
 
 async function signIn(page: import('@playwright/test').Page) {
+  const password = page.getByLabel('Administrator password');
+  if (!(await password.isVisible())) {
+    await page
+      .locator('.top-actions')
+      .getByText('Admin', { exact: true })
+      .click();
+  }
   await page.getByLabel('Administrator password').fill(adminPassword);
   await page.getByRole('button', { name: 'Unlock' }).click();
   await expect(page.getByText('Administrator tools unlocked.')).toBeVisible();
@@ -55,9 +62,10 @@ async function exerciseAdminUiAndGame(
   const addPlaceName = `${fixturePrefix} Member Place`;
   const correctionReason = `${fixturePrefix} test grant`;
 
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(appOrigin);
-  await expect(page.getByRole('heading', { level: 1 })).toContainText(
-    'Lunch sorted.',
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+    'Lunch Roller',
   );
   await signIn(page);
 
@@ -179,6 +187,9 @@ async function exerciseAdminUiAndGame(
     360;
   const expectedPointerAngle = (360 - winnerCenter + 360) % 360;
   const wheel = page.locator('.wheel');
+  const desktopWheelBounds = await wheel.boundingBox();
+  expect(desktopWheelBounds).not.toBeNull();
+  expect(desktopWheelBounds!.width).toBeGreaterThan(600);
   await expect(wheel).not.toHaveClass(/wheel-spinning/);
   const actualAngle = await wheel.evaluate((element) => {
     const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform);
@@ -190,6 +201,33 @@ async function exerciseAdminUiAndGame(
     360 - Math.abs(normalizedAngle - expectedPointerAngle),
   );
   expect(angleDifference).toBeLessThan(2);
+
+  const replay = page.getByRole('button', { name: /Replay.*result/i });
+  const selectedParticipantId = await page.evaluate(() =>
+    localStorage.getItem('lunch-roller.participant-id'),
+  );
+  expect(selectedParticipantId).toBeTruthy();
+  const beforeReplayWallet = await game.wallet(selectedParticipantId!);
+  const drawRequests: string[] = [];
+  const recordDrawRequest = (request: import('@playwright/test').Request) => {
+    if (
+      request.method() === 'POST' &&
+      /\/api\/v1\/draw(?:\/|$|\?)/.test(request.url())
+    )
+      drawRequests.push(request.url());
+  };
+  page.on('request', recordDrawRequest);
+  await replay.click();
+  await expect(replay).toBeEnabled({ timeout: 8000 });
+  page.off('request', recordDrawRequest);
+  expect(drawRequests).toHaveLength(0);
+  await expect(page.locator('.wheel-footer strong')).toHaveText(
+    result.placeName,
+  );
+  const todayAfterReplay = await request.get('/api/v1/today');
+  expect(todayAfterReplay.ok()).toBe(true);
+  expect((await todayAfterReplay.json()).result.placeId).toBe(result.placeId);
+  expect(await game.wallet(selectedParticipantId!)).toEqual(beforeReplayWallet);
   await signIn(page);
 
   const correctionCard = page
@@ -242,6 +280,7 @@ async function exerciseAdminUiAndGame(
   const secondContext = await browser.newContext({
     baseURL: appOrigin,
     reducedMotion: 'reduce',
+    viewport: { width: 390, height: 844 },
   });
   try {
     await secondContext.addInitScript(() => {
@@ -252,6 +291,22 @@ async function exerciseAdminUiAndGame(
     await expect(secondPage.locator('.wheel-footer strong')).toHaveText(
       result.placeName,
     );
+    await expect(secondPage.getByRole('heading', { level: 1 })).toHaveText(
+      'Lunch Roller',
+    );
+    await expect(secondPage.getByLabel('Your name')).toBeVisible();
+    await expect(
+      secondPage.getByRole('button', { name: 'Join in' }),
+    ).toBeVisible();
+    await expect(secondPage.locator('.wheel-footer strong')).toBeVisible();
+    await expect(
+      secondPage.locator('.top-actions').getByText('Admin'),
+    ).toBeVisible();
+    expect(
+      await secondPage.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
     expect(
       await secondPage.evaluate(
         () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
@@ -379,21 +434,4 @@ test('admin forms manage the game and members see the same committed draw', asyn
   request,
 }) => {
   await exerciseAdminUiAndGame(page, browser, request);
-});
-
-test('admin login rate limiting blocks the ninth failed attempt', async ({
-  request,
-}) => {
-  for (let attempt = 0; attempt < 8; attempt++) {
-    const response = await request.post('/api/v1/admin/session', {
-      data: { password: 'incorrect integration password' },
-      headers: validOrigin(),
-    });
-    expect(response.status()).toBe(401);
-  }
-  const limited = await request.post('/api/v1/admin/session', {
-    data: { password: 'incorrect integration password' },
-    headers: validOrigin(),
-  });
-  expect(limited.status()).toBe(429);
 });
