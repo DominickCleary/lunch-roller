@@ -20,6 +20,7 @@ All five milestones below are implemented in the local MVP. The table records th
 - Browser picker survives reload; stale identity resets; impersonation cannot access admin routes. Origin rejection, admin session expiry/logout, password throttling, and API schema errors are exercised.
 - Permission denial and unsupported Push API preserve core play. Retryable push failures do not reroll; expired subscriptions retire; worker crashes release leases; terminal jobs remain observable.
 - Wheel animation ends on the committed result across reloads, slow responses, reduced motion, and multiple browsers. Persisted state agrees across participants.
+- At 15:00 workplace local time the baseline wheel switches to the next scheduled draw's live odds, preserving today's saved result/check-in and using saved segments only during replay. Check the cutoff, weekends, DST, midnight continuity, live boosts, and return from replay with reduced motion. Pending late draws must remain the current target.
 
 ## Release gate
 

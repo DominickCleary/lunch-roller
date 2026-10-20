@@ -35,6 +35,8 @@ Admin login validates `ADMIN_PASSWORD` on the server with timing-safe comparison
 
 Use polling for today's result initially; avoid a realtime service until needed. Public odds show current weights for the next draw; saved results contain pre-decay historical odds. A worker outage delays drawing, not the UI's authority over selection.
 
+The server also derives `todayResponse.wheel` inside the same read snapshot. Pure `wheelDisplay` uses the workplace's local clock and calendar weekdays: a saved today result remains the baseline until 15:00, then live odds target the next scheduled date. An undrawn scheduled day remains pending even after 15:00. Calendar date arithmetic uses UTC only as a calendar representation, never a 24-hour shift of a zoned instant; DST and skipped weekdays do not move the cutoff. This presentation change does not write draws, freeze odds, change attendance deadlines or alter the worker schedule. The browser uses the server mode/date and returns from historical replay to the live baseline.
+
 ## Scheduling and delivery
 
 Calculate the current local date/weekday/time from the IANA timezone each tick; do not add 24 hours to UTC timestamps. Compare against the configured local time and existing date record under the transaction lock. A skipped spring-forward time becomes due at the first later local time; a repeated autumn time still draws once. No options is retryable without an empty draw record.

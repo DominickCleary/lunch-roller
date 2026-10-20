@@ -14,6 +14,7 @@ A fresh workplace starts without people or places. An administrator must add at 
 - Selection uses server cryptographic uniform randomness. Persist the random sample, pre-draw odds/weights/name snapshot, selected name, date, and timezone, then subtract ln(2) from the winner's log weight.
 - Decay persists indefinitely. No resets or floors. Relative weights use max-subtracted exponentials for numerical stability; probabilities below floating-point resolution may display as zero.
 - The worker checks every 30 seconds. A late tick processes today's due draw only. Never backfill missed dates. A weekend/non-scheduled day has no draw. No active places means no result; adding an option permits a retry that day.
+- At 15:00 in the configured timezone, the wheel moves from today's saved result to live odds for the next scheduled draw. For a weekday schedule, Friday afternoon previews Monday. Those proportions keep changing with purchases and additions until that draw commits. Midnight does not revert to the previous result. If today's scheduled draw is still pending (including a draw scheduled after 15:00), it remains the live target until committed. Today's result and check-in remain available; replay briefly uses its historical segments before returning to the upcoming wheel.
 
 ## Tokens
 
