@@ -1063,6 +1063,73 @@ button:disabled {
 .theme-toggle:hover {
   background: var(--surface-soft);
 }
+.team-activity {
+  margin-top: 14px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+}
+.team-activity > summary {
+  padding: 10px 0;
+  color: var(--text-secondary);
+  font-weight: 700;
+  cursor: pointer;
+}
+.team-activity-content label {
+  display: block;
+  margin: 8px 0 6px;
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+.team-activity-content select {
+  width: 100%;
+  min-height: 34px;
+  padding: 5px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text-strong);
+  font: inherit;
+}
+.team-wallet h3 {
+  margin: 12px 0 6px;
+  overflow-wrap: anywhere;
+}
+.team-balance {
+  margin: 6px 0 10px;
+  color: var(--text-secondary);
+}
+.team-balance strong {
+  color: var(--text-strong);
+  font-size: 18px;
+}
+.team-activity-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.team-activity-entry > div {
+  display: grid;
+  gap: 4px;
+  overflow-wrap: anywhere;
+}
+.team-activity-entry time,
+.activity-reason {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+.team-activity-entry strong {
+  white-space: nowrap;
+  font-size: 10px;
+}
+.team-activity-entry .positive {
+  color: var(--success);
+}
+.team-activity-entry .negative,
+.team-wallet [role='alert'] {
+  color: var(--danger);
+}
 :root[data-theme='dark'] :focus-visible {
   outline-color: #88b4ff;
 }

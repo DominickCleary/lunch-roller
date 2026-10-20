@@ -18,6 +18,8 @@ The wheel fills the main workspace, with compact member, wallet and place contro
 
 Use the header's Dark mode / Light mode toggle to change the theme. The site follows your system theme until you choose one, then remembers that choice in your browser and synchronizes it across tabs.
 
+Open Team token activity below your own token history to view another active roster member's balance, transactions, reasons and dates. Viewing activity leaves your selected name and game actions unchanged.
+
 Compose binds web/database to localhost and uses development credentials. It is a local setup, not a production deployment. The seed service initializes the settings singleton only and preserves existing data.
 
 If port 5432 is already occupied, set `POSTGRES_PORT` to a free port in `.env` and update the port in `DATABASE_URL` to match. Containers still connect to `db:5432` internally.

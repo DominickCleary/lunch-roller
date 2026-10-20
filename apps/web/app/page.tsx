@@ -17,6 +17,7 @@ import type {
 } from '@lunch/contracts';
 import { Readiness } from './readiness';
 import { ThemeToggle } from './theme-toggle';
+import { TeamActivity } from './team-activity';
 
 type ApiError = { error?: { code?: string; message?: string } };
 type Pending = {
@@ -1483,6 +1484,11 @@ export default function Home() {
                   </p>
                 )}
               </div>
+              <TeamActivity
+                participants={participants}
+                currentParticipantId={participantId}
+                timezone={today?.schedule.timezone ?? 'UTC'}
+              />
             </div>
 
             <div className="panel odds-panel">
