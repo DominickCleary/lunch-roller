@@ -99,7 +99,7 @@ services:
       retries: 3
       start_period: 15s
     init: true
-    stop_grace_period: 15s
+    stop_grace_period: 45s
     restart: unless-stopped
 
 volumes:

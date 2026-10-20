@@ -8,6 +8,10 @@ export function createDatabase(url = process.env.DATABASE_URL) {
     max: 5,
     connect_timeout: 3,
     idle_timeout: 20,
+    connection: {
+      statement_timeout: 10_000,
+      idle_in_transaction_session_timeout: 15_000,
+    },
   });
   const db = drizzle(client, { schema });
   return { db, client, close: () => client.end({ timeout: 5 }) };

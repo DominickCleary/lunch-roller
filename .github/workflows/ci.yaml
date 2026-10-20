@@ -22,6 +22,10 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 12
     env:
       DATABASE_URL: postgres://lunch:lunch@localhost:5432/lunch_roller
+      TEST_DATABASE_URL: postgres://lunch:lunch@localhost:5432/lunch_roller
+      ADMIN_PASSWORD: integration-only-password
+      SESSION_SECRET: integration-only-session-secret-at-least-32-characters
+      APP_ORIGIN: http://localhost:3000
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - uses: actions/checkout@v4

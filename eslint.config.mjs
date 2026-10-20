@@ -4,6 +4,9 @@ import tseslint from 'typescript-eslint';
 export default tseslint.config(
   {
     ignores: [
+      '.worktrees/**',
+      '.idea/**',
+      '.codex/**',
       '**/.next/**',
       '**/dist/**',
       '**/next-env.d.ts',
