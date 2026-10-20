@@ -16,6 +16,8 @@ Open http://localhost:3000 (or your `WEB_PORT`). Compose migrates and initialize
 
 The wheel fills the main workspace, with compact member, wallet and place controls alongside it. From the admin-configured switch time (default 3pm) in the configured timezone it shows live odds for the next scheduled draw (Friday afternoon previews Monday on a weekday schedule). Purchases resize those upcoming segments; the actual draw still runs at its configured time. Today's saved result remains available, and replay briefly shows its historical segments without choosing again. Check-in displays an admin-editable pledge and becomes disabled once attendance is recorded, including after reload. Admin removal permanently deletes unused profiles and archives profiles with activity, preserving their history.
 
+Use the header's Dark mode / Light mode toggle to change the theme. The site follows your system theme until you choose one, then remembers that choice in your browser and synchronizes it across tabs.
+
 Compose binds web/database to localhost and uses development credentials. It is a local setup, not a production deployment. The seed service initializes the settings singleton only and preserves existing data.
 
 If port 5432 is already occupied, set `POSTGRES_PORT` to a free port in `.env` and update the port in `DATABASE_URL` to match. Containers still connect to `db:5432` internally.

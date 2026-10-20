@@ -16,6 +16,7 @@ import type {
   WalletResponse,
 } from '@lunch/contracts';
 import { Readiness } from './readiness';
+import { ThemeToggle } from './theme-toggle';
 
 type ApiError = { error?: { code?: string; message?: string } };
 type Pending = {
@@ -1189,6 +1190,7 @@ export default function Home() {
           <h1 className="brand-title">Lunch Roller</h1>
         </a>
         <div className="top-actions">
+          <ThemeToggle />
           <span className="date-chip">
             {entryStage === 'setup'
               ? 'FIRST-RUN SETUP'
