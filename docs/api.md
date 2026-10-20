@@ -8,31 +8,34 @@ Base: `/api/v1`. Zod schemas in `@lunch/contracts` are the source of wire shapes
 
 ## Game and administration endpoints
 
-| Method / path                  | Request schema       | Response                                               | Access                                         |
-| ------------------------------ | -------------------- | ------------------------------------------------------ | ---------------------------------------------- |
-| GET /participants              | —                    | `{ participants: participant[] }` (active only)        | Public                                         |
-| POST /identity/select          | participantSelection | participant                                            | Public; validates selection, browser stores ID |
-| GET /today                     | —                    | todayResponse                                          | Public                                         |
-| GET /push-config               | —                    | `{ publicKey: string or null }`                        | Public; only configured public VAPID key       |
-| GET /wallet                    | —                    | walletResponse                                         | Participant                                    |
-| POST /attendance               | attendanceRequest    | attendanceResponse                                     | Participant                                    |
-| POST /purchases                | purchaseRequest      | purchaseResponse                                       | Participant                                    |
-| POST /places                   | createPlace          | purchaseResponse (20-token charge)                     | Participant                                    |
-| POST /push-subscriptions       | pushSubscription     | `{ id: UUID }`                                         | Participant                                    |
-| DELETE /push-subscriptions/:id | —                    | 204, empty body                                        | Owning participant                             |
-| POST /admin/session            | adminLogin           | 204 + session cookie                                   | Password                                       |
-| DELETE /admin/session          | —                    | 204 + expired cookie                                   | Admin                                          |
-| GET /admin/participants        | —                    | `{ participants: participant[] }` (including inactive) | Admin                                          |
-| POST /admin/participants       | createParticipant    | participant                                            | Admin                                          |
-| PATCH /admin/participants/:id  | updateParticipant    | participant                                            | Admin                                          |
-| GET /admin/places              | —                    | `{ places: place[] }` (including inactive)             | Admin                                          |
-| POST /admin/places             | createPlace          | place, mean weight, no charge                          | Admin                                          |
-| PATCH /admin/places/:id        | updatePlace          | place                                                  | Admin                                          |
-| GET /admin/schedule            | —                    | schedule                                               | Admin                                          |
-| PUT /admin/schedule            | schedule             | schedule                                               | Admin                                          |
-| POST /admin/token-corrections  | tokenCorrection      | walletResponse                                         | Admin                                          |
+| Method / path                  | Request schema       | Response                                                   | Access                                         |
+| ------------------------------ | -------------------- | ---------------------------------------------------------- | ---------------------------------------------- |
+| GET /participants              | —                    | `{ participants: participant[] }` (active only)            | Public                                         |
+| POST /identity/select          | participantSelection | participant                                                | Public; validates selection, browser stores ID |
+| GET /today                     | —                    | todayResponse                                              | Public                                         |
+| GET /push-config               | —                    | `{ publicKey: string or null }`                            | Public; only configured public VAPID key       |
+| GET /wallet                    | —                    | walletResponse                                             | Participant                                    |
+| POST /attendance               | attendanceRequest    | attendanceResponse                                         | Participant                                    |
+| POST /purchases                | purchaseRequest      | purchaseResponse                                           | Participant                                    |
+| POST /places                   | createPlace          | purchaseResponse (20-token charge)                         | Participant                                    |
+| POST /push-subscriptions       | pushSubscription     | `{ id: UUID }`                                             | Participant                                    |
+| DELETE /push-subscriptions/:id | —                    | 204, empty body                                            | Owning participant                             |
+| POST /admin/session            | adminLogin           | 204 + session cookie                                       | Password                                       |
+| DELETE /admin/session          | —                    | 204 + expired cookie                                       | Admin                                          |
+| GET /admin/participants        | —                    | `{ participants: participant[] }` (including inactive)     | Admin                                          |
+| POST /admin/participants       | createParticipant    | participant                                                | Admin                                          |
+| PATCH /admin/participants/:id  | updateParticipant    | participant                                                | Admin                                          |
+| DELETE /admin/participants/:id | —                    | `{ participantId: UUID, action: 'deleted' or 'archived' }` | Admin                                          |
+| GET /admin/places              | —                    | `{ places: place[] }` (including inactive)                 | Admin                                          |
+| POST /admin/places             | createPlace          | place, mean weight, no charge                              | Admin                                          |
+| PATCH /admin/places/:id        | updatePlace          | place                                                      | Admin                                          |
+| GET /admin/schedule            | —                    | schedule                                                   | Admin                                          |
+| PUT /admin/schedule            | schedule             | schedule                                                   | Admin                                          |
+| POST /admin/token-corrections  | tokenCorrection      | walletResponse                                             | Admin                                          |
 
 Participant calls use `X-Participant-Id`; no member authentication is claimed. Admin calls use a separate server-verified cookie. Do not implement admin authorization through the name picker.
+
+Participant removal returns 200 and removes the person from the active roster. Profiles with no attendance, ledger, added-place or subscription references are permanently deleted. Referenced profiles are archived instead, preserving history and retiring subscriptions/pending jobs. Unknown IDs return 404. Repeated removal of an archived profile returns the same archived outcome. Reactivation remains an explicit admin PATCH operation.
 
 Attendance, purchases, member place creation, and corrections require `Idempotency-Key` (UUID). Member ledger keys are scoped to the affected participant. Store a hash of method, route, and canonical validated body. Same key and body returns the recorded effect without repeating writes; changed body returns 409. Attendance has a second deduplication boundary on participant/draw; a fresh key must not award again.
 

@@ -1,0 +1,14 @@
+# Task: Wheel-focused tool and safe member removal
+
+- Owner / branch / worktree: coordinator owns integration/contracts/API/docs; UI agent owns `.worktrees/wheel-ui` / `codex/wheel-ui`; DB agent owns `.worktrees/member-removal` / `codex/member-removal`.
+- Goal and current behavior: replace the marketing landing layout with a wheel-first utility inspired by https://wheelofnames.com/; current wheel is secondary to hero copy and large cards. Add admin removal while preserving referenced history.
+- Owned files: UI agent only `apps/web/app/page.tsx`, `apps/web/app/globals.css`, optional new UI components under `apps/web/app/components/**`. DB agent only `packages/db/src/operations.ts`, new `packages/db/src/removal.integration.test.ts`. Coordinator owns API route, contracts/tests, docs, root checks/browser tests and integration.
+- Dependencies and frozen contracts: existing game/wire APIs stay stable; new `GameService.removeParticipant(id: string): Promise<ParticipantRemoval>`; DELETE `/api/v1/admin/participants/:id` returns 200 `{participantId, action:'deleted'|'archived'}`. Shared Zod `participantRemoval` and type `ParticipantRemoval` are coordinator-owned. Settings lock first for removal; check all participant references before hard delete; archive used profiles and cancel their subscriptions/jobs. No schema/migration changes.
+- Explicit exclusions: no game-rule changes, user-triggered draws/rerolls, dependencies, infrastructure or deployment. Agents must not delegate. No history erasure or cascade deletion.
+- Acceptance criteria: wheel dominates the first desktop viewport with compact toolbar/sidebar, bold colored wedges and readable large names, simple sans-serif tool styling. No slogan hero, sales copy, decorative rules strip or startup cards. Mobile wheel remains first and unclipped. Identity/wallet/purchases/push stay usable; admin is secondary but accessible. Proportional segments and animation always use the committed server result; clicking replay may replay only its presentation. Keep existing useful accessibility/test selectors where possible. Admin removal has an explicit confirmation and explains the returned deletion/archive outcome. Both used and unused profile removal require admin+Origin checks.
+- Checks and required fixtures: package lint/typecheck; full format/lint/typecheck/unit/build; real integration removal cases on explicit disposable DB; Chromium desktop/mobile and existing game/push browser tests with updated presentation selectors; final screenshot review.
+- Migration/environment effects: none. Local demo at port 3018 will be rebuilt after verification; original stack remains untouched.
+
+## Handoff
+
+Report behavior, owned files, branch/commit, commands/results and unresolved issues. Coordinator reviews/integrates DB before API, then UI, runs required checks and confirms local demo.

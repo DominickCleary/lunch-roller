@@ -4,6 +4,11 @@ export const id = z.uuid();
 export const name = z.string().trim().min(1).max(100);
 export const participantSelection = z.object({ participantId: id });
 export const participant = z.object({ id, name, active: z.boolean() });
+export const participantRemoval = z.object({
+  participantId: id,
+  action: z.enum(['deleted', 'archived']),
+});
+export type ParticipantRemoval = z.infer<typeof participantRemoval>;
 export const place = z.object({
   id,
   name,
