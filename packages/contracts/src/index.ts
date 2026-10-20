@@ -99,6 +99,8 @@ export const tokenCorrection = z.object({
   delta: z
     .number()
     .int()
+    .min(-2147483648)
+    .max(2147483647)
     .refine((value) => value !== 0),
   reason: z.string().trim().min(1).max(500),
 });
