@@ -88,6 +88,8 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [pollingError, setPollingError] = useState('');
+  const [showAllLedger, setShowAllLedger] = useState(false);
   const [spin, setSpin] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [nameDraft, setNameDraft] = useState('');
@@ -111,29 +113,37 @@ export default function Home() {
 
   const refresh = useCallback(
     async (selected = participantId) => {
-      const [roster, todayResult] = await Promise.all([
-        request<{ participants: Participant[] }>('/participants'),
-        request<TodayResponse>('/today'),
-      ]);
-      setParticipants(roster.participants);
-      setToday(todayResult);
-      if (selected) {
-        try {
-          setWallet(await request<WalletResponse>('/wallet', {}, selected));
-        } catch (caught) {
-          if (
-            caught instanceof ApiRequestError &&
-            [401, 403, 404].includes(caught.status) &&
-            (caught.code === 'IDENTITY_REQUIRED' ||
-              caught.code?.includes('PARTICIPANT') ||
-              caught.code?.includes('IDENTITY'))
-          ) {
-            localStorage.removeItem(storageKey);
-            setParticipantId('');
-            setWallet(null);
-          } else throw caught;
-        }
-      } else setWallet(null);
+      try {
+        const [roster, todayResult] = await Promise.all([
+          request<{ participants: Participant[] }>('/participants'),
+          request<TodayResponse>('/today'),
+        ]);
+        setParticipants(roster.participants);
+        setToday(todayResult);
+        if (selected) {
+          try {
+            setWallet(await request<WalletResponse>('/wallet', {}, selected));
+          } catch (caught) {
+            if (
+              caught instanceof ApiRequestError &&
+              [401, 403, 404].includes(caught.status) &&
+              (caught.code === 'IDENTITY_REQUIRED' ||
+                caught.code?.includes('PARTICIPANT') ||
+                caught.code?.includes('IDENTITY'))
+            ) {
+              localStorage.removeItem(storageKey);
+              setParticipantId('');
+              setWallet(null);
+            } else throw caught;
+          }
+        } else setWallet(null);
+        setPollingError('');
+      } catch (caught) {
+        setPollingError(
+          'Could not refresh the lunch wheel. It will retry shortly.',
+        );
+        throw caught;
+      }
     },
     [participantId],
   );
@@ -154,13 +164,7 @@ export default function Home() {
     const timer = window.setTimeout(() => {
       const saved = localStorage.getItem(storageKey) ?? '';
       setParticipantId(saved);
-      void refresh(saved).catch((caught: unknown) =>
-        setError(
-          caught instanceof Error
-            ? caught.message
-            : 'Could not load the lunch wheel.',
-        ),
-      );
+      void refresh(saved).catch(() => undefined);
     }, 0);
     if ('serviceWorker' in navigator) {
       void navigator.serviceWorker
@@ -392,6 +396,20 @@ export default function Home() {
   async function togglePush() {
     setError('');
     try {
+      if (
+        !('Notification' in window) ||
+        !('serviceWorker' in navigator) ||
+        !('PushManager' in window)
+      ) {
+        throw new Error(
+          'Push notifications are not supported by this browser.',
+        );
+      }
+      const registration = await navigator.serviceWorker.ready;
+      if (!registration.pushManager)
+        throw new Error(
+          'Push notifications are not supported by this browser.',
+        );
       const config = await request<{ publicKey: string | null }>(
         '/push-config',
       );
@@ -402,7 +420,6 @@ export default function Home() {
         throw new Error(
           'Notifications were not enabled. You can still play without them.',
         );
-      const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: Uint8Array.from(
@@ -437,8 +454,12 @@ export default function Home() {
           { method: 'DELETE' },
           participantId,
         );
-      const registration = await navigator.serviceWorker.ready;
-      await (await registration.pushManager.getSubscription())?.unsubscribe();
+      if ('serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.ready;
+        await registration.pushManager
+          ?.getSubscription()
+          .then((subscription) => subscription?.unsubscribe());
+      }
       localStorage.removeItem('lunch-roller.push-subscription');
       localStorage.removeItem('lunch-roller.push-participant-id');
       setPushOn(false);
@@ -491,6 +512,11 @@ export default function Home() {
             is in good hands.
           </p>
           <Readiness />
+          {pollingError && (
+            <p className="refresh-error" role="status" aria-live="polite">
+              {pollingError}
+            </p>
+          )}
         </div>
         <div className="wheel-card">
           <div
@@ -518,17 +544,24 @@ export default function Home() {
               }
             >
               {wheelOptions.length
-                ? wheelOptions.map((option, index) => (
-                    <span
-                      className="wheel-label"
-                      key={option.placeId}
-                      style={{
-                        transform: `rotate(${(wheelOptions.slice(0, index).reduce((sum, item) => sum + item.probability, 0) + option.probability / 2) * 360}deg) translateY(-126px) rotate(-${(wheelOptions.slice(0, index).reduce((sum, item) => sum + item.probability, 0) + option.probability / 2) * 360}deg)`,
-                      }}
-                    >
-                      {option.name}
-                    </span>
-                  ))
+                ? wheelOptions
+                    .map((option, index) => ({ option, index }))
+                    .filter(({ option }) => option.probability >= 0.005)
+                    .map(({ option, index }) => (
+                      <span
+                        className="wheel-label"
+                        key={option.placeId}
+                        title={option.name}
+                        aria-label={option.name}
+                        style={{
+                          transform: `rotate(${(wheelOptions.slice(0, index).reduce((sum, item) => sum + item.probability, 0) + option.probability / 2) * 360}deg) translateY(-126px) rotate(-${(wheelOptions.slice(0, index).reduce((sum, item) => sum + item.probability, 0) + option.probability / 2) * 360}deg)`,
+                        }}
+                      >
+                        {option.name.length > 14
+                          ? `${option.name.slice(0, 13)}…`
+                          : option.name}
+                      </span>
+                    ))
                 : null}
               <div className="wheel-hub">
                 <span>
@@ -606,7 +639,7 @@ export default function Home() {
           </form>
           <div className="member-status">
             <div>
-              <span className="status-label">SIGNED IN AS</span>
+              <span className="status-label">SELECTED NAME</span>
               <strong>{currentName ?? 'No one yet'}</strong>
             </div>
             <div className="balance">
@@ -635,8 +668,11 @@ export default function Home() {
               className="button button-light"
               disabled={
                 !participantId ||
-                typeof window === 'undefined' ||
-                !('Notification' in window)
+                (!pushOn &&
+                  (typeof window === 'undefined' ||
+                    !('Notification' in window) ||
+                    !('serviceWorker' in navigator) ||
+                    !('PushManager' in window)))
               }
               onClick={() => (pushOn ? void disablePush() : void togglePush())}
             >
@@ -646,17 +682,42 @@ export default function Home() {
           <div className="ledger">
             <div className="ledger-heading">
               <h3>Recent token activity</h3>
-              <span>YOUR WALLET</span>
+              {wallet && wallet.ledger.length > 5 ? (
+                <button
+                  className="ledger-toggle"
+                  aria-expanded={showAllLedger}
+                  aria-controls="token-ledger"
+                  onClick={() => setShowAllLedger((showing) => !showing)}
+                >
+                  {showAllLedger ? 'Show recent' : 'Show all'}
+                </button>
+              ) : (
+                <span>YOUR WALLET</span>
+              )}
             </div>
             {wallet?.ledger.length ? (
-              wallet.ledger.slice(0, 5).map((entry) => (
-                <div className="ledger-row" key={entry.id}>
-                  <span>{entry.reason ?? entry.kind.replaceAll('-', ' ')}</span>
-                  <strong className={entry.delta > 0 ? 'positive' : ''}>
-                    {moneyLabel(entry.delta)}
-                  </strong>
-                </div>
-              ))
+              <div id="token-ledger">
+                {wallet.ledger
+                  .slice(0, showAllLedger ? undefined : 5)
+                  .map((entry) => (
+                    <div className="ledger-row" key={entry.id}>
+                      <span>
+                        {entry.reason ?? entry.kind.replaceAll('-', ' ')}
+                      </span>
+                      <span className="ledger-date">
+                        <time dateTime={entry.createdAt}>
+                          {new Intl.DateTimeFormat(undefined, {
+                            dateStyle: 'short',
+                            timeStyle: 'short',
+                          }).format(new Date(entry.createdAt))}
+                        </time>
+                      </span>
+                      <strong className={entry.delta > 0 ? 'positive' : ''}>
+                        {moneyLabel(entry.delta)}
+                      </strong>
+                    </div>
+                  ))}
+              </div>
             ) : (
               <p className="empty-note">
                 Your token activity will show up here.

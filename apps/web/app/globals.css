@@ -110,6 +110,12 @@ body {
   color: #687469;
   margin-top: 22px;
 }
+.refresh-error {
+  margin: 8px 0 0;
+  color: #9a5144;
+  font-size: 12px;
+  line-height: 1.45;
+}
 .wheel-card {
   max-width: 490px;
   justify-self: center;
@@ -159,6 +165,8 @@ body {
   font-weight: 800;
   color: #263c2e;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   transform-origin: 50% 11px;
   text-shadow: 0 1px #fff8;
 }
@@ -365,14 +373,36 @@ button:disabled {
   letter-spacing: 0.13em;
   color: #949487;
 }
+.ledger-toggle {
+  border: 0;
+  background: transparent;
+  color: #657763;
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .ledger-row {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
   gap: 14px;
   padding: 9px 0;
   border-top: 1px solid #263c2e12;
   font-size: 11px;
   color: #69766a;
+}
+.ledger-row > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ledger-date {
+  color: #929487;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .ledger-row strong {
   white-space: nowrap;
