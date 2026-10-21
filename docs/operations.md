@@ -22,6 +22,39 @@ For a new game, open the site and sign in to first-run setup using `ADMIN_PASSWO
 
 Use `GET /api/v1/health` for database readiness. Check worker structured logs for `started`, `heartbeat`, scheduling failures and delivery failures. Database health alone does not prove draws or notifications are progressing. Graceful termination finishes the current bounded tick; a 45-second Compose grace period allows normal completion.
 
+## Automatic deployment from main
+
+The CI workflow includes a deployment job for the local-network server. It stays disabled until repository variable `DEPLOY_ENABLED` is set to `true`. A push to `main` must pass both the full verification job and the Docker Compose job before deployment can start. Pull requests and other branches never use the server runner; their checks stay on GitHub-hosted runners.
+
+The deployment job needs a Linux self-hosted runner with the custom label `lunch-roller-deploy`. It runs as `webserver`, using `/home/webserver/lunch-roller` as the default existing application checkout. Set repository variable `DEPLOY_PATH` if the actual folder differs. The runner checks out the tested commit into its separate workspace, then `scripts/deploy.sh` fast-forwards the existing server checkout to that exact commit and runs:
+
+```sh
+docker compose up -d --build --wait --wait-timeout 300
+```
+
+The existing Compose migration/seed services run before the updated app and worker. The production `.env` and PostgreSQL volume remain in place. The script refuses dirty checkouts, a different repository, a branch other than `main`, and divergent server commits. It does not reset files or automatically roll back schema changes. An older queued release is skipped if the server already contains a newer commit. GitHub concurrency and a server-side file lock prevent simultaneous deployments; running deployments are not cancelled when another push arrives.
+
+One-time setup on the server:
+
+1. Log in as `webserver`. Confirm the production checkout is clean and on `main`, its `.env` exists, and `docker compose ps` works under this user without an interactive sudo prompt. Keep the runner outside this checkout, for example in `/home/webserver/actions-runner`.
+2. In the repository on GitHub, open **Settings → Actions → Runners → New self-hosted runner**. Select Linux and the server's actual CPU architecture. Follow GitHub's generated download/registration commands inside `/home/webserver/actions-runner` as `webserver`, adding `--labels lunch-roller-deploy` to the `./config.sh` registration command. Keep the registration token on the server; it does not belong in the repository. See [GitHub's runner setup](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/add-runners) and [custom labels](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/apply-labels).
+3. On a systemd server, install and start the service from that runner folder:
+
+   ```sh
+   sudo ./svc.sh install webserver
+   sudo ./svc.sh start
+   sudo ./svc.sh status
+   ```
+
+   GitHub documents [running the registered runner as a service](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/configure-the-application?platform=linux). Restart the service after changing this user's Docker group membership or access so it picks up those changes.
+
+4. In **Settings → Secrets and variables → Actions → Variables**, add `DEPLOY_ENABLED` with value `true`. Add `DEPLOY_PATH` if the production path is different from `/home/webserver/lunch-roller`. No SSH private key or copied production environment is required: the runner transfers the checked-out Git objects locally using its read-only job checkout.
+5. Commit and push the workflow/script changes through the normal review process. A passing push to `main` deploys automatically. Check the **Deploy main to server** job in Actions. To retry a failed deployment of the same commit, rerun that workflow/job after resolving the failure.
+
+The server only needs outbound access to GitHub and build registries; this setup adds no inbound SSH port. Keep changes to `main` trusted because deployment code runs with `webserver`'s Docker access. Existing failing checks must be repaired before deployment will run; the deployment gate does not bypass them. Disable future automatic deployments by setting `DEPLOY_ENABLED=false`; an already-running deployment finishes normally. Your manual Compose command still works.
+
+Validate deployment-script changes locally with `bash -n scripts/deploy.sh` and `node --test scripts/deploy.test.mjs`. The tests use temporary local Git repositories and a fake Docker command; they never access a server or application database.
+
 ## Monitoring
 
 Alert on a missing/stale worker heartbeat (90 seconds), repeated `draw_attempt_failed`, `notification_claim_failed` or `notification_completion_failed`, unavailable API readiness, migration failures and database capacity. Inspect schedule timezone/time/weekdays before diagnosing an overdue draw: only today's scheduled due date is processed. Empty wheels are retryable. Never repair an outage by inserting historical draws or resetting weights.

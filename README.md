@@ -36,6 +36,10 @@ If port 5432 is already occupied, set `POSTGRES_PORT` to a free port in `.env` a
 
 If port 3000 is occupied, change `WEB_PORT` and set `APP_ORIGIN` to the matching browser origin so state-changing requests pass the origin check.
 
+## Automatic deployment
+
+CI can deploy passing pushes to `main` through a Linux Actions runner installed as `webserver` on your local-network server. It runs your existing Compose rebuild command from the production checkout, keeping `.env` and database storage in place. Configure the `lunch-roller-deploy` runner label and repository variable `DEPLOY_ENABLED=true`; set `DEPLOY_PATH` if the checkout differs from `/home/webserver/lunch-roller`. See the [one-time setup](docs/operations.md#automatic-deployment-from-main). Deployment waits for both CI jobs to pass and remains disabled until configured.
+
 ## Local development
 
 Requires Node **24.x**, pnpm **11.21.0**, and PostgreSQL (Compose supplies PostgreSQL 17). Install pnpm with `npm install --global pnpm@11.21.0` if needed. Copy the environment example before running database commands.
