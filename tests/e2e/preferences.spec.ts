@@ -149,13 +149,13 @@ test('admin preferences persist and participants see the pledge and completed ch
   await expect(checkIn).toBeEnabled();
   await checkIn.click();
   const checkInDialog = page.getByRole('dialog', {
-    name: 'Confirm your check-in',
+    name: 'Swear your pledge to the Wheel',
   });
   await expect(checkInDialog).toBeVisible();
   await expect(checkInDialog.getByTestId('check-in-pledge')).toHaveText(
     'I followed the wheel for lunch.',
   );
-  await checkInDialog.getByRole('button', { name: 'Cancel' }).click();
+  await checkInDialog.getByRole('button', { name: 'I decline' }).click();
   await expect(checkInDialog).toBeHidden();
   expect(
     (await game.wallet(memberId)).ledger.filter(
@@ -165,8 +165,8 @@ test('admin preferences persist and participants see the pledge and completed ch
 
   await checkIn.click();
   await page
-    .getByRole('dialog', { name: 'Confirm your check-in' })
-    .getByRole('button', { name: 'I confirm' })
+    .getByRole('dialog', { name: 'Swear your pledge to the Wheel' })
+    .getByRole('button', { name: 'I swear it' })
     .click();
   await expect(page.getByTestId('check-in-confirmation')).toBeVisible();
   await expect(checkIn).toBeDisabled();

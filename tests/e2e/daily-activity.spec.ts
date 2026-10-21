@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
-import type { DailyActivityResponse, TodayResponse } from '@lunch/contracts';
+import type {
+  DailyActivityResponse,
+  TodayResponse,
+  TokenOverviewResponse,
+} from '@lunch/contracts';
 
 const date = '2026-10-21';
 const alex = randomUUID();
@@ -111,6 +115,25 @@ const sample: DailyActivityResponse = {
     },
   ],
 };
+const tokenOverview: TokenOverviewResponse = {
+  localDate: date,
+  timezone: 'Europe/Dublin',
+  rows: [
+    {
+      participantId: alex,
+      participantName: 'Alex',
+      balance: 40,
+      todayDelta: 5,
+    },
+    { participantId: sam, participantName: 'Sam', balance: 26, todayDelta: -2 },
+    {
+      participantId: morgan,
+      participantName: 'Morgan',
+      balance: 20,
+      todayDelta: 0,
+    },
+  ],
+};
 
 test.beforeEach(async ({ page, request }) => {
   const people = await request.get('/api/v1/participants');
@@ -119,6 +142,9 @@ test.beforeEach(async ({ page, request }) => {
   await page.addInitScript(
     (id) => localStorage.setItem('lunch-roller.participant-id', id),
     participantId,
+  );
+  await page.route('**/api/v1/token-overview', (route) =>
+    route.fulfill({ json: tokenOverview }),
   );
   await page.route('**/api/v1/bets/current', async (route) => {
     const actual = await route.fetch();
@@ -183,8 +209,8 @@ test('draw and calendar views keep tomorrow positions and bets on the correct da
     });
   });
   await page.goto('/');
-  await page.getByRole('tab', { name: 'Daily activity' }).click();
-  const panel = page.getByRole('tabpanel', { name: 'Daily activity' });
+  await page.getByRole('tab', { name: 'Activity' }).click();
+  const panel = page.getByRole('tabpanel', { name: 'Activity' });
   await expect(panel.getByLabel('Draw date')).toHaveValue(nextDate);
   const board = panel.locator('.bet-board-panel');
   await expect(board).toContainText(`draw dated ${nextDate}`);
@@ -230,6 +256,21 @@ test('shows the schedule, charts, coalitions and bet board without changing iden
     entries: expect.any(Array),
     bets: expect.any(Array),
   });
+  const overview = await request.get('/api/v1/token-overview', {
+    headers: { 'X-Participant-Id': participantId },
+  });
+  expect(overview.ok()).toBe(true);
+  expect(await overview.json()).toMatchObject({
+    localDate: expect.any(String),
+    rows: expect.arrayContaining([
+      expect.objectContaining({
+        participantId,
+        participantName: expect.any(String),
+        balance: expect.any(Number),
+        todayDelta: expect.any(Number),
+      }),
+    ]),
+  });
   expect(
     (
       await request.get('/api/v1/activity?date=2026-02-30', {
@@ -247,11 +288,17 @@ test('shows the schedule, charts, coalitions and bet board without changing iden
   await expect(page.getByTestId('wheel-target')).toHaveText(
     'Scheduled for Wednesday, 21 October at 11:30',
   );
-  await page.getByRole('tab', { name: 'Daily activity' }).click();
+  await page.getByRole('tab', { name: 'Activity' }).click();
   page.on('request', (request) => {
     if (request.method() !== 'GET') mutations.push(request.url());
   });
-  const panel = page.getByRole('tabpanel', { name: 'Daily activity' });
+  const panel = page.getByRole('tabpanel', { name: 'Activity' });
+  await expect(
+    panel.getByRole('heading', { name: 'Token standings' }),
+  ).toBeVisible();
+  await expect(panel.locator('.token-overview-table tbody tr')).toHaveCount(3);
+  await expect(panel.locator('.token-overview-table')).toContainText('↑ +5');
+  await expect(panel.locator('.token-overview-table')).toContainText('↓ −2');
   await expect(
     panel.getByRole('heading', { name: 'Activity room' }),
   ).toBeVisible();
@@ -314,7 +361,7 @@ test('shows the schedule, charts, coalitions and bet board without changing iden
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
-  await page.getByRole('tab', { name: 'Daily activity' }).focus();
+  await page.getByRole('tab', { name: 'Activity' }).focus();
   await page.keyboard.press('ArrowLeft');
   await expect(page.getByRole('tab', { name: 'The wheel' })).toBeFocused();
   await expect(page.getByTestId('lunch-wheel')).toBeVisible();
@@ -354,8 +401,8 @@ test('retries failures and rejects a delayed response for a previous date', asyn
       .catch(() => {});
   });
   await page.goto('/');
-  await page.getByRole('tab', { name: 'Daily activity' }).click();
-  const panel = page.getByRole('tabpanel', { name: 'Daily activity' });
+  await page.getByRole('tab', { name: 'Activity' }).click();
+  const panel = page.getByRole('tabpanel', { name: 'Activity' });
   await expect(panel.getByRole('alert')).toBeVisible();
   fail = false;
   await panel.getByRole('button', { name: 'Retry', exact: true }).click();

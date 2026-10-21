@@ -56,6 +56,7 @@ import type {
   SetBetRequest,
   TokenActivityEntry,
   DailyActivityResponse,
+  TokenOverviewResponse,
   DrawInfluencePosition,
   HealthLevel,
   HealthRuleSettings,
@@ -1451,6 +1452,61 @@ export class GameService {
           ),
           bets: await walletBets(tx, participantId),
         };
+      },
+      { isolationLevel: 'repeatable read', accessMode: 'read only' },
+    );
+  }
+
+  async tokenOverview(
+    participantId: string,
+    now = new Date(),
+  ): Promise<TokenOverviewResponse> {
+    return this.database.db.transaction(
+      async (tx) => {
+        const typedTx = tx as Tx;
+        await requireSetupComplete(typedTx);
+        const [person] = await typedTx
+          .select({ id: participants.id, active: participants.active })
+          .from(participants)
+          .where(eq(participants.id, participantId));
+        if (!person)
+          fail(404, 'PARTICIPANT_NOT_FOUND', 'Participant was not found.');
+        if (!person.active)
+          fail(403, 'PARTICIPANT_INACTIVE', 'Participant is inactive.');
+        const [configuration] = await typedTx
+          .select({ timezone: settings.timezone })
+          .from(settings)
+          .where(eq(settings.id, 1));
+        if (!configuration)
+          fail(503, 'NOT_INITIALIZED', 'Game settings are not initialized.');
+        const localDate = localClock(now, configuration.timezone).localDate;
+        const balance = sql<number>`coalesce(sum(${tokenLedger.delta}), 0)::float8`;
+        const todayDelta = sql<number>`coalesce(sum(${tokenLedger.delta}) filter (where (${tokenLedger.createdAt} at time zone ${configuration.timezone})::date = ${localDate}::date), 0)::float8`;
+        const rows = await typedTx
+          .select({
+            participantId: participants.id,
+            participantName: participants.name,
+            balance,
+            todayDelta,
+          })
+          .from(participants)
+          .leftJoin(tokenLedger, eq(tokenLedger.participantId, participants.id))
+          .where(eq(participants.active, true))
+          .groupBy(participants.id, participants.name)
+          .orderBy(desc(balance), asc(participants.name));
+        for (const row of rows) {
+          if (
+            !Number.isSafeInteger(row.balance) ||
+            row.balance < 0 ||
+            !Number.isSafeInteger(row.todayDelta)
+          )
+            fail(
+              409,
+              'BALANCE_OVERFLOW',
+              'A token balance exceeds the supported range.',
+            );
+        }
+        return { localDate, timezone: configuration.timezone, rows };
       },
       { isolationLevel: 'repeatable read', accessMode: 'read only' },
     );

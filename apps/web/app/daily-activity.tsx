@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { dailyActivityResponse } from '@lunch/contracts';
+import { dailyActivityResponse, tokenOverviewResponse } from '@lunch/contracts';
 import type {
   DailyActivityResponse,
   TokenActivityEntry,
+  TokenOverviewResponse,
 } from '@lunch/contracts';
 import './daily-activity.css';
 import { HealthBonusSummary } from './health-label';
@@ -17,6 +18,135 @@ type ActivityResult = {
   error?: string;
   refreshing: boolean;
 };
+
+function TokenOverview({ participantId }: { participantId: string }) {
+  const [data, setData] = useState<TokenOverviewResponse | null>(null);
+  const [error, setError] = useState('');
+  const [retryCount, setRetryCount] = useState(0);
+
+  useEffect(() => {
+    if (!participantId) return;
+    const controller = new AbortController();
+    const refresh = async () => {
+      try {
+        const response = await fetch('/api/v1/token-overview', {
+          headers: { 'X-Participant-Id': participantId },
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error('Could not load token overview.');
+        const next = tokenOverviewResponse.parse(await response.json());
+        if (!controller.signal.aborted) {
+          setData(next);
+          setError('');
+        }
+      } catch (caught) {
+        if (!controller.signal.aborted)
+          setError(
+            caught instanceof Error
+              ? caught.message
+              : 'Could not load token overview.',
+          );
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 30_000);
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+    };
+  }, [participantId, retryCount]);
+
+  return (
+    <section
+      className="activity-panel token-overview"
+      aria-label="Token overview"
+      aria-busy={!data}
+    >
+      <div className="activity-panel-heading">
+        <div>
+          <h3>Token standings</h3>
+          <p>
+            Current balances, ranked · net change today
+            {data ? ` · ${data.localDate} ${data.timezone}` : ''}
+          </p>
+        </div>
+        <span className="activity-live-indicator">Live · 30 sec</span>
+      </div>
+      {error && (
+        <div className="activity-error" role="alert">
+          <span>
+            {error}
+            {data ? ' Showing the last successful update.' : ''}
+          </span>
+          {!data && (
+            <button
+              className="button button-light"
+              type="button"
+              onClick={() => setRetryCount((value) => value + 1)}
+            >
+              Retry
+            </button>
+          )}
+        </div>
+      )}
+      {!data ? (
+        <p className="activity-loading" role="status">
+          {error
+            ? 'Token overview is unavailable.'
+            : 'Loading token standings…'}
+        </p>
+      ) : (
+        <div className="token-overview-table-wrap">
+          <table className="token-overview-table">
+            <thead>
+              <tr>
+                <th scope="col">Rank</th>
+                <th scope="col">Member</th>
+                <th scope="col">Tokens</th>
+                <th scope="col">Today</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.rows.map((row, index) => (
+                <tr key={row.participantId}>
+                  <th scope="row" className="token-overview-rank">
+                    {index + 1}
+                  </th>
+                  <td>{row.participantName}</td>
+                  <td className="token-overview-balance">
+                    {tokenCount(row.balance)}
+                  </td>
+                  <td>
+                    <span
+                      className={`token-overview-change ${row.todayDelta > 0 ? 'positive' : row.todayDelta < 0 ? 'negative' : 'neutral'}`}
+                      aria-label={
+                        row.todayDelta > 0
+                          ? `Gained ${tokenCount(row.todayDelta)} tokens today`
+                          : row.todayDelta < 0
+                            ? `Lost ${tokenCount(Math.abs(row.todayDelta))} tokens today`
+                            : 'No net token change today'
+                      }
+                    >
+                      {row.todayDelta > 0
+                        ? `↑ +${tokenCount(row.todayDelta)}`
+                        : row.todayDelta < 0
+                          ? `↓ −${tokenCount(Math.abs(row.todayDelta))}`
+                          : '—'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {data.rows.length === 0 && (
+            <p className="activity-empty">No active members yet.</p>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
 
 type ActionEntry = DailyActivityResponse['entries'][number];
 const emptyEntries: ActionEntry[] = [];
@@ -534,6 +664,7 @@ export function DailyActivity({
       aria-label="Daily token activity"
       aria-busy={!current || current.refreshing}
     >
+      <TokenOverview participantId={participantId} />
       <header className="daily-activity-header">
         <div>
           <p className="activity-eyebrow">

@@ -256,7 +256,7 @@ export function RulesHelp({
                   you can send them.
                 </p>
                 <p>
-                  <strong>Daily activity</strong> shows spending, refunds, who
+                  <strong>Activity</strong> shows spending, refunds, who
                   supports or opposes each place, and placed bets. Spending
                   charts show purchases before refunds; positions show the units
                   still held. Team token activity lets you inspect another

@@ -330,8 +330,8 @@ async function exerciseAdminUiAndGame(
 
   await page.getByTestId('check-in').click();
   await page
-    .getByRole('dialog', { name: 'Confirm your check-in' })
-    .getByRole('button', { name: 'I confirm' })
+    .getByRole('dialog', { name: 'Swear your pledge to the Wheel' })
+    .getByRole('button', { name: 'I swear it' })
     .click();
   await expect(
     page.getByText('Check-in complete — 10 tokens added.'),

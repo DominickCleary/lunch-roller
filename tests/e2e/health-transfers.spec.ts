@@ -128,7 +128,7 @@ test('reviews and sends tokens, persists both wallets and rejects invalid API se
       })
     ).status(),
   ).toBe(403);
-  await page.getByRole('tab', { name: 'Daily activity' }).click();
+  await page.getByRole('tab', { name: 'Activity' }).click();
   await page.getByLabel('View', { exact: true }).selectOption('day');
   await expect(page.locator('.activity-timeline')).toContainText(
     `Sent to ${recipientName}`,

@@ -231,6 +231,18 @@ export const walletResponse = z.object({
   ledger: z.array(tokenActivityEntry),
   bets: z.array(betView).default([]),
 });
+export const tokenOverviewResponse = z.object({
+  localDate: z.iso.date(),
+  timezone: z.string(),
+  rows: z.array(
+    z.object({
+      participantId: id,
+      participantName: name,
+      balance: z.number().int().nonnegative(),
+      todayDelta: z.number().int(),
+    }),
+  ),
+});
 export const dailyActivityQuery = z.object({
   date: z.iso.date().optional(),
   scope: z.enum(['day', 'draw']).optional(),
@@ -444,6 +456,7 @@ export type BettingWindow = z.infer<typeof bettingWindow>;
 export type CurrentBetsResponse = z.infer<typeof currentBetsResponse>;
 export type SetBetRequest = z.infer<typeof setBetRequest>;
 export type WalletResponse = z.infer<typeof walletResponse>;
+export type TokenOverviewResponse = z.infer<typeof tokenOverviewResponse>;
 export type Draw = z.infer<typeof draw>;
 export type AttendanceResponse = z.infer<typeof attendanceResponse>;
 export type PurchaseResponse = z.infer<typeof purchaseResponse>;

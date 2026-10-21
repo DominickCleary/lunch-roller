@@ -28,6 +28,7 @@ import {
   betMutationResponse,
   dailyActivityQuery,
   dailyActivityResponse,
+  tokenOverviewResponse,
   currentInfluenceResponse,
   changeInfluenceRequest,
   influenceMutationResponse,
@@ -284,6 +285,12 @@ async function dispatch(request: NextRequest, context: Context) {
       );
     if (route === '/wallet' && method === 'GET')
       return response(await game.wallet(participantId(request)));
+    if (route === '/token-overview' && method === 'GET')
+      return response(
+        tokenOverviewResponse.parse(
+          await game.tokenOverview(participantId(request)),
+        ),
+      );
     if (route === '/influence/refund' && method === 'POST')
       return response(
         influenceMutationResponse.parse(

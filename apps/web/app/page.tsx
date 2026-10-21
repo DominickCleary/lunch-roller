@@ -1822,7 +1822,7 @@ export default function Home() {
                       document.getElementById(`${next}-tab`)?.focus();
                     }}
                   >
-                    {view === 'wheel' ? 'The wheel' : 'Daily activity'}
+                    {view === 'wheel' ? 'The wheel' : 'Activity'}
                   </button>
                 ))}
               </div>
@@ -3638,7 +3638,7 @@ export default function Home() {
               }
             }}
           >
-            <h2 id="check-in-heading">Confirm your check-in</h2>
+            <h2 id="check-in-heading">Swear your pledge to the Wheel</h2>
             <p id="check-in-pledge" data-testid="check-in-pledge">
               {today?.preferences.checkInPledge ??
                 defaultGamePreferences.checkInPledge}
@@ -3655,7 +3655,7 @@ export default function Home() {
                 type="button"
                 onClick={closeCheckInDialog}
               >
-                Cancel
+                I decline
               </button>
               <button
                 ref={confirmCheckIn}
@@ -3668,7 +3668,7 @@ export default function Home() {
                   checkInTrigger.current?.click();
                 }}
               >
-                {busy ? 'Checking in…' : 'I confirm'}
+                {busy ? 'Taking the oath…' : 'I swear it'}
               </button>
             </div>
           </section>

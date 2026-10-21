@@ -437,3 +437,34 @@ it('shows original token targets and a timezone-scoped team activity snapshot', 
     expect.arrayContaining(repeatedHour.map((entry) => entry.id)),
   );
 });
+
+it('ranks active token balances and summarizes each member’s local day change', async () => {
+  const now = new Date('2199-10-21T16:00:00.000Z');
+  const overview = await service.tokenOverview(activePerson.id, now);
+  const activity = await service.dailyActivity(
+    activePerson.id,
+    overview.localDate,
+    now,
+  );
+  const wallet = await service.wallet(activePerson.id);
+  const activeRow = overview.rows.find(
+    (row) => row.participantId === activePerson.id,
+  );
+
+  expect(activeRow).toMatchObject({
+    participantName: activePerson.name,
+    balance: wallet.balance,
+    todayDelta: activity.entries
+      .filter((entry) => entry.participantId === activePerson.id)
+      .reduce((sum, entry) => sum + entry.delta, 0),
+  });
+  expect(overview.rows.map((row) => row.balance)).toEqual(
+    overview.rows
+      .map((row) => row.balance)
+      .slice()
+      .sort((a, b) => b - a),
+  );
+  expect(overview.rows.map((row) => row.participantId)).not.toContain(
+    archivedPerson.id,
+  );
+});

@@ -110,9 +110,9 @@ test('desktop activity and admin scroll independently without moving the wheel o
   await page.setViewportSize({ width: 1440, height: 760 });
   await page.goto('/');
 
-  const activityTab = page.getByRole('tab', { name: 'Daily activity' });
+  const activityTab = page.getByRole('tab', { name: 'Activity' });
   await activityTab.click();
-  const activity = page.getByRole('tabpanel', { name: 'Daily activity' });
+  const activity = page.getByRole('tabpanel', { name: 'Activity' });
   await expect(
     activity.getByRole('heading', { name: 'Activity room' }),
   ).toBeVisible();
@@ -256,7 +256,7 @@ test('mobile scrolls the document with a compact sticky wheel and accessible con
     .toBeGreaterThan(0);
   expect(await page.evaluate(() => window.scrollY)).toBe(pageScrollBeforeAdmin);
 
-  await page.getByRole('tab', { name: 'Daily activity' }).click();
+  await page.getByRole('tab', { name: 'Activity' }).click();
   await expect(
     page.getByRole('heading', { name: 'Activity room' }),
   ).toBeVisible();

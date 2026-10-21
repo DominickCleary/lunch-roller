@@ -179,6 +179,62 @@
   content: '';
   pointer-events: none;
 }
+.token-overview {
+  margin-top: 18px;
+}
+.token-overview-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+.token-overview-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+.token-overview-table th,
+.token-overview-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.token-overview-table thead th {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.token-overview-table tbody tr:last-child th,
+.token-overview-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.token-overview-rank {
+  width: 62px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.token-overview-balance {
+  color: var(--text-strong);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.token-overview-change {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.token-overview-change.positive {
+  color: var(--success, #3e8058);
+}
+.token-overview-change.negative {
+  color: var(--danger, #a94943);
+}
+.token-overview-change.neutral {
+  color: var(--text-muted);
+}
 .activity-dashboard-grid .activity-panel {
   margin: 0;
 }
@@ -540,6 +596,13 @@
   .activity-panel {
     padding: 13px 11px;
     border-radius: 5px;
+  }
+  .token-overview-table th,
+  .token-overview-table td {
+    padding: 9px 7px;
+  }
+  .token-overview-table {
+    font-size: 12px;
   }
   .activity-summary {
     gap: 7px;
