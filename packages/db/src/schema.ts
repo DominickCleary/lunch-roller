@@ -286,6 +286,8 @@ export const tokenLedger = pgTable(
         'attendance',
         'boost',
         'reduce',
+        'boost-refund',
+        'reduce-refund',
         'add-place',
         'remove-place',
         'correction',
@@ -300,6 +302,9 @@ export const tokenLedger = pgTable(
     attendanceId: uuid('attendance_id').references(() => attendance.id),
     placeId: uuid('place_id').references(() => places.id),
     betId: uuid('bet_id').references(() => bets.id),
+    influenceMarketId: uuid('influence_market_id').references(
+      () => bettingMarkets.id,
+    ),
     reason: text(),
     createdAt: createdAt(),
   },
@@ -310,11 +315,48 @@ export const tokenLedger = pgTable(
     check('ledger_nonzero', sql`${t.delta} <> 0`),
     check(
       'ledger_kind',
-      sql`${t.kind} in ('attendance','boost','reduce','add-place','remove-place','correction','bet-stake','bet-release','bet-payout')`,
+      sql`${t.kind} in ('attendance','boost','reduce','boost-refund','reduce-refund','add-place','remove-place','correction','bet-stake','bet-release','bet-payout')`,
     ),
     check(
       'correction_reason',
       sql`${t.kind} <> 'correction' or length(btrim(${t.reason})) > 0 and ${t.reason} is not null`,
+    ),
+  ],
+);
+
+/** One refundable unit, preserving its original price and logarithmic effect. */
+export const influenceLots = pgTable(
+  'influence_lots',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    marketId: uuid('market_id')
+      .notNull()
+      .references(() => bettingMarkets.id),
+    participantId: uuid('participant_id')
+      .notNull()
+      .references(() => participants.id),
+    placeId: uuid('place_id')
+      .notNull()
+      .references(() => places.id),
+    action: text({ enum: ['boost', 'reduce'] }).notNull(),
+    tokenCost: integer('token_cost').notNull(),
+    logMultiplier: doublePrecision('log_multiplier').notNull(),
+    purchaseLedgerId: uuid('purchase_ledger_id')
+      .notNull()
+      .references(() => tokenLedger.id),
+    withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('influence_purchase_once').on(t.purchaseLedgerId),
+    index('influence_market_positions')
+      .on(t.marketId, t.placeId, t.participantId)
+      .where(sql`${t.withdrawnAt} is null`),
+    check('influence_action', sql`${t.action} in ('boost','reduce')`),
+    check('influence_cost', sql`${t.tokenCost} between 1 and 2147483647`),
+    check(
+      'influence_multiplier',
+      sql`(${t.action} = 'boost' and ${t.logMultiplier} > 0 and ${t.logMultiplier} <= ln(100.0)) or (${t.action} = 'reduce' and ${t.logMultiplier} < 0 and ${t.logMultiplier} >= ln(0.01))`,
     ),
   ],
 );

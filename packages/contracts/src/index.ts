@@ -137,6 +137,7 @@ export const tokenActivityEntry = z.object({
   placeName: name.nullable().default(null),
   betId: id.nullable().default(null),
   betLocalDate: z.iso.date().nullable().default(null),
+  influenceLocalDate: z.iso.date().nullable().optional(),
 });
 export const attendanceResponse = z.object({
   drawId: id,
@@ -168,6 +169,17 @@ export const walletResponse = z.object({
 export const dailyActivityQuery = z.object({
   date: z.iso.date().optional(),
 });
+export const drawInfluencePosition = z.object({
+  placeId: id,
+  placeName: name,
+  participantId: id,
+  participantName: name,
+  boosts: z.number().int().nonnegative(),
+  reductions: z.number().int().nonnegative(),
+  boostTokens: z.number().int().nonnegative(),
+  reductionTokens: z.number().int().nonnegative(),
+  status: z.enum(['staged', 'locked', 'committed']),
+});
 export const dailyActivityResponse = z.object({
   localDate: z.iso.date(),
   timezone: z.string(),
@@ -183,7 +195,9 @@ export const dailyActivityResponse = z.object({
       participantName: name,
     }),
   ),
+  positions: z.array(drawInfluencePosition).optional(),
 });
+export type DrawInfluencePosition = z.infer<typeof drawInfluencePosition>;
 export type TokenActivityEntry = z.infer<typeof tokenActivityEntry>;
 export type DailyActivityResponse = z.infer<typeof dailyActivityResponse>;
 export const bettingWindow = z.object({
@@ -193,8 +207,37 @@ export const bettingWindow = z.object({
   cutoffMinutes: z.number().int().min(0).max(1440),
   cutoffLocalDate: z.iso.date(),
   cutoffLocalTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  cutoffAt: z.iso.datetime().optional(),
   open: z.boolean(),
 });
+export const influencePosition = z.object({
+  placeId: id,
+  boosts: z.number().int().nonnegative(),
+  reductions: z.number().int().nonnegative(),
+  yourBoosts: z.number().int().nonnegative(),
+  yourReductions: z.number().int().nonnegative(),
+});
+export const currentInfluenceResponse = z.object({
+  window: bettingWindow,
+  places: z.array(influencePosition),
+});
+export const changeInfluenceRequest = z.object({
+  localDate: z.iso.date(),
+  placeId: id,
+  action: z.enum(['boost', 'reduce']),
+  change: z.union([z.literal(1), z.literal(-1)]),
+});
+export const influenceMutationResponse = z.object({
+  place,
+  balance: z.number().int().nonnegative(),
+  tokenDelta: z.number().int(),
+});
+export type InfluencePosition = z.infer<typeof influencePosition>;
+export type CurrentInfluenceResponse = z.infer<typeof currentInfluenceResponse>;
+export type ChangeInfluenceRequest = z.infer<typeof changeInfluenceRequest>;
+export type InfluenceMutationResponse = z.infer<
+  typeof influenceMutationResponse
+>;
 export const currentBetsResponse = z.object({
   window: bettingWindow,
   bet: betView.nullable(),

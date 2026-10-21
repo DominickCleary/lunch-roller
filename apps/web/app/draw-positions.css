@@ -1,0 +1,79 @@
+.draw-position-bars {
+  display: grid;
+  gap: 14px;
+}
+.draw-position-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.65fr) minmax(80px, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+}
+.draw-position-row > strong {
+  overflow-wrap: anywhere;
+}
+.draw-position-row > span {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+.draw-position-track {
+  display: flex;
+  height: 11px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--surface-soft);
+}
+.position-support {
+  background: var(--success);
+}
+.position-opposition {
+  background: var(--danger);
+}
+.position-boost-count {
+  color: var(--success);
+}
+.position-reduce-count {
+  margin-left: 8px;
+  color: var(--danger);
+}
+.position-state {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+}
+.position-state-staged {
+  border-color: var(--success);
+  color: var(--success);
+}
+.draw-position-people {
+  margin: 18px 0 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.draw-position-people summary {
+  cursor: pointer;
+  padding: 6px 0;
+}
+:root[data-theme='dark'] .position-boost-count {
+  color: var(--success);
+}
+:root[data-theme='dark'] .position-reduce-count {
+  color: var(--danger);
+}
+@media (max-width: 560px) {
+  .draw-position-row {
+    grid-template-columns: minmax(80px, 0.8fr) minmax(90px, 1fr);
+    gap: 7px;
+  }
+  .draw-position-row > span {
+    grid-column: 1 / -1;
+  }
+  .draw-positions .activity-panel-heading {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}

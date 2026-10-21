@@ -11,12 +11,14 @@ import {
   pushSubscriptions,
   settings,
   tokenLedger,
+  influenceLots,
 } from './schema';
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 // Uses only unique records in the disposable integration database.
 const database = createDatabase();
 const service = new GameService(database);
+const influenceAt = new Date('2199-10-20T08:00:00.000Z');
 const originalSchedule = await service.getSchedule();
 const suffix = crypto.randomUUID();
 const person = await service.saveParticipant({ name: `ops-person-${suffix}` });
@@ -71,6 +73,9 @@ afterAll(async () => {
     await database.db
       .delete(notificationOutbox)
       .where(inArray(notificationOutbox.drawId, drawIds));
+  await database.db
+    .delete(influenceLots)
+    .where(inArray(influenceLots.participantId, testParticipantIds));
   await database.db
     .delete(tokenLedger)
     .where(inArray(tokenLedger.participantId, testParticipantIds));
@@ -259,6 +264,11 @@ it('uses the draw timezone for attendance and preserves exact idempotent respons
 });
 
 it('prevents concurrent overdrafts and rolls duplicate-place failures back without charging', async () => {
+  await service.setSchedule({
+    timezone: 'UTC',
+    time: '11:30',
+    weekdays: [1, 2, 3, 4, 5, 6, 7],
+  });
   await service.correctTokens(
     { participantId: other.id, delta: 9, reason: 'fund concurrent test' },
     crypto.randomUUID(),
@@ -269,6 +279,7 @@ it('prevents concurrent overdrafts and rolls duplicate-place failures back witho
         other.id,
         { placeId: place.id, action: 'boost' },
         crypto.randomUUID(),
+        influenceAt,
       ),
     ),
   );
@@ -302,8 +313,8 @@ it('charges concurrent replays once and returns the original response', async ()
   const key = crypto.randomUUID();
   const request = { placeId: place.id, action: 'reduce' as const };
   const results = await Promise.all([
-    service.purchase(other.id, request, key),
-    service.purchase(other.id, request, key),
+    service.purchase(other.id, request, key, influenceAt),
+    service.purchase(other.id, request, key, influenceAt),
   ]);
   expect(results[0]).toEqual(results[1]);
   expect((await service.wallet(other.id)).balance).toBe(9);

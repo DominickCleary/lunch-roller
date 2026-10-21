@@ -53,6 +53,13 @@ test.beforeAll(async () => {
   if (!fixtureDraw)
     throw new Error('Could not create the rollover draw fixture.');
   drawIds.push(fixtureDraw.id);
+  // Purchases now share the betting cutoff. Keep the live browser market open
+  // independently of the historical draw used for the replay fixture.
+  await game.setSchedule({
+    timezone: 'UTC',
+    time: '23:59',
+    weekdays: [1, 2, 3, 4, 5, 6, 7],
+  });
 });
 
 test.afterAll(async () => {
@@ -78,6 +85,10 @@ test.afterAll(async () => {
       `;
     }
     if (participantIds.length) {
+      await database.client`
+        DELETE FROM influence_lots
+        WHERE participant_id IN ${database.client(participantIds)}
+      `;
       await database.client`
         DELETE FROM token_ledger
         WHERE participant_id IN ${database.client(participantIds)}
@@ -240,9 +251,7 @@ test('rolls the displayed wheel, keeps current odds live, and replays the saved 
     .locator('.odds-row')
     .filter({ hasText: fixturePlace.name });
   await fixtureOddsRow.getByTitle('Boost place (5 tokens)').click();
-  await expect(
-    page.getByText('Place boosted for the next draw.'),
-  ).toBeVisible();
+  await expect(page.getByText('Boost staged for the next draw.')).toBeVisible();
   await expect
     .poll(async () => {
       const today = await game.today(new Date(`${fixtureDate}T15:00:00Z`));

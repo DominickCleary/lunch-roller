@@ -1,0 +1,122 @@
+.influence-controls {
+  grid-column: 2 / -1;
+  grid-row: 1;
+  min-width: 0;
+  padding: 5px 0 6px;
+}
+.influence-place-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px 8px;
+  min-width: 0;
+  padding-right: 45px;
+}
+.influence-place-heading .odds-name {
+  flex: 1 1 100px;
+}
+.influence-market-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.market-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 20px;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.market-count span:first-child {
+  color: var(--success);
+}
+.market-count span:last-child {
+  color: var(--danger);
+}
+.your-count {
+  border-color: color-mix(in srgb, var(--primary-text) 30%, var(--line));
+  background: var(--primary-bg);
+  color: var(--primary-text);
+}
+.your-count span:first-child {
+  color: #99e8ba;
+}
+.your-count span:last-child {
+  color: #ffb6af;
+}
+:root[data-theme='dark'] .your-count span:first-child {
+  color: #136235;
+}
+:root[data-theme='dark'] .your-count span:last-child {
+  color: #92251f;
+}
+.influence-position-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 5px;
+}
+.influence-position-control {
+  min-height: 25px;
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 9px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.influence-position-control.boost {
+  color: var(--success);
+}
+.influence-position-control.reduce {
+  color: var(--danger);
+}
+.influence-position-control.undo {
+  color: var(--text-muted);
+}
+.influence-position-control:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+.influence-market-state {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1.35;
+  padding-right: 26px;
+}
+.influence-market-state.locked {
+  color: var(--danger);
+  font-weight: 700;
+}
+.odds-row {
+  position: relative;
+  grid-template-columns: 9px minmax(0, 1fr);
+  align-items: start;
+  padding: 5px 0;
+}
+.odds-row .odds-color {
+  grid-column: 1;
+  grid-row: 1;
+  margin-top: 7px;
+}
+.odds-row > strong {
+  position: absolute;
+  top: 5px;
+  right: 0;
+  padding-top: 6px;
+}
+.influence-buttons {
+  position: absolute;
+  right: 0;
+  bottom: 8px;
+}

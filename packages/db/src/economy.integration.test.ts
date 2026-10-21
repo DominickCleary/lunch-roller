@@ -12,10 +12,12 @@ import {
   places,
   settings,
   tokenLedger,
+  influenceLots,
 } from './schema';
 
 const database = createDatabase();
 const service = new GameService(database);
+let influenceAt = new Date('2199-10-20T08:00:00.000Z');
 const originalSchedule = await service.getSchedule();
 const originalEconomy = await service.getEconomy();
 const originalWeights = new Map(
@@ -47,10 +49,14 @@ afterAll(async () => {
         weekdays: originalSchedule.weekdays,
       })
       .where(eq(settings.id, 1));
-    if (participantIds.length)
+    if (participantIds.length) {
+      await database.db
+        .delete(influenceLots)
+        .where(inArray(influenceLots.participantId, participantIds));
       await database.db
         .delete(tokenLedger)
         .where(inArray(tokenLedger.participantId, participantIds));
+    }
     if (participantIds.length)
       await database.db
         .delete(attendance)
@@ -98,6 +104,7 @@ it('uses configured rewards and prices, replays original responses, and preserve
 
   const drawAt = new Date(Date.now() + 1_000 * 24 * 60 * 60 * 1000);
   const draw = remember(await service.drawIfDue(drawAt));
+  influenceAt = drawAt;
   expect(draw).not.toBeNull();
   const historicalSnapshot = structuredClone(draw!.snapshot);
 
@@ -113,6 +120,7 @@ it('uses configured rewards and prices, replays original responses, and preserve
     member.id,
     { placeId: seedPlace.id, action: 'boost' },
     boostKey,
+    influenceAt,
   );
   expect(boosted.spentTokens).toBe(economy.boostCost);
   expect(boosted.place.logWeight).toBeCloseTo(
@@ -124,6 +132,7 @@ it('uses configured rewards and prices, replays original responses, and preserve
     member.id,
     { placeId: seedPlace.id, action: 'reduce' },
     crypto.randomUUID(),
+    influenceAt,
   );
   expect(reduced.spentTokens).toBe(economy.reduceCost);
   expect(reduced.place.logWeight).toBeCloseTo(
@@ -152,6 +161,7 @@ it('uses configured rewards and prices, replays original responses, and preserve
     member.id,
     { placeId: added.place.id, action: 'remove' },
     crypto.randomUUID(),
+    influenceAt,
   );
   expect(removed.spentTokens).toBe(economy.removePlaceCost);
   expect(removed.place.active).toBe(false);
@@ -198,6 +208,7 @@ it('uses configured rewards and prices, replays original responses, and preserve
     member.id,
     { placeId: seedPlace.id, action: 'boost' },
     boostKey,
+    influenceAt,
   );
   const replayedReward = await service.attend(
     member.id,
@@ -222,6 +233,7 @@ it('uses configured rewards and prices, replays original responses, and preserve
     member.id,
     { placeId: seedPlace.id, action: 'reduce' },
     crypto.randomUUID(),
+    influenceAt,
   );
   expect(afterEdit.spentTokens).toBe(changedEconomy.reduceCost);
   expect(afterEdit.place.logWeight).toBeCloseTo(
@@ -261,6 +273,7 @@ it('rejects an invalid economy atomically and rolls insufficient purchases back'
       unfundedMember.id,
       { placeId: seedPlace.id, action: 'boost' },
       crypto.randomUUID(),
+      influenceAt,
     ),
   ).rejects.toMatchObject({ code: 'INSUFFICIENT_TOKENS' });
   expect(await service.wallet(unfundedMember.id)).toEqual(walletBefore);

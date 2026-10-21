@@ -17,6 +17,7 @@ const game = new GameService(database);
 let subscriptionParticipantId = '';
 let browserParticipantId = '';
 let browserParticipantName = '';
+let originalSchedule: Awaited<ReturnType<GameService['getSchedule']>>;
 
 function generatedPublicKey() {
   const ecdh = createECDH('prime256v1');
@@ -30,6 +31,12 @@ const keys = {
 };
 
 test.beforeAll(async () => {
+  originalSchedule = await game.getSchedule();
+  await game.setSchedule({
+    timezone: 'UTC',
+    time: '23:59',
+    weekdays: [1, 2, 3, 4, 5, 6, 7],
+  });
   const subscriber = await game.saveParticipant({
     name: `${fixturePrefix} Subscriber`,
   });
@@ -72,6 +79,7 @@ test.afterAll(async () => {
         await game.savePlace({ active: false }, place.id);
       }
     }
+    if (originalSchedule) await game.setSchedule(originalSchedule);
   } finally {
     await database.close();
   }
@@ -246,15 +254,13 @@ test('permission is requested only on opt-in and core member actions remain avai
   ).toBe(1);
 
   await page.getByTitle('Boost place (5 tokens)').first().click();
-  await expect(
-    page.getByText('Place boosted for the next draw.'),
-  ).toBeVisible();
+  await expect(page.getByText('Boost staged for the next draw.')).toBeVisible();
   await page
     .getByLabel('Have a new spot in mind?')
     .fill(`${fixturePrefix} Browser Place`);
   await page.getByRole('button', { name: 'Add place' }).click();
   await expect(
-    page.getByText('New lunch place added for 20 tokens.'),
+    page.getByText('Restaurant added or restored for 20 tokens.'),
   ).toBeVisible();
 
   const wallet = await game.wallet(browserParticipantId);

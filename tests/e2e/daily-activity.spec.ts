@@ -55,6 +55,41 @@ const sample: DailyActivityResponse = {
       settledAt: null,
     },
   ],
+  positions: [
+    {
+      participantId: alex,
+      participantName: 'Alex',
+      placeId: sushi,
+      placeName: 'Sushi',
+      boosts: 1,
+      reductions: 0,
+      boostTokens: 5,
+      reductionTokens: 0,
+      status: 'staged',
+    },
+    {
+      participantId: sam,
+      participantName: 'Sam',
+      placeId: sushi,
+      placeName: 'Sushi',
+      boosts: 1,
+      reductions: 0,
+      boostTokens: 5,
+      reductionTokens: 0,
+      status: 'staged',
+    },
+    {
+      participantId: morgan,
+      participantName: 'Morgan',
+      placeId: sushi,
+      placeName: 'Sushi',
+      boosts: 0,
+      reductions: 1,
+      boostTokens: 0,
+      reductionTokens: 5,
+      status: 'staged',
+    },
+  ],
 };
 
 test.beforeEach(async ({ page, request }) => {
@@ -128,9 +163,24 @@ test('shows the schedule, charts, coalitions and bet board without changing iden
   ).toBeVisible();
   await expect(panel.locator('.activity-summary')).toContainText('15');
   await expect(panel.locator('.activity-summary')).toContainText('5');
-  await expect(panel.locator('.bet-board')).toContainText('Sushi');
-  await expect(panel.locator('.bet-board')).toContainText('12 tokens');
-  await expect(panel.locator('.bet-board')).toContainText('Open');
+  const positions = panel.getByRole('region', {
+    name: 'Draw influence positions',
+  });
+  await expect(positions).toContainText('Staged · editable');
+  await expect(positions).toContainText('↑ 2');
+  await expect(positions).toContainText('↓ 1');
+  await positions.getByText('Who holds these positions?').click();
+  await expect(positions).toContainText('Alex');
+  await expect(positions).toContainText('Morgan');
+  await expect(panel.locator('.bet-board-panel .bet-board')).toContainText(
+    'Sushi',
+  );
+  await expect(panel.locator('.bet-board-panel .bet-board')).toContainText(
+    '12 tokens',
+  );
+  await expect(panel.locator('.bet-board-panel .bet-board')).toContainText(
+    'Open',
+  );
   const coalition = panel.locator('.activity-coalition-panel');
   await expect(coalition).toContainText('Alex');
   await expect(coalition).toContainText('Sam');
@@ -203,7 +253,9 @@ test('retries failures and rejects a delayed response for a previous date', asyn
   await expect(panel.getByRole('alert')).toBeVisible();
   fail = false;
   await panel.getByRole('button', { name: 'Retry', exact: true }).click();
-  await expect(panel.locator('.bet-board')).toContainText('Sushi');
+  await expect(panel.locator('.bet-board-panel .bet-board')).toContainText(
+    'Sushi',
+  );
   delay = true;
   await panel.getByLabel('Activity date').fill('2026-10-20');
   await expect.poll(() => Boolean(release)).toBe(true);
@@ -213,5 +265,5 @@ test('retries failures and rejects a delayed response for a previous date', asyn
   ).toBeVisible();
   release?.();
   await expect(panel.getByLabel('Activity date')).toHaveValue('2026-10-19');
-  await expect(panel.locator('.bet-board')).toHaveCount(0);
+  await expect(panel.locator('.bet-board-panel .bet-board')).toHaveCount(0);
 });

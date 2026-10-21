@@ -13,7 +13,35 @@ import {
   walletResponse,
   dailyActivityQuery,
   dailyActivityResponse,
+  changeInfluenceRequest,
+  currentInfluenceResponse,
 } from './index';
+
+it('limits influence edits to a unit of either direction on an explicit draw date', () => {
+  const base = {
+    localDate: '2026-10-21',
+    placeId: 'ca982f50-f7c6-4eb3-8572-28fa01106ed7',
+    action: 'boost',
+  };
+  for (const change of [-1, 1])
+    expect(changeInfluenceRequest.safeParse({ ...base, change }).success).toBe(
+      true,
+    );
+  for (const change of [0, 0.5, -2, 2, Infinity])
+    expect(changeInfluenceRequest.safeParse({ ...base, change }).success).toBe(
+      false,
+    );
+  expect(
+    changeInfluenceRequest.safeParse({
+      ...base,
+      localDate: '2026-02-30',
+      change: 1,
+    }).success,
+  ).toBe(false);
+  expect(
+    currentInfluenceResponse.safeParse({ window: {}, places: [] }).success,
+  ).toBe(false);
+});
 
 it('accepts enriched activity while supplying defaults for saved wallet receipts', () => {
   const entry = {

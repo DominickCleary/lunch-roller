@@ -50,6 +50,13 @@
       "when": 1792569906123,
       "tag": "0006_famous_stark_industries",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792584481930,
+      "tag": "0007_volatile_landau",
+      "breakpoints": true
     }
   ]
 }

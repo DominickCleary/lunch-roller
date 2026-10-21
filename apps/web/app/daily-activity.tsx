@@ -7,6 +7,7 @@ import type {
   TokenActivityEntry,
 } from '@lunch/contracts';
 import './daily-activity.css';
+import { DrawPositions } from './draw-positions';
 
 type ActivityResult = {
   key: string;
@@ -22,6 +23,8 @@ const actionLabel: Record<string, string> = {
   attendance: 'Check-in reward',
   boost: 'Boosted',
   reduce: 'Anti-boosted',
+  'boost-refund': 'Withdrew a boost',
+  'reduce-refund': 'Withdrew a reduction',
   'add-place': 'Added a restaurant',
   'remove-place': 'Removed a restaurant',
   correction: 'Balance correction',
@@ -102,7 +105,8 @@ function ActivityTrend({
         </title>
         <desc id="trend-desc">
           The lines show tokens spent over the selected local day, grouped by
-          local hour. They describe token actions, not restaurant odds.
+          local hour, before refunds. They describe token actions, not
+          restaurant odds or outstanding positions.
         </desc>
         {[0, 1, 2, 3].map((step) => {
           const value = Math.round((peak * step) / 3);
@@ -140,7 +144,7 @@ function ActivityTrend({
       </svg>
       <p className="activity-chart-note">
         Cumulative tokens spent · workplace local time · boost and anti-boost
-        actions only
+        purchases before refunds
       </p>
       <div className="activity-trend-legend" aria-hidden="true">
         <span>
@@ -568,14 +572,14 @@ export function DailyActivity({
               <strong>
                 {tokenCount(boosts)} <small>tokens</small>
               </strong>
-              <p>spent across restaurants</p>
+              <p>purchased before refunds</p>
             </article>
             <article>
               <span>Anti-boosted</span>
               <strong>
                 {tokenCount(reduces)} <small>tokens</small>
               </strong>
-              <p>spent to reduce influence</p>
+              <p>purchased before refunds</p>
             </article>
             <article>
               <span>People active</span>
@@ -588,6 +592,12 @@ export function DailyActivity({
               <p>on the draw dated {selectedDate}</p>
             </article>
           </div>
+          {data.positions && (
+            <DrawPositions
+              positions={data.positions}
+              localDate={selectedDate}
+            />
+          )}
           <div className="activity-dashboard-grid">
             <section className="activity-panel activity-trend-panel">
               <div className="activity-panel-heading">
@@ -605,7 +615,10 @@ export function DailyActivity({
               <div className="activity-panel-heading">
                 <div>
                   <h3>Restaurants in the crossfire</h3>
-                  <p>Opposing actions make disagreement visible</p>
+                  <p>
+                    Today’s purchases before refunds; current positions are
+                    shown above
+                  </p>
                 </div>
               </div>
               <RestaurantChart entries={entries} />
@@ -614,9 +627,10 @@ export function DailyActivity({
           <section className="activity-panel activity-coalition-panel">
             <div className="activity-panel-heading">
               <div>
-                <h3>Who is backing what?</h3>
+                <h3>Who bought what today?</h3>
                 <p>
-                  Compare each person’s support and opposition by restaurant
+                  Compare purchase activity before refunds; outstanding
+                  positions are shown above
                 </p>
               </div>
             </div>
@@ -752,6 +766,11 @@ export function DailyActivity({
                       {entry.reason && <p>{entry.reason}</p>}
                       {entry.betLocalDate && (
                         <p>Bet for draw date {entry.betLocalDate}</p>
+                      )}
+                      {entry.influenceLocalDate && (
+                        <p>
+                          Influence for draw date {entry.influenceLocalDate}
+                        </p>
                       )}
                     </div>
                     <time dateTime={entry.createdAt}>

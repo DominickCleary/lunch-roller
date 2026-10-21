@@ -219,10 +219,11 @@
   vector-effect: non-scaling-stroke;
 }
 .trend-boost-line {
-  stroke: #d65349;
+  stroke: var(--success);
 }
 .trend-reduce-line {
-  stroke: #4b79d2;
+  stroke: var(--danger);
+  stroke-dasharray: 6 3;
 }
 .activity-chart-note {
   margin: 5px 0 0;
@@ -252,10 +253,10 @@
   border-radius: 50%;
 }
 .legend-boost {
-  background: #d65349;
+  background: var(--success);
 }
 .legend-reduce {
-  background: #4b79d2;
+  background: var(--danger);
 }
 .restaurant-chart {
   display: grid;
@@ -290,10 +291,10 @@
   border-radius: 99px;
 }
 .restaurant-bar-boost {
-  background: #d65349;
+  background: var(--success);
 }
 .restaurant-bar-reduce {
-  background: #4b79d2;
+  background: var(--danger);
 }
 .restaurant-values {
   color: var(--text-muted);
@@ -342,19 +343,19 @@
   white-space: nowrap;
 }
 .matrix-boost {
-  color: #bd433a;
+  color: var(--success);
   font-weight: 700;
 }
 .matrix-reduce {
   margin-left: 7px;
-  color: #3f67b6;
+  color: var(--danger);
   font-weight: 700;
 }
 :root[data-theme='dark'] .matrix-boost {
-  color: #ff958c;
+  color: var(--success);
 }
 :root[data-theme='dark'] .matrix-reduce {
-  color: #8cb0ff;
+  color: var(--danger);
 }
 .matrix-none {
   color: var(--text-muted);
@@ -419,10 +420,10 @@
   background: var(--line-strong);
 }
 .timeline-mark-boost {
-  background: #d65349;
+  background: var(--success);
 }
 .timeline-mark-reduce {
-  background: #4b79d2;
+  background: var(--danger);
 }
 .timeline-mark-attendance {
   background: #34a46a;

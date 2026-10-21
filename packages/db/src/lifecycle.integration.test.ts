@@ -12,10 +12,12 @@ import {
   pushSubscriptions,
   settings,
   tokenLedger,
+  influenceLots,
 } from './schema';
 
 const database = createDatabase();
 const service = new GameService(database);
+const influenceAt = new Date('2199-10-20T08:00:00.000Z');
 const originalSchedule = await service.getSchedule();
 const originalPlaces = await service.listPlaces(true);
 const participant = await service.saveParticipant({
@@ -96,6 +98,9 @@ afterAll(async () => {
       .delete(notificationOutbox)
       .where(inArray(notificationOutbox.drawId, ids));
   await database.db
+    .delete(influenceLots)
+    .where(inArray(influenceLots.participantId, testParticipantIds));
+  await database.db
     .delete(tokenLedger)
     .where(inArray(tokenLedger.participantId, testParticipantIds));
   await database.db
@@ -130,6 +135,7 @@ it('rejects attendance before the committed draw time', async () => {
 });
 
 it('rejects changed-body key reuse, blank additions, and overdraft corrections without writes', async () => {
+  await setDailyUtcSchedule('11:30');
   const target = (await service.listPlaces())[0]!;
   const fundKey = crypto.randomUUID();
   await service.correctTokens(
@@ -141,6 +147,7 @@ it('rejects changed-body key reuse, blank additions, and overdraft corrections w
     participant.id,
     { placeId: target.id, action: 'boost' },
     key,
+    influenceAt,
   );
   const afterPurchase = await service.wallet(participant.id);
   await expect(
@@ -148,6 +155,7 @@ it('rejects changed-body key reuse, blank additions, and overdraft corrections w
       participant.id,
       { placeId: target.id, action: 'reduce' },
       key,
+      influenceAt,
     ),
   ).rejects.toMatchObject({ code: 'IDEMPOTENCY_MISMATCH' });
   await expect(

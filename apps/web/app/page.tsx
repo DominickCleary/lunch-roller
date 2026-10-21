@@ -6,9 +6,12 @@ import Link from 'next/link';
 import {
   defaultEconomySettings,
   defaultGamePreferences,
+  currentInfluenceResponse,
 } from '@lunch/contracts';
 import type {
   AttendanceStatus,
+  BettingWindow,
+  CurrentInfluenceResponse,
   EconomySettings,
   GamePreferences,
   Participant,
@@ -24,6 +27,7 @@ import { ThemeToggle } from './theme-toggle';
 import { TeamActivity } from './team-activity';
 import { DailyActivity } from './daily-activity';
 import { TokenEntryDescription, WalletBets } from './token-history';
+import { InfluenceControls } from './influence-controls';
 import { calendarDateLabel } from '../lib/date-label';
 
 type ApiError = { error?: { code?: string; message?: string } };
@@ -40,15 +44,6 @@ type Bet = {
   probability: number | null;
   updatedAt: string;
   settledAt: string | null;
-};
-type BettingWindow = {
-  localDate: string;
-  timezone: string;
-  drawTime: string;
-  cutoffMinutes: number;
-  cutoffLocalDate: string;
-  cutoffLocalTime: string;
-  open: boolean;
 };
 type CurrentBets = { window: BettingWindow; bet: Bet | null; recent: Bet[] };
 const oddsPrecision = 1_000_000;
@@ -392,12 +387,17 @@ export default function Home() {
   const savedResult = today?.result;
   const [wallet, setWallet] = useState<WalletResponse | null>(null);
   const [currentBets, setCurrentBets] = useState<CurrentBets | null>(null);
+  const [currentInfluence, setCurrentInfluence] =
+    useState<CurrentInfluenceResponse | null>(null);
+  const [influenceBusy, setInfluenceBusy] = useState(false);
+  const [influenceError, setInfluenceError] = useState('');
   const [betStakeDraft, setBetStakeDraft] = useState('1');
   const [betPlaceDraft, setBetPlaceDraft] = useState('');
   const [betBusy, setBetBusy] = useState(false);
   const [betError, setBetError] = useState('');
   const [betNotice, setBetNotice] = useState('');
   const latestBetRequest = useRef(0);
+  const latestInfluenceRequest = useRef(0);
   const [checkInConfirmOpen, setCheckInConfirmOpen] = useState(false);
   const checkInTrigger = useRef<HTMLButtonElement | null>(null);
   const checkInConfirmed = useRef(false);
@@ -488,6 +488,33 @@ export default function Home() {
           } else throw caught;
         }
       } else setWallet(null);
+      if (selected) {
+        const influenceRequest = ++latestInfluenceRequest.current;
+        try {
+          const influence = currentInfluenceResponse.parse(
+            await request<CurrentInfluenceResponse>(
+              '/influence/current',
+              {},
+              selected,
+            ),
+          );
+          if (
+            influenceRequest === latestInfluenceRequest.current &&
+            localStorage.getItem(storageKey) === selected
+          ) {
+            setCurrentInfluence(influence);
+            setInfluenceError('');
+          }
+        } catch {
+          if (
+            influenceRequest === latestInfluenceRequest.current &&
+            localStorage.getItem(storageKey) === selected
+          )
+            setInfluenceError(
+              'Could not refresh positions. Controls are paused until the next successful update.',
+            );
+        }
+      } else setCurrentInfluence(null);
       setPollingError('');
       return true;
     } catch (caught) {
@@ -663,6 +690,23 @@ export default function Home() {
     }
   }, []);
 
+  const betCutoffAt = currentBets?.window.cutoffAt;
+  const betWindowOpen = currentBets?.window.open;
+  useEffect(() => {
+    if (!betCutoffAt || !betWindowOpen) return;
+    const timer = window.setTimeout(
+      () => {
+        setCurrentBets((current) =>
+          current?.window.cutoffAt === betCutoffAt
+            ? { ...current, window: { ...current.window, open: false } }
+            : current,
+        );
+      },
+      Math.max(0, new Date(betCutoffAt).getTime() - Date.now()),
+    );
+    return () => window.clearTimeout(timer);
+  }, [betCutoffAt, betWindowOpen]);
+
   async function saveBet(event: FormEvent) {
     event.preventDefault();
     if (!participantId || !currentBets?.window.open || betBusy) return;
@@ -737,6 +781,42 @@ export default function Home() {
     }
   }
 
+  async function changeInfluence(
+    placeId: string,
+    action: 'boost' | 'reduce',
+    change: 1 | -1,
+  ) {
+    const market = currentInfluence;
+    if (
+      !participantId ||
+      !market?.window.open ||
+      influenceBusy ||
+      busy ||
+      influenceError
+    )
+      return;
+    setInfluenceBusy(true);
+    try {
+      const updated = await mutate(
+        '/influence/current',
+        {
+          localDate: market.window.localDate,
+          placeId,
+          action,
+          change,
+        },
+        change === 1
+          ? `${action === 'boost' ? 'Boost' : 'Reduction'} staged for the next draw.`
+          : `${action === 'boost' ? 'Boost' : 'Reduction'} withdrawn and tokens returned.`,
+      );
+      // Refresh after failures too: the cutoff or another tab may have changed.
+      if (!updated) await refresh(participantId).catch(() => undefined);
+      await refreshBets(participantId);
+    } finally {
+      setInfluenceBusy(false);
+    }
+  }
+
   useEffect(() => {
     if (entryStage !== 'game' || !participantId) return;
     const timer = window.setTimeout(() => void refreshBets(participantId), 0);
@@ -769,7 +849,10 @@ export default function Home() {
   function changeName() {
     latestAttendanceRequest.current += 1;
     latestBetRequest.current += 1;
+    latestInfluenceRequest.current += 1;
     setCurrentBets(null);
+    setCurrentInfluence(null);
+    setInfluenceError('');
     setAttendance(null);
     localStorage.removeItem(storageKey);
     setParticipantId('');
@@ -1044,6 +1127,11 @@ export default function Home() {
         return true;
       }
       await refresh(participantId);
+      if (
+        route === '/purchases' &&
+        (payload as { action?: string }).action === 'remove'
+      )
+        await refreshBets(participantId);
       localStorage.removeItem(pendingKey);
       setNotice(
         (route === '/places' || route === '/purchases') &&
@@ -2090,6 +2178,20 @@ export default function Home() {
                 <span className="odds-total">{odds.length} PLACES</span>
               </div>
               <p className="muted">Current chances for the next draw.</p>
+              {influenceError && (
+                <p className="refresh-error" role="status">
+                  {influenceError}{' '}
+                  <button
+                    className="ledger-toggle"
+                    type="button"
+                    onClick={() =>
+                      void refresh(participantId).catch(() => undefined)
+                    }
+                  >
+                    Retry positions
+                  </button>
+                </p>
+              )}
               <div
                 className="odds-format-toggle"
                 role="group"
@@ -2114,13 +2216,27 @@ export default function Home() {
                 {odds.map((option, index) => {
                   const placeId = 'placeId' in option ? option.placeId : '';
                   const fairOdds = fairFractionalOdds(option.probability);
+                  const influencePosition = currentInfluence?.places.find(
+                    (position) => position.placeId === placeId,
+                  );
                   return (
                     <div className="odds-row" key={placeId}>
                       <span
                         className="odds-color"
                         style={{ background: colors[index % colors.length] }}
                       />
-                      <span className="odds-name">{option.name}</span>
+                      <InfluenceControls
+                        placeId={placeId}
+                        placeName={option.name}
+                        position={influencePosition}
+                        window={currentInfluence?.window ?? null}
+                        balance={wallet?.balance ?? 0}
+                        boostCost={currentEconomy.boostCost}
+                        reduceCost={currentEconomy.reduceCost}
+                        busy={busy || influenceBusy || Boolean(influenceError)}
+                        identityReady={Boolean(participantId)}
+                        onChange={changeInfluence}
+                      />
                       <span className="odds-bar">
                         <span
                           style={{
@@ -2144,32 +2260,6 @@ export default function Home() {
                       </strong>
                       <div className="influence-buttons">
                         <button
-                          title={`Boost place (${currentEconomy.boostCost} tokens)`}
-                          disabled={busy || !participantId}
-                          onClick={() =>
-                            void mutate(
-                              '/purchases',
-                              { placeId, action: 'boost' },
-                              'Place boosted for the next draw.',
-                            )
-                          }
-                        >
-                          + ↗
-                        </button>
-                        <button
-                          title={`Reduce place (${currentEconomy.reduceCost} tokens)`}
-                          disabled={busy || !participantId}
-                          onClick={() =>
-                            void mutate(
-                              '/purchases',
-                              { placeId, action: 'reduce' },
-                              'Place reduced for the next draw.',
-                            )
-                          }
-                        >
-                          − ↘
-                        </button>
-                        <button
                           className="remove-place-control"
                           aria-label={`Remove ${option.name} from the wheel for ${currentEconomy.removePlaceCost} tokens`}
                           title={`Remove place (${currentEconomy.removePlaceCost} tokens)`}
@@ -2177,7 +2267,7 @@ export default function Home() {
                           onClick={() => {
                             if (
                               window.confirm(
-                                `Remove ${option.name} from the wheel for ${currentEconomy.removePlaceCost} tokens? You can restore it later by adding the same name.`,
+                                `Remove ${option.name} from the wheel for ${currentEconomy.removePlaceCost} tokens? This is final for this restaurant; pending boosts, reductions, and bets will be refunded. You can restore it later by adding the same name.`,
                               )
                             )
                               void mutate(

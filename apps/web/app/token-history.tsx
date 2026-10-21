@@ -8,6 +8,8 @@ const entryLabels: Record<string, string> = {
   attendance: 'Lunch check-in',
   boost: 'Boosted',
   reduce: 'Anti-boosted',
+  'boost-refund': 'Boost refunded',
+  'reduce-refund': 'Reduction refunded',
   'add-place': 'Added a restaurant',
   'remove-place': 'Removed a restaurant',
   correction: 'Admin correction',
@@ -31,6 +33,11 @@ export function TokenEntryDescription({
       {entry.betLocalDate && (
         <span className="token-entry-date">
           Draw {formatDrawDate(entry.betLocalDate)}
+        </span>
+      )}
+      {entry.influenceLocalDate && (
+        <span className="token-entry-date">
+          Draw {formatDrawDate(entry.influenceLocalDate)}
         </span>
       )}
       {entry.reason && (

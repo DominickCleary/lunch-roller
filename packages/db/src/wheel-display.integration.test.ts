@@ -10,6 +10,7 @@ import {
   places,
   settings,
   tokenLedger,
+  influenceLots,
 } from './schema';
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
@@ -79,6 +80,9 @@ afterAll(async () => {
           ),
         );
     if (participantIds.length) {
+      await database.db
+        .delete(influenceLots)
+        .where(inArray(influenceLots.participantId, participantIds));
       await database.db
         .delete(tokenLedger)
         .where(inArray(tokenLedger.participantId, participantIds));
@@ -150,6 +154,7 @@ it('switches from the saved snapshot to mutable upcoming odds after the cutoff',
     participantIds[0]!,
     { placeId, action: 'boost' },
     `wheel-display-boost-${suffix}`,
+    cutoff,
   );
 
   const afterBoost = await service.today(cutoff);

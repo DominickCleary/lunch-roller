@@ -10,10 +10,12 @@ import {
   places,
   settings,
   tokenLedger,
+  influenceLots,
 } from './schema';
 
 const database = createDatabase();
 const service = new GameService(database);
+const influenceAt = new Date('2199-10-20T12:00:00.000Z');
 const [originalSettings] = await database.db
   .select()
   .from(settings)
@@ -37,6 +39,14 @@ const betIds: string[] = [];
 
 afterAll(async () => {
   try {
+    await database.db
+      .delete(influenceLots)
+      .where(
+        inArray(influenceLots.participantId, [
+          activePerson.id,
+          archivedPerson.id,
+        ]),
+      );
     await database.db
       .delete(tokenLedger)
       .where(
@@ -64,6 +74,8 @@ afterAll(async () => {
         .update(settings)
         .set({
           timezone: originalSettings.timezone,
+          spinTime: originalSettings.spinTime,
+          weekdays: originalSettings.weekdays,
           setupCompleted: originalSettings.setupCompleted,
         })
         .where(eq(settings.id, 1));
@@ -75,7 +87,12 @@ afterAll(async () => {
 it('shows original token targets and a timezone-scoped team activity snapshot', async () => {
   await database.db
     .update(settings)
-    .set({ timezone: 'America/New_York', setupCompleted: true })
+    .set({
+      timezone: 'America/New_York',
+      spinTime: '11:30',
+      weekdays: [1, 2, 3, 4, 5, 6, 7],
+      setupCompleted: true,
+    })
     .where(eq(settings.id, 1));
   await database.db
     .update(participants)
@@ -94,16 +111,19 @@ it('shows original token targets and a timezone-scoped team activity snapshot', 
     activePerson.id,
     { placeId: firstPlace.id, action: 'boost' },
     crypto.randomUUID(),
+    influenceAt,
   );
   await service.purchase(
     activePerson.id,
     { placeId: secondPlace.id, action: 'reduce' },
     crypto.randomUUID(),
+    influenceAt,
   );
   await service.purchase(
     activePerson.id,
     { placeId: secondPlace.id, action: 'remove' },
     crypto.randomUUID(),
+    influenceAt,
   );
   const added = await service.addPlace(
     activePerson.id,

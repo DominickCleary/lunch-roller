@@ -28,6 +28,9 @@ import {
   betMutationResponse,
   dailyActivityQuery,
   dailyActivityResponse,
+  currentInfluenceResponse,
+  changeInfluenceRequest,
+  influenceMutationResponse,
 } from '@lunch/contracts';
 import {
   createHash,
@@ -266,6 +269,22 @@ async function dispatch(request: NextRequest, context: Context) {
       return response(await game.today());
     if (route === '/wallet' && method === 'GET')
       return response(await game.wallet(participantId(request)));
+    if (route === '/influence/current' && method === 'GET')
+      return response(
+        currentInfluenceResponse.parse(
+          await game.currentInfluence(participantId(request)),
+        ),
+      );
+    if (route === '/influence/current' && method === 'POST')
+      return response(
+        influenceMutationResponse.parse(
+          await game.changeInfluence(
+            participantId(request),
+            parse(changeInfluenceRequest, await body(request)),
+            idempotencyKey(request),
+          ),
+        ),
+      );
     if (route === '/activity' && method === 'GET') {
       const query = parse(dailyActivityQuery, {
         date: request.nextUrl.searchParams.get('date') ?? undefined,
