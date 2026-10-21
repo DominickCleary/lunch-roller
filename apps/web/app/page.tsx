@@ -44,6 +44,92 @@ function equalRestaurantOddsDraft(
   );
 }
 
+function equalizeSelectedRestaurantOddsDraft(
+  places: RestaurantOdd[],
+  current: Record<string, string>,
+  selectedPlaceIds: string[],
+): Record<string, string> {
+  const selectedIds = new Set(
+    selectedPlaceIds.filter((placeId) =>
+      places.some((place) => place.placeId === placeId),
+    ),
+  );
+  if (!selectedIds.size) return current;
+  if (selectedIds.size === places.length)
+    return equalRestaurantOddsDraft(places);
+
+  const selectedShareUnits = Math.floor(totalOddsUnits / places.length);
+  const remainingPlaces = places.filter(
+    (place) => !selectedIds.has(place.placeId),
+  );
+  let remainingUnits = totalOddsUnits - selectedShareUnits * selectedIds.size;
+  const weights = new Map(
+    remainingPlaces.map((place) => {
+      const draftPercent = Number(current[place.placeId]);
+      const weight =
+        Number.isFinite(draftPercent) && draftPercent > 0
+          ? draftPercent
+          : place.percent;
+      return [
+        place.placeId,
+        Number.isFinite(weight) && weight > 0 ? weight : 1,
+      ];
+    }),
+  );
+  const units = new Map<string, number>();
+  let unassigned = [...remainingPlaces];
+
+  while (unassigned.length) {
+    const totalWeight = unassigned.reduce(
+      (sum, place) => sum + weights.get(place.placeId)!,
+      0,
+    );
+    const belowMinimum = unassigned.filter(
+      (place) =>
+        (remainingUnits * weights.get(place.placeId)!) / totalWeight < 1,
+    );
+    if (belowMinimum.length) {
+      for (const place of belowMinimum) units.set(place.placeId, 1);
+      remainingUnits -= belowMinimum.length;
+      const belowMinimumIds = new Set(
+        belowMinimum.map((place) => place.placeId),
+      );
+      unassigned = unassigned.filter(
+        (place) => !belowMinimumIds.has(place.placeId),
+      );
+      continue;
+    }
+
+    const allocations = unassigned.map((place) => {
+      const exactUnits =
+        (remainingUnits * weights.get(place.placeId)!) / totalWeight;
+      const wholeUnits = Math.floor(exactUnits);
+      units.set(place.placeId, wholeUnits);
+      return { placeId: place.placeId, fraction: exactUnits - wholeUnits };
+    });
+    let remainder =
+      remainingUnits -
+      allocations.reduce((sum, item) => sum + units.get(item.placeId)!, 0);
+    allocations.sort((left, right) => right.fraction - left.fraction);
+    for (let index = 0; remainder > 0; index += 1, remainder -= 1) {
+      const placeId = allocations[index % allocations.length]!.placeId;
+      units.set(placeId, units.get(placeId)! + 1);
+    }
+    break;
+  }
+
+  return Object.fromEntries(
+    places.map((place) => [
+      place.placeId,
+      `${
+        (selectedIds.has(place.placeId)
+          ? selectedShareUnits
+          : units.get(place.placeId)!) / oddsPrecision
+      }`,
+    ]),
+  );
+}
+
 function redistributeRestaurantOdds(
   places: RestaurantOdd[],
   current: Record<string, string>,
@@ -199,6 +285,11 @@ function uuid() {
 function moneyLabel(delta: number) {
   return `${delta > 0 ? '+' : ''}${delta} tokens`;
 }
+function fairDecimalOdds(probability: number) {
+  if (!Number.isFinite(probability) || probability <= 0) return '—';
+  const fairOdds = 1 / probability;
+  return Number.isFinite(fairOdds) ? fairOdds.toFixed(2) : '∞';
+}
 function resultRotation(result: NonNullable<TodayResponse['result']>) {
   const index = result.snapshot.findIndex(
     (option) => option.placeId === result.placeId,
@@ -233,6 +324,10 @@ export default function Home() {
   const [restaurantOddsDraft, setRestaurantOddsDraft] = useState<
     Record<string, string>
   >({});
+  const [selectedOddsPlaceIds, setSelectedOddsPlaceIds] = useState<string[]>(
+    [],
+  );
+  const [showFairOdds, setShowFairOdds] = useState(false);
   const [places, setPlaces] = useState<Place[]>([]);
   const [today, setToday] = useState<TodayResponse | null>(null);
   const wheelDisplayKey = today
@@ -371,6 +466,7 @@ export default function Home() {
     );
     setPlaces(locations.places);
     setRestaurantOdds(savedOdds.places);
+    setSelectedOddsPlaceIds([]);
     setRestaurantOddsDraft(
       Object.fromEntries(
         savedOdds.places.map(({ placeId, percent }) => [
@@ -1105,6 +1201,9 @@ export default function Home() {
     (total, place) => total + Number(restaurantOddsDraft[place.placeId]),
     0,
   );
+  const selectedOddsCount = restaurantOdds.filter((place) =>
+    selectedOddsPlaceIds.includes(place.placeId),
+  ).length;
   const restaurantOddsAreValid =
     restaurantOdds.length > 0 &&
     restaurantOdds.every((place) => {
@@ -1726,12 +1825,33 @@ export default function Home() {
                 <span className="odds-total">{odds.length} PLACES</span>
               </div>
               <p className="muted">
-                Current chances for the next draw. More tokens can nudge the
-                odds.
+                Current chances for the next draw. Fair decimal odds are the
+                reciprocal chance (for example, 7.00 for 1 in 7), not a payout.
               </p>
+              <div
+                className="odds-format-toggle"
+                role="group"
+                aria-label="Choose how restaurant odds are shown"
+              >
+                <button
+                  type="button"
+                  aria-pressed={!showFairOdds}
+                  onClick={() => setShowFairOdds(false)}
+                >
+                  Chances
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={showFairOdds}
+                  onClick={() => setShowFairOdds(true)}
+                >
+                  Fair odds
+                </button>
+              </div>
               <div className="odds-list">
                 {odds.map((option, index) => {
                   const placeId = 'placeId' in option ? option.placeId : '';
+                  const fairOdds = fairDecimalOdds(option.probability);
                   return (
                     <div className="odds-row" key={placeId}>
                       <span
@@ -1747,7 +1867,21 @@ export default function Home() {
                           }}
                         />
                       </span>
-                      <strong>{(option.probability * 100).toFixed(1)}%</strong>
+                      <strong
+                        aria-label={`${option.name}: ${
+                          showFairOdds
+                            ? fairOdds === '∞'
+                              ? 'infinite fair odds'
+                              : fairOdds === '—'
+                                ? 'unavailable fair odds'
+                                : `${fairOdds} fair decimal odds`
+                            : `${(option.probability * 100).toFixed(1)} percent chance`
+                        }`}
+                      >
+                        {showFairOdds
+                          ? fairOdds
+                          : `${(option.probability * 100).toFixed(1)}%`}
+                      </strong>
                       <div className="influence-buttons">
                         <button
                           title={`Boost place (${currentEconomy.boostCost} tokens)`}
@@ -2243,10 +2377,35 @@ export default function Home() {
                           updates the draft; save to apply it.
                         </span>
                       </div>
+                      <div className="odds-selection-actions">
+                        <button
+                          className="button button-light"
+                          type="button"
+                          disabled={busy || selectedOddsCount === 0}
+                          onClick={() => {
+                            if (!selectedOddsCount) return;
+                            setRestaurantOddsDraft(
+                              equalizeSelectedRestaurantOddsDraft(
+                                restaurantOdds,
+                                restaurantOddsDraft,
+                                selectedOddsPlaceIds,
+                              ),
+                            );
+                          }}
+                        >
+                          Equalize selected ({selectedOddsCount})
+                        </button>
+                        <span aria-live="polite">
+                          {selectedOddsCount
+                            ? `${selectedOddsCount} selected · each receives about ${(100 / restaurantOdds.length).toFixed(6)}%; other shares keep their ratios.`
+                            : 'Select restaurants to set them to the overall average chance.'}
+                        </span>
+                      </div>
                       <div className="admin-table-scroll">
                         <table className="admin-data-table odds-table">
                           <thead>
                             <tr>
+                              <th scope="col">Select</th>
                               <th scope="col">Restaurant</th>
                               <th scope="col">Current wheel share</th>
                             </tr>
@@ -2278,6 +2437,26 @@ export default function Home() {
                               );
                               return (
                                 <tr key={place.placeId}>
+                                  <td className="odds-select-cell">
+                                    <input
+                                      type="checkbox"
+                                      aria-label={`Select ${place.name} for equalization`}
+                                      checked={selectedOddsPlaceIds.includes(
+                                        place.placeId,
+                                      )}
+                                      disabled={busy}
+                                      onChange={(event) =>
+                                        setSelectedOddsPlaceIds((selected) =>
+                                          event.target.checked
+                                            ? [...selected, place.placeId]
+                                            : selected.filter(
+                                                (placeId) =>
+                                                  placeId !== place.placeId,
+                                              ),
+                                        )
+                                      }
+                                    />
+                                  </td>
                                   <th scope="row">{place.name}</th>
                                   <td>
                                     <div className="odds-editor">
