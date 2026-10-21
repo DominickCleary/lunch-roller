@@ -41,7 +41,7 @@ const betIds: string[] = [];
 it('includes historical influence by action date without losing linked draw attribution', async () => {
   await database.db
     .update(settings)
-    .set({ timezone: 'America/New_York' })
+    .set({ timezone: 'America/New_York', weekdays: [1, 2, 3, 4, 5, 6, 7] })
     .where(eq(settings.id, 1));
   const [market] = await database.db
     .insert(bettingMarkets)

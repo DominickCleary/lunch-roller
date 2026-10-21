@@ -74,11 +74,15 @@ export function InfluenceControls({
   const yourBoosts = position?.yourBoosts ?? 0;
   const yourReductions = position?.yourReductions ?? 0;
   const net = yourBoosts - yourReductions;
+  const paused = window?.opensAt && now.getTime() < Date.parse(window.opensAt);
+  const lockedTitle = paused
+    ? `Opens at ${new Intl.DateTimeFormat('en-GB', { timeZone: window.timezone, hour: '2-digit', minute: '2-digit' }).format(new Date(window.opensAt!))} (${window.timezone})`
+    : 'Locked';
   function control(action: InfluenceAction) {
     const cost = action === 'boost' ? boostCost : reduceCost;
     const towardZero = action === 'boost' ? net < 0 : net > 0;
     const title = closed
-      ? 'Locked'
+      ? lockedTitle
       : towardZero
         ? `Refund ${action === 'boost' ? 'reduction' : 'boost'} on ${placeName}`
         : `${action === 'boost' ? 'Boost' : 'Reduce'} ${placeName} for ${cost} tokens`;
@@ -121,7 +125,9 @@ export function InfluenceControls({
         className={`influence-stepper ${net > 0 ? 'positive' : net < 0 ? 'negative' : 'neutral'}`}
         role="group"
         aria-label={`Your position on ${placeName}`}
-        title={closed ? 'Locked' : `Your position: ${net > 0 ? '+' : ''}${net}`}
+        title={
+          closed ? lockedTitle : `Your position: ${net > 0 ? '+' : ''}${net}`
+        }
       >
         <div className="influence-position-buttons">
           {control('reduce')}

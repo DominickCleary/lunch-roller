@@ -21,6 +21,8 @@ A fresh workplace starts without people or places. An administrator must add at 
 
 ## Tokens
 
+- After a draw commits, member boosts/reductions, bet edits and paid restaurant additions/removals pause until the configured wheel switch time on that workplace date. The next period opens at that exact local time, or immediately if the draw committed later. Check-in and transfers keep their existing timing. Post-roll wheel purchases belong to the next scheduled draw, including across weekends; the dashboard derives attribution for older unlinked purchases without making them editable.
+
 - Participants can immediately send 1–2,147,483,647 available tokens to another active participant, without a fee. Transfers are final, have no betting cutoff, cannot target yourself, and append a matching debit/credit pair with a shared transfer ID, counterparties and saved names. Both sides commit together under the settings lock; retries cannot double-send and concurrent spending cannot overdraw. Reserved tokens must first be released through their normal controls before they can be sent. Transfers use the existing trust-based identity model.
 - Initial balance is zero. Balance is the sum of immutable ledger entries.
 - One self check-in earns the configured participation reward (default 10 tokens) for that day's result, from the draw until local midnight, using the timezone saved on the draw. Changing settings must not move an existing attendance deadline.

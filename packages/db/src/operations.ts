@@ -283,6 +283,7 @@ function tokenActivityView(row: {
   betId: string | null;
   betLocalDate: string | null;
   influenceLocalDate?: string | null;
+  inferredDrawLocalDate?: string;
   transferId?: string | null;
   counterpartyId?: string | null;
 }): TokenActivityEntry {
@@ -300,6 +301,9 @@ function tokenActivityView(row: {
     counterpartyId: row.counterpartyId ?? null,
     ...(row.influenceLocalDate
       ? { influenceLocalDate: row.influenceLocalDate }
+      : {}),
+    ...(row.inferredDrawLocalDate
+      ? { inferredDrawLocalDate: row.inferredDrawLocalDate }
       : {}),
   };
 }
@@ -325,20 +329,18 @@ async function tokenLedgerActivity(
     predicates.push(eq(tokenLedger.participantId, participantId));
   if (drawDate) {
     predicates.push(
-      // Legacy purchases have no saved target draw. Keep them visible on their
-      // action date without fabricating influence lots or a historical market.
+      // Include unlinked wheel purchases for read-only attribution below.
       sql`(coalesce(influence_market.local_date, ${bettingMarkets.localDate}) = ${drawDate}::date
         or (${tokenLedger.influenceMarketId} is null
           and ${tokenLedger.betId} is null
-          and ${tokenLedger.kind} in ('boost', 'reduce')
-          and (${tokenLedger.createdAt} at time zone ${timezone})::date = ${drawDate}::date))`,
+          and ${tokenLedger.kind} in ('boost', 'reduce', 'add-place', 'remove-place')))`,
     );
   } else if (localDate && timezone) {
     predicates.push(
       sql`(${tokenLedger.createdAt} at time zone ${timezone})::date = ${localDate}::date`,
     );
   }
-  return tx
+  const rows = await tx
     .select({
       id: tokenLedger.id,
       delta: tokenLedger.delta,
@@ -366,10 +368,86 @@ async function tokenLedgerActivity(
     .innerJoin(participants, eq(tokenLedger.participantId, participants.id))
     .where(predicates.length ? and(...predicates) : undefined)
     .orderBy(desc(tokenLedger.createdAt), desc(tokenLedger.id));
+  const needsAttribution = (row: (typeof rows)[number]) =>
+    !row.influenceLocalDate &&
+    !row.betId &&
+    ['boost', 'reduce', 'add-place', 'remove-place'].includes(row.kind);
+  const [configuration] = rows.some(needsAttribution)
+    ? await tx.select().from(settings).where(eq(settings.id, 1))
+    : [];
+  const history = configuration
+    ? await tx
+        .select({
+          localDate: draws.localDate,
+          drawnAt: draws.drawnAt,
+        })
+        .from(draws)
+        .orderBy(asc(draws.drawnAt))
+    : [];
+  const attributed = rows.map((row) => {
+    let inferredDrawLocalDate: string | undefined;
+    if (configuration && needsAttribution(row)) {
+      const nextDraw = history.find((draw) => draw.drawnAt > row.createdAt);
+      const actionDate = localClock(
+        row.createdAt,
+        configuration.timezone,
+      ).localDate;
+      inferredDrawLocalDate =
+        nextDraw?.localDate ??
+        nextBettingDate(
+          row.createdAt,
+          getScheduleFromRow(configuration),
+          history.some(
+            (draw) =>
+              draw.localDate === actionDate && draw.drawnAt <= row.createdAt,
+          ),
+          configuration.skipDrawDate,
+        );
+    }
+    return { ...row, inferredDrawLocalDate };
+  });
+  return drawDate
+    ? attributed.filter(
+        (row) =>
+          (row.influenceLocalDate ??
+            row.betLocalDate ??
+            row.inferredDrawLocalDate) === drawDate,
+      )
+    : attributed;
+}
+
+function wheelPeriodOpensAt(
+  row: typeof settings.$inferSelect,
+  now: Date,
+  hasTodayDraw: boolean,
+) {
+  if (!hasTodayDraw) return null;
+  const date = localClock(now, row.timezone).localDate;
+  return scheduledInstant(
+    date,
+    row.wheelSwitchTime,
+    row.timezone,
+  ).toISOString();
+}
+
+async function requireWheelPeriod(tx: Tx, now: Date) {
+  const [row] = await tx.select().from(settings).where(eq(settings.id, 1));
+  if (!row) fail(503, 'NOT_INITIALIZED', 'Game settings are not initialized.');
+  const [todayDraw] = await tx
+    .select({ id: draws.id })
+    .from(draws)
+    .where(eq(draws.localDate, localClock(now, row.timezone).localDate));
+  const opensAt = wheelPeriodOpensAt(row, now, Boolean(todayDraw));
+  if (opensAt && now < new Date(opensAt))
+    fail(
+      409,
+      'WHEEL_ACTIVITY_PAUSED',
+      `Wheel activity reopens at ${row.wheelSwitchTime} (${row.timezone}).`,
+    );
 }
 
 function bettingWindowView(
-  row: typeof bettingMarkets.$inferSelect,
+  row: typeof bettingMarkets.$inferSelect & { opensAt?: string | null },
   now: Date,
 ): BettingWindow {
   const cutoff = bettingCutoff(
@@ -389,7 +467,11 @@ function bettingWindowView(
     cutoffLocalDate: cutoff.localDate,
     cutoffLocalTime: cutoff.time,
     cutoffAt: new Date(cutoffInstant).toISOString(),
-    open: row.status === 'open' && now.getTime() < cutoffInstant,
+    opensAt: row.opensAt ?? null,
+    open:
+      row.status === 'open' &&
+      now.getTime() < cutoffInstant &&
+      (!row.opensAt || now.getTime() >= Date.parse(row.opensAt)),
   };
 }
 
@@ -1084,7 +1166,10 @@ export class GameService {
         })
         .returning();
     }
-    return market!;
+    return {
+      ...market!,
+      opensAt: wheelPeriodOpensAt(row, now, Boolean(todayDraw)),
+    };
   }
 
   private async refundExpiredMarkets(tx: Tx, now: Date): Promise<void> {
@@ -3014,6 +3099,7 @@ export class GameService {
         .where(and(eq(places.id, input.placeId), eq(places.active, true)));
       if (!place) fail(404, 'PLACE_NOT_FOUND', 'Active place was not found.');
       if (input.action === 'remove') {
+        await requireWheelPeriod(tx, instant);
         await this.refundPlaceActivity(tx, place.id, instant);
       } else {
         const market = await this.currentBettingMarket(tx, instant);
@@ -3069,6 +3155,7 @@ export class GameService {
         participantId,
         delta: -cost,
         kind: input.action === 'remove' ? 'remove-place' : input.action,
+        createdAt: instant,
         idempotencyKey: key,
         requestHash: hash,
         response,
@@ -3085,6 +3172,7 @@ export class GameService {
     participantId: string,
     input: { name: string; healthLevel?: HealthLevel },
     key: string,
+    now?: Date,
   ): Promise<PurchaseResponse> {
     if (
       input.healthLevel !== undefined &&
@@ -3103,6 +3191,8 @@ export class GameService {
       await activeParticipant(tx, participantId);
       const prior = await existingKey(tx, participantId, key, hash);
       if (prior) return replay<PurchaseResponse>(prior);
+      const instant = now ?? new Date();
+      await requireWheelPeriod(tx, instant);
       const current = await balance(tx, participantId);
       const economy = await currentEconomy(tx);
       const { addPlaceCost } = economy;
@@ -3171,6 +3261,7 @@ export class GameService {
         participantId,
         delta: -addPlaceCost,
         kind: 'add-place',
+        createdAt: instant,
         idempotencyKey: key,
         requestHash: hash,
         response,

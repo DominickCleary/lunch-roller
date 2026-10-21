@@ -755,7 +755,29 @@ export default function Home() {
   }, []);
 
   const betCutoffAt = currentBets?.window.cutoffAt;
-  const betWindowOpen = currentBets?.window.open;
+  const betWindowOpen =
+    currentBets?.window.open && today?.wheel.mode !== 'result';
+  const wheelActivityPaused = today?.wheel.mode === 'result';
+  const wheelPauseMessage = `Wheel activity reopens at ${today?.preferences.wheelSwitchTime ?? ''} (${today?.schedule.timezone ?? ''}).`;
+  const betOpensAt = currentBets?.window.opensAt;
+  useEffect(() => {
+    if (!participantId || !wheelActivityPaused || !betOpensAt) return;
+    const timer = window.setTimeout(
+      () => {
+        void refresh(participantId).catch(() => undefined);
+        void refreshBets(participantId);
+      },
+      Math.max(0, Date.parse(betOpensAt) - getServerNow()),
+    );
+    return () => window.clearTimeout(timer);
+  }, [
+    participantId,
+    wheelActivityPaused,
+    betOpensAt,
+    getServerNow,
+    refresh,
+    refreshBets,
+  ]);
   useEffect(() => {
     if (!betCutoffAt || !betWindowOpen) return;
     const timer = window.setTimeout(
@@ -773,7 +795,13 @@ export default function Home() {
 
   async function saveBet(event: FormEvent) {
     event.preventDefault();
-    if (!participantId || !currentBets?.window.open || betBusy) return;
+    if (
+      !participantId ||
+      !currentBets?.window.open ||
+      wheelActivityPaused ||
+      betBusy
+    )
+      return;
     const stake = Number(betStakeDraft);
     if (!Number.isSafeInteger(stake) || stake < 1) {
       setBetError('Enter a whole token amount greater than zero.');
@@ -814,12 +842,7 @@ export default function Home() {
   }
 
   async function cancelBet() {
-    if (
-      !participantId ||
-      !currentBets?.bet ||
-      !currentBets.window.open ||
-      betBusy
-    )
+    if (!participantId || !currentBets?.bet || !betWindowOpen || betBusy)
       return;
     setBetBusy(true);
     setBetError('');
@@ -2172,9 +2195,11 @@ export default function Home() {
               ) : (
                 <>
                   <p className="muted">
-                    {currentBets.window.open
+                    {betWindowOpen
                       ? `Bet on ${currentBets.window.localDate}. Changes close ${currentBets.window.cutoffLocalDate} at ${currentBets.window.cutoffLocalTime} (${currentBets.window.timezone}).`
-                      : `Betting for ${currentBets.window.localDate} is closed.`}
+                      : wheelActivityPaused
+                        ? wheelPauseMessage
+                        : `Betting for ${currentBets.window.localDate} is closed.`}
                   </p>
                   <form
                     className="bet-form"
@@ -2188,9 +2213,7 @@ export default function Home() {
                           setBetPlaceDraft(event.target.value)
                         }
                         disabled={
-                          betBusy ||
-                          !currentBets.window.open ||
-                          !today?.odds.length
+                          betBusy || !betWindowOpen || !today?.odds.length
                         }
                       >
                         <option value="">Choose a place</option>
@@ -2218,7 +2241,7 @@ export default function Home() {
                           onChange={(event) =>
                             setBetStakeDraft(event.target.value)
                           }
-                          disabled={betBusy || !currentBets.window.open}
+                          disabled={betBusy || !betWindowOpen}
                           aria-describedby="bet-balance-help"
                         />
                         <span>tokens</span>
@@ -2281,7 +2304,7 @@ export default function Home() {
                         disabled={
                           betBusy ||
                           !participantId ||
-                          !currentBets.window.open ||
+                          !betWindowOpen ||
                           !today?.odds.length ||
                           !betPlaceDraft ||
                           !Number.isSafeInteger(Number(betStakeDraft)) ||
@@ -2302,7 +2325,7 @@ export default function Home() {
                           className="button button-light"
                           type="button"
                           onClick={() => void cancelBet()}
-                          disabled={betBusy || !currentBets.window.open}
+                          disabled={betBusy || !betWindowOpen}
                         >
                           Cancel bet
                         </button>
@@ -2375,6 +2398,11 @@ export default function Home() {
                   Odds
                 </button>
               </div>
+              {wheelActivityPaused && (
+                <p className="muted" role="status">
+                  {wheelPauseMessage}
+                </p>
+              )}
               <div className="odds-list">
                 {odds.map((option, index) => {
                   const placeId = 'placeId' in option ? option.placeId : '';
@@ -2400,7 +2428,9 @@ export default function Home() {
                         boostCost={currentEconomy.boostCost}
                         reduceCost={currentEconomy.reduceCost}
                         busy={busy || influenceBusy || Boolean(influenceError)}
-                        identityReady={Boolean(participantId)}
+                        identityReady={
+                          Boolean(participantId) && !wheelActivityPaused
+                        }
                         onChange={changeInfluence}
                         onRefund={refundSpot}
                       />
@@ -2431,7 +2461,9 @@ export default function Home() {
                           className="remove-place-control"
                           aria-label={`Banish ${option.name} from the wheel for ${currentEconomy.removePlaceCost} tokens`}
                           title={`Banish ${option.name} for ${currentEconomy.removePlaceCost} tokens`}
-                          disabled={busy || !participantId}
+                          disabled={
+                            busy || !participantId || wheelActivityPaused
+                          }
                           onClick={() => {
                             if (
                               window.confirm(
@@ -2487,17 +2519,17 @@ export default function Home() {
                     placeholder={`Add a lunch place · ${currentEconomy.addPlaceCost} tokens`}
                     maxLength={100}
                     required
-                    disabled={!participantId || busy}
+                    disabled={!participantId || busy || wheelActivityPaused}
                   />
                   <button
                     className="button button-light"
-                    disabled={!participantId || busy}
+                    disabled={!participantId || busy || wheelActivityPaused}
                   >
                     Add place
                   </button>
                   <HealthSelect
                     label="New spot health level"
-                    disabled={!participantId || busy}
+                    disabled={!participantId || busy || wheelActivityPaused}
                   />
                 </div>
               </form>

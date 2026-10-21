@@ -90,7 +90,98 @@ it('keeps Friday actions for Monday together across midnight, weekend DST, refun
   const fridayDraw = await game.drawIfDue(new Date(`${friday}T10:30:00Z`));
   expect(fridayDraw).not.toBeNull();
   drawIds.push(fridayDraw!.id);
-  const fridayAt = new Date(`${friday}T16:00:00Z`);
+  const beforeOpen = new Date(`${friday}T13:59:59Z`);
+  const fridayAt = new Date(`${friday}T14:00:00Z`);
+  const paused = await game.currentInfluence(person.id, beforeOpen);
+  expect(paused.window).toMatchObject({
+    localDate: monday,
+    open: false,
+    opensAt: `${friday}T14:00:00.000Z`,
+  });
+  expect((await game.currentBets(person.id, beforeOpen)).window.open).toBe(
+    false,
+  );
+  const walletBefore = await game.wallet(person.id);
+  for (const action of ['boost', 'reduce'] as const) {
+    await expect(
+      game.changeInfluence(
+        person.id,
+        { localDate: monday, placeId: place.id, action, change: 1 },
+        crypto.randomUUID(),
+        beforeOpen,
+      ),
+    ).rejects.toMatchObject({ code: 'INFLUENCE_CLOSED' });
+    await expect(
+      game.purchase(
+        person.id,
+        { placeId: place.id, action },
+        crypto.randomUUID(),
+        beforeOpen,
+      ),
+    ).rejects.toMatchObject({ code: 'INFLUENCE_CLOSED' });
+  }
+  await expect(
+    game.setBet(
+      person.id,
+      { localDate: monday, placeId: place.id, stake: 5 },
+      crypto.randomUUID(),
+      beforeOpen,
+    ),
+  ).rejects.toMatchObject({ code: 'BETTING_CLOSED' });
+  await expect(
+    game.cancelBet(
+      person.id,
+      { localDate: monday },
+      crypto.randomUUID(),
+      beforeOpen,
+    ),
+  ).rejects.toMatchObject({ code: 'BETTING_CLOSED' });
+  await expect(
+    game.refundInfluence(
+      person.id,
+      { localDate: monday, placeId: place.id },
+      crypto.randomUUID(),
+      beforeOpen,
+    ),
+  ).rejects.toMatchObject({ code: 'INFLUENCE_CLOSED' });
+  await expect(
+    game.purchase(
+      person.id,
+      { placeId: place.id, action: 'remove' },
+      crypto.randomUUID(),
+      beforeOpen,
+    ),
+  ).rejects.toMatchObject({ code: 'WHEEL_ACTIVITY_PAUSED' });
+  await expect(
+    game.addPlace(
+      person.id,
+      { name: 'Should not be created during pause' },
+      crypto.randomUUID(),
+      beforeOpen,
+    ),
+  ).rejects.toMatchObject({ code: 'WHEEL_ACTIVITY_PAUSED' });
+  expect(await game.wallet(person.id)).toEqual(walletBefore);
+  expect((await game.currentInfluence(person.id, fridayAt)).window.open).toBe(
+    true,
+  );
+  // Model the old purchase system: one pre-roll purchase and one post-roll
+  // purchase before the next wheel period. They have no persisted market link.
+  const legacy = await database.db
+    .insert(tokenLedger)
+    .values(
+      [new Date(`${friday}T09:00:00Z`), new Date(`${friday}T12:00:00Z`)].map(
+        (createdAt) => ({
+          participantId: person.id,
+          placeId: place.id,
+          kind: 'boost' as const,
+          delta: -5,
+          idempotencyKey: crypto.randomUUID(),
+          requestHash: 'legacy-post-draw-fixture',
+          createdAt,
+        }),
+      ),
+    )
+    .returning();
   // Still Friday in UTC, already Saturday in the workplace timezone.
   const saturdayAt = new Date('2026-10-23T23:30:00Z');
   const market = await game.currentInfluence(person.id, fridayAt);
@@ -149,13 +240,19 @@ it('keeps Friday actions for Monday together across midnight, weekend DST, refun
   const entries = target.entries.filter(
     (entry) => entry.participantId === person.id,
   );
-  expect(entries).toHaveLength(6);
+  expect(entries).toHaveLength(7);
   expect(
     entries.every(
-      (entry) => (entry.influenceLocalDate ?? entry.betLocalDate) === monday,
+      (entry) =>
+        (entry.influenceLocalDate ??
+          entry.betLocalDate ??
+          entry.inferredDrawLocalDate) === monday,
     ),
   ).toBe(true);
-  expect(entries.filter((entry) => entry.kind === 'boost')).toHaveLength(2);
+  expect(entries.filter((entry) => entry.kind === 'boost')).toHaveLength(3);
+  expect(
+    entries.find((entry) => entry.id === legacy[1]!.id)?.inferredDrawLocalDate,
+  ).toBe(monday);
   expect(entries.filter((entry) => entry.kind === 'boost-refund')).toHaveLength(
     1,
   );
@@ -168,7 +265,12 @@ it('keeps Friday actions for Monday together across midnight, weekend DST, refun
   const todayDraw = await read(friday, 'draw');
   expect(
     todayDraw.entries.filter((entry) => entry.participantId === person.id),
-  ).toEqual([]);
+  ).toEqual([
+    expect.objectContaining({
+      id: legacy[0]!.id,
+      inferredDrawLocalDate: friday,
+    }),
+  ]);
   expect(
     todayDraw.bets.filter((row) => row.participantId === person.id),
   ).toEqual([]);
@@ -176,7 +278,7 @@ it('keeps Friday actions for Monday together across midnight, weekend DST, refun
     todayDraw.positions?.filter((row) => row.participantId === person.id),
   ).toEqual([]);
   for (const [date, count] of [
-    [friday, 2],
+    [friday, 4],
     ['2026-10-24', 2],
     ['2026-10-25', 2],
     [monday, 0],

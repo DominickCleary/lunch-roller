@@ -187,8 +187,9 @@ test('draw and calendar views keep tomorrow positions and bets on the correct da
   const morningPurchase = {
     ...sample.entries[0]!,
     id: randomUUID(),
-    createdAt: `${date}T09:51:30Z`,
+    createdAt: `${date}T13:26:14Z`,
     influenceLocalDate: undefined,
+    inferredDrawLocalDate: nextDate,
   };
   await page.route('**/api/v1/bets/current', async (route) => {
     const actual = await route.fetch();
@@ -213,10 +214,8 @@ test('draw and calendar views keep tomorrow positions and bets on the correct da
         entries:
           scope === 'draw'
             ? selected === nextDate
-              ? actions
-              : selected === date
-                ? [morningPurchase]
-                : []
+              ? [...actions, morningPurchase]
+              : []
             : [...actions, morningPurchase].filter((entry) =>
                 entry.createdAt.startsWith(selected),
               ),
@@ -236,7 +235,7 @@ test('draw and calendar views keep tomorrow positions and bets on the correct da
   await expect(panel.getByLabel('Activity date')).toHaveValue(date);
   await expect(panel.locator('.activity-timeline li')).toHaveCount(3);
   await expect(panel.locator('.activity-timeline')).toContainText(
-    'Historical purchase · draw date not recorded',
+    `Historical purchase · inferred draw date ${nextDate}`,
   );
   await panel
     .getByRole('button', { name: `Next draw · ${nextDate}`, exact: true })
@@ -249,7 +248,7 @@ test('draw and calendar views keep tomorrow positions and bets on the correct da
   await expect(board.locator('.bet-board')).toContainText('Open');
   await expect(board.locator('.bet-board')).toContainText('3/1 · 25.0%');
   await expect(board.locator('.bet-board')).toContainText('48 tokens');
-  await expect(panel.locator('.activity-timeline li')).toHaveCount(4);
+  await expect(panel.locator('.activity-timeline li')).toHaveCount(5);
   await expect(panel.locator('.activity-trend-chart')).toContainText('21 Oct');
   await expect(panel.locator('.activity-trend-chart')).toContainText('22 Oct');
   await panel.getByRole('button', { name: 'Today', exact: true }).click();
@@ -286,7 +285,7 @@ test('labels historical boosts without inventing draw positions', async ({
   ).toHaveCount(4);
   await panel.getByLabel('View', { exact: true }).selectOption('draw');
   await expect(
-    panel.getByText('Their target draw was not recorded', { exact: false }),
+    panel.getByText('date is inferred from draw timing', { exact: false }),
   ).toBeVisible();
   await expect(
     panel.getByRole('region', { name: 'Draw influence positions' }),
@@ -297,6 +296,100 @@ test('labels historical boosts without inventing draw positions', async ({
       exact: true,
     }),
   ).toHaveCount(4);
+});
+
+test('pauses wheel purchases and bets after the roll and reopens at the switch time', async ({
+  page,
+  request,
+}) => {
+  const opensAt = `${date}T14:00:00.000Z`;
+  let reopened = false;
+  const body: TodayResponse = await (await request.get('/api/v1/today')).json();
+  const roster = await (await request.get('/api/v1/participants')).json();
+  const auditHeaders = { 'X-Participant-Id': roster.participants[0].id };
+  const drawId = randomUUID();
+  await page.clock.install({ time: new Date(`${date}T13:59:59Z`) });
+  await page.route('**/api/v1/today', async (route) => {
+    const winner = body.odds[0]!;
+    await route.fulfill({
+      json: {
+        ...body,
+        serverTime: reopened ? opensAt : `${date}T13:59:59.000Z`,
+        localDate: date,
+        preferences: { ...body.preferences, wheelSwitchTime: '15:00' },
+        status: 'drawn',
+        wheel: {
+          mode: reopened ? 'upcoming' : 'result',
+          localDate: reopened ? '2026-10-22' : date,
+        },
+        result: {
+          id: drawId,
+          localDate: date,
+          placeId: winner.placeId,
+          placeName: winner.name,
+          drawnAt: `${date}T10:30:00Z`,
+          timezone: 'Europe/Dublin',
+          snapshot: body.odds.map((row) => ({ ...row, logWeight: 0 })),
+        },
+      },
+    });
+  });
+  for (const path of ['bets/current', 'influence/current']) {
+    const marketBody = await (
+      await request.get(`/api/v1/${path}`, { headers: auditHeaders })
+    ).json();
+    await page.route(`**/api/v1/${path}`, async (route) => {
+      await route.fulfill({
+        json: {
+          ...marketBody,
+          window: {
+            ...marketBody.window,
+            localDate: '2026-10-22',
+            opensAt,
+            open: reopened,
+            cutoffLocalDate: '2026-10-22',
+            cutoffAt: '2026-10-22T10:25:00Z',
+          },
+        },
+      });
+    });
+  }
+  await page.goto('/');
+  await expect(
+    page
+      .getByText('Wheel activity reopens at 15:00 (Europe/Dublin).', {
+        exact: true,
+      })
+      .first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: /^Boost / }).first(),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: /^Reduce / }).first(),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: /^Banish / }).first(),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Add place', exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Place bet', exact: true }),
+  ).toBeDisabled();
+  reopened = true;
+  await page.clock.fastForward(1000);
+  await expect(
+    page.getByRole('button', { name: /^Banish / }).first(),
+  ).toBeEnabled();
+  await expect(
+    page.getByRole('button', { name: 'Add place', exact: true }),
+  ).toBeEnabled();
+  // A zero wallet may still prevent boosting, but its timing lock has lifted.
+  await expect(
+    page.getByRole('button', { name: /^Boost / }).first(),
+  ).not.toHaveAttribute('title', /Opens at/);
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
 });
 
 test('shows the schedule, charts, coalitions and bet board without changing identity', async ({

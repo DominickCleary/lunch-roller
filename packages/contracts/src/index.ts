@@ -211,6 +211,7 @@ export const tokenActivityEntry = z.object({
   betId: id.nullable().default(null),
   betLocalDate: z.iso.date().nullable().default(null),
   influenceLocalDate: z.iso.date().nullable().optional(),
+  inferredDrawLocalDate: z.iso.date().optional(),
   transferId: id.nullable().optional(),
   counterpartyId: id.nullable().optional(),
 });
@@ -323,6 +324,7 @@ export const bettingWindow = z.object({
   cutoffLocalDate: z.iso.date(),
   cutoffLocalTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   cutoffAt: z.iso.datetime().optional(),
+  opensAt: z.iso.datetime().nullable().optional(),
   open: z.boolean(),
 });
 export const influencePosition = z.object({

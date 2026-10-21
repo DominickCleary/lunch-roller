@@ -784,13 +784,14 @@ export function DailyActivity({
         <>
           <p className="activity-chart-note">
             {scope === 'draw'
-              ? `Boosts, reductions, refunds and bets targeting ${selectedDate}, including actions made on earlier days. Older boosts and reductions without a saved draw date are included on the day they happened.`
+              ? `Purchases, refunds and bets for ${selectedDate}, including actions made on earlier days. Purchases after a roll are attributed to the next draw.`
               : `Token actions made on ${selectedDate}. The bet board shows bets targeting that date; draw dates are shown on individual actions.`}
           </p>
           {scope === 'draw' && hasHistoricalInfluence && (
             <p className="activity-chart-note">
-              Historical purchases are included in spending charts. Their target
-              draw was not recorded, so they are not included in draw positions.
+              Historical purchases are included in spending charts. Their draw
+              date is inferred from draw timing and the schedule; they do not
+              create editable positions.
             </p>
           )}
           <div className="activity-summary" aria-label="Daily activity summary">
@@ -967,8 +968,7 @@ export function DailyActivity({
                     ? 'Actions targeting the draw on'
                     : 'Actions recorded on'}{' '}
                   {drawDateLabel}, in {timezone}. Times show when each action
-                  happened. Older influence without a saved draw date uses its
-                  action date.
+                  happened.
                 </p>
               </div>
               <span className="timeline-count">
@@ -1035,8 +1035,18 @@ export function DailyActivity({
                         </p>
                       )}
                       {isHistoricalInfluence(entry) && (
-                        <p>Historical purchase · draw date not recorded</p>
+                        <p>
+                          {entry.inferredDrawLocalDate
+                            ? `Historical purchase · inferred draw date ${entry.inferredDrawLocalDate}`
+                            : 'Historical purchase · draw date not recorded'}
+                        </p>
                       )}
+                      {!isHistoricalInfluence(entry) &&
+                        entry.inferredDrawLocalDate && (
+                          <p>
+                            Inferred draw date {entry.inferredDrawLocalDate}
+                          </p>
+                        )}
                     </div>
                     <time dateTime={entry.createdAt}>
                       {formatInstant(entry.createdAt, timezone)}
