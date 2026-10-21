@@ -137,6 +137,14 @@ export const defaultSchedule = {
   time: '11:30',
   weekdays: [1, 2, 3, 4, 5],
 } satisfies z.infer<typeof schedule>;
+export const wheelAnimation = z.object({
+  version: z.literal(1),
+  rotation: z.number().finite().min(0).lt(360),
+  turns: z.number().int().min(1).max(20),
+  durationMs: z.number().int().min(1000).max(30000),
+  startsAt: z.iso.datetime(),
+});
+export type WheelAnimation = z.infer<typeof wheelAnimation>;
 export const draw = z.object({
   id,
   localDate: z.iso.date(),
@@ -145,6 +153,7 @@ export const draw = z.object({
   drawnAt: z.iso.datetime(),
   timezone: z.string(),
   healthBonus: healthBonus.nullable().optional(),
+  animation: wheelAnimation.optional(),
   snapshot: z.array(
     z.object({
       placeId: id,
@@ -156,6 +165,7 @@ export const draw = z.object({
   ),
 });
 export const todayResponse = z.object({
+  serverTime: z.iso.datetime().optional(),
   localDate: z.iso.date(),
   schedule,
   preferences: gamePreferences,

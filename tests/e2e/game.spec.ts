@@ -64,6 +64,7 @@ async function exerciseAdminUiAndGame(
   const correctionReason = `${fixturePrefix} test grant`;
 
   await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto(appOrigin);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(
     'Gambling about lunch',
@@ -188,18 +189,8 @@ async function exerciseAdminUiAndGame(
     (option) => option.placeId === result.placeId,
   );
   expect(winnerIndex).toBeGreaterThanOrEqual(0);
-  const snapshotTotal = result.snapshot.reduce(
-    (sum, option) => sum + option.probability,
-    0,
-  );
-  const probabilityBefore = result.snapshot
-    .slice(0, winnerIndex)
-    .reduce((sum, option) => sum + option.probability, 0);
-  const winnerCenter =
-    ((probabilityBefore + result.snapshot[winnerIndex]!.probability / 2) /
-      (snapshotTotal || 1)) *
-    360;
-  const expectedPointerAngle = (90 - winnerCenter + 360) % 360;
+  expect(result.animation).toBeDefined();
+  const expectedPointerAngle = result.animation!.rotation;
   async function readSettledAngle() {
     let angle = 0;
     await expect

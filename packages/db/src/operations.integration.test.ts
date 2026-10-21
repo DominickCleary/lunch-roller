@@ -116,6 +116,22 @@ it('serializes a due draw, snapshots odds, decays once, and makes outbox rows at
   expect(results.every((result) => result?.id === results[0]?.id)).toBe(true);
   const draw = results[0]!;
   expect(draw.snapshot.some((entry) => entry.placeId === place.id)).toBe(true);
+  expect(draw.animation).toMatchObject({ version: 1 });
+  expect(draw.animation!.durationMs).toBeGreaterThanOrEqual(18000);
+  expect(draw.animation!.durationMs).toBeLessThanOrEqual(21000);
+  expect(Date.parse(draw.animation!.startsAt)).toBe(now.getTime() + 3000);
+  const point = (90 - draw.animation!.rotation + 360) % 360;
+  const selectedIndex = draw.snapshot.findIndex(
+    (entry) => entry.placeId === draw.placeId,
+  );
+  const sliceStart = draw.snapshot
+    .slice(0, selectedIndex)
+    .reduce((sum, entry) => sum + entry.probability * 360, 0);
+  expect(point).toBeGreaterThan(sliceStart);
+  expect(point).toBeLessThan(
+    sliceStart + draw.snapshot[selectedIndex]!.probability * 360,
+  );
+  expect((await service.today(now)).serverTime).toBe(now.toISOString());
   expect(
     draw.snapshot.reduce((sum, entry) => sum + entry.probability, 0),
   ).toBeCloseTo(1);

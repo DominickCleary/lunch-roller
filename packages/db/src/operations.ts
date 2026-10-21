@@ -18,6 +18,7 @@ import {
 import {
   evaluateSchedule,
   postDrawWeights,
+  wheelLandingRotation,
   influenceWeight,
   localClock,
   newPlaceLogWeight,
@@ -181,6 +182,10 @@ function createHash(value: string): string {
 }
 
 function drawView(row: DrawRow): DrawResponse {
+  const seed = Number.parseInt(
+    createHash(`wheel-v1:${row.id}`).slice(0, 8),
+    16,
+  );
   return {
     id: row.id,
     localDate: row.localDate,
@@ -190,6 +195,13 @@ function drawView(row: DrawRow): DrawResponse {
     timezone: row.timezone,
     snapshot: row.snapshot,
     healthBonus: row.healthBonus,
+    animation: {
+      version: 1,
+      rotation: wheelLandingRotation(row.snapshot, row.placeId, row.sample),
+      turns: 9 + (seed % 4),
+      durationMs: 18000 + (seed % 4) * 1000,
+      startsAt: new Date(row.drawnAt.getTime() + 3000).toISOString(),
+    },
   };
 }
 
@@ -2238,6 +2250,7 @@ export class GameService {
               ? 'pending'
               : 'no-options';
         return {
+          serverTime: now.toISOString(),
           localDate: clock.localDate,
           schedule,
           preferences: preferencesFromRow(settingsRow),

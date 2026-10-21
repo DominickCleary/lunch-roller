@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   halveWeight,
   postDrawWeights,
+  wheelLandingRotation,
   influenceWeight,
   newPlaceLogWeight,
   probabilities,
@@ -158,4 +159,40 @@ it('permanently boosts healthy alternatives only after a Treat win, preserving r
     expect(() =>
       postDrawWeights(options, 't', { enabled: true, multiplier }),
     ).toThrow();
+});
+
+it('lands within the saved winning slice with varied offsets and a safe inset at exact boundaries', () => {
+  const weights = [
+    { id: 'a', logWeight: Math.log(2) },
+    { id: 'b', logWeight: Math.log(3) },
+    { id: 'c', logWeight: Math.log(5) },
+  ];
+  const snapshot = probabilities(weights).map((place) => ({
+    placeId: place.id,
+    probability: place.probability,
+  }));
+  const landed = new Set<number>();
+  for (let index = 0; index < 1000; index++) {
+    const sample = index / 1000;
+    const winner = selectPlace(weights, sample)!;
+    const rotation = wheelLandingRotation(snapshot, winner, sample);
+    const angle = (((90 - rotation) % 360) + 360) % 360;
+    const winnerIndex = snapshot.findIndex((place) => place.placeId === winner);
+    const start = snapshot
+      .slice(0, winnerIndex)
+      .reduce((sum, place) => sum + place.probability * 360, 0);
+    expect(angle).toBeGreaterThan(start);
+    expect(angle).toBeLessThan(
+      start + snapshot[winnerIndex]!.probability * 360,
+    );
+    landed.add(rotation);
+  }
+  expect(landed.size).toBeGreaterThan(900);
+  const boundary = wheelLandingRotation(snapshot, 'a', 0);
+  expect((90 - boundary + 360) % 360).toBeCloseTo(0.3);
+  expect(() => wheelLandingRotation(snapshot, 'missing', 0.2)).toThrow();
+  expect(() => wheelLandingRotation(snapshot, 'a', 1)).toThrow();
+  expect(() =>
+    wheelLandingRotation([{ placeId: 'a', probability: 0 }], 'a', 0),
+  ).toThrow();
 });

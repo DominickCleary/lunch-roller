@@ -271,7 +271,7 @@ test('rolls the displayed wheel, keeps current odds live, and replays the saved 
   const replay = page.getByRole('button', { name: "Replay today's result" });
   await replay.click();
   await expect.poll(() => wheelGradient(page)).toBe(snapshotGradient);
-  await page.clock.fastForward(5_000);
+  await page.clock.fastForward(25_000);
   await expect(replay).toBeEnabled({ timeout: 8000 });
   await expect(page.getByTestId('wheel-target')).toHaveAttribute(
     'data-target-date',

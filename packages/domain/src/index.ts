@@ -349,3 +349,46 @@ export function postDrawWeights<
     ),
   }));
 }
+
+/** Point inside the committed winner using the same saved sample that selected it.
+ * The pointer is at 3 o'clock (90 degrees in a CSS conic gradient).
+ */
+export function wheelLandingRotation(
+  snapshot: readonly { placeId: string; probability: number }[],
+  winnerId: string,
+  sample: number,
+): number {
+  if (!Number.isFinite(sample) || sample < 0 || sample >= 1)
+    throw new Error('Sample must be in [0, 1)');
+  let before = 0;
+  const total = snapshot.reduce((sum, place) => sum + place.probability, 0);
+  if (
+    !Number.isFinite(total) ||
+    total <= 0 ||
+    snapshot.some(
+      (place) => !Number.isFinite(place.probability) || place.probability < 0,
+    )
+  )
+    throw new Error('Invalid wheel snapshot.');
+  for (const place of snapshot) {
+    if (place.placeId === winnerId) {
+      if (place.probability <= 0)
+        throw new Error('Winner needs a positive segment.');
+      const start = (before / total) * 360;
+      const width = (place.probability / total) * 360;
+      // Avoid an exact stroke/boundary landing while retaining convincing near misses.
+      const inset = Math.min(0.3, width * 0.02);
+      const offset = Math.max(
+        inset,
+        Math.min(
+          width - inset,
+          ((sample - before) / place.probability) * width,
+        ),
+      );
+      const angle = start + offset;
+      return (((90 - angle) % 360) + 360) % 360;
+    }
+    before += place.probability;
+  }
+  throw new Error('Winner must be in the saved snapshot.');
+}

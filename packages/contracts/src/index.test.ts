@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import {
   createPlace,
+  wheelAnimation,
   updatePlace,
   healthRuleSettings,
   transferRequest,
@@ -246,4 +247,24 @@ it('requires a recipient UUID and positive whole-token transfer amount', () => {
   expect(
     transferRequest.safeParse({ recipientId: 'nobody', amount: 1 }).success,
   ).toBe(false);
+});
+
+it('validates a versioned, bounded wheel animation plan', () => {
+  const plan = {
+    version: 1,
+    rotation: 89.7,
+    turns: 10,
+    durationMs: 19000,
+    startsAt: '2026-10-21T11:30:03.000Z',
+  };
+  expect(wheelAnimation.parse(plan)).toEqual(plan);
+  for (const patch of [
+    { version: 2 },
+    { rotation: 360 },
+    { rotation: -1 },
+    { durationMs: Infinity },
+    { turns: 0 },
+    { startsAt: 'invalid' },
+  ])
+    expect(wheelAnimation.safeParse({ ...plan, ...patch }).success).toBe(false);
 });

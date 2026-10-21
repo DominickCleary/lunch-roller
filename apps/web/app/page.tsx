@@ -33,6 +33,13 @@ import { TokenEntryDescription, WalletBets } from './token-history';
 import { HealthBadge, HealthSelect, HealthBonusSummary } from './health-label';
 import { TokenTransfer } from './token-transfer';
 import { InfluenceControls } from './influence-controls';
+import { useWheelAnimation } from './use-wheel-animation';
+import {
+  animationPlan,
+  serverClockAnchor,
+  spinIsLive,
+} from '../lib/wheel-animation';
+import { scheduledInstant } from '@lunch/domain';
 import { calendarDateLabel } from '../lib/date-label';
 
 type ApiError = { error?: { code?: string; message?: string } };
@@ -343,23 +350,6 @@ function fairFractionalOdds(probability: number) {
   const divisor = greatestCommonDivisor(bestNumerator, bestDenominator);
   return `${bestNumerator / divisor}/${bestDenominator / divisor}`;
 }
-function resultRotation(result: NonNullable<TodayResponse['result']>) {
-  const index = result.snapshot.findIndex(
-    (option) => option.placeId === result.placeId,
-  );
-  if (index < 0) return null;
-  const total = result.snapshot.reduce(
-    (sum, option) => sum + option.probability,
-    0,
-  );
-  const before = result.snapshot
-    .slice(0, index)
-    .reduce((sum, option) => sum + option.probability, 0);
-  const center =
-    ((before + result.snapshot[index]!.probability / 2) / (total || 1)) * 360;
-  return (90 - center + 360) % 360;
-}
-
 export default function Home() {
   const [mainView, setMainView] = useState<'wheel' | 'activity'>('wheel');
   const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
@@ -388,7 +378,6 @@ export default function Home() {
     ? `${today.wheel.mode}:${today.wheel.localDate}`
     : '';
   const wheelMode = today?.wheel.mode;
-  const hasSavedResult = Boolean(today?.result);
   const savedResult = today?.result;
   const [wallet, setWallet] = useState<WalletResponse | null>(null);
   const [currentBets, setCurrentBets] = useState<CurrentBets | null>(null);
@@ -422,15 +411,6 @@ export default function Home() {
   const [error, setError] = useState('');
   const [pollingError, setPollingError] = useState('');
   const [showAllLedger, setShowAllLedger] = useState(false);
-  const [spin, setSpin] = useState(false);
-  const [rotation, setRotation] = useState(0);
-  const [replaySnapshot, setReplaySnapshot] = useState<{
-    key: string;
-    options: NonNullable<TodayResponse['result']>['snapshot'];
-  } | null>(null);
-  const rotationRef = useRef(0);
-  const animationTimer = useRef<number | null>(null);
-  const upcomingRef = useRef(false);
   const latestTodayRequest = useRef(0);
   const [nameDraft, setNameDraft] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
@@ -469,71 +449,115 @@ export default function Home() {
   const confirmRemoval = useRef<HTMLButtonElement | null>(null);
   const adminDisclosure = useRef<HTMLDetailsElement | null>(null);
 
-  const refresh = useCallback(async (selected: string) => {
-    const todayRequest = ++latestTodayRequest.current;
-    try {
-      const [roster, todayResult] = await Promise.all([
-        request<{ participants: Participant[] }>('/participants'),
-        request<TodayResponse>('/today'),
-      ]);
-      setParticipants(roster.participants);
-      if (todayRequest === latestTodayRequest.current) setToday(todayResult);
-      if (selected) {
-        try {
-          setWallet(await request<WalletResponse>('/wallet', {}, selected));
-        } catch (caught) {
-          if (
-            caught instanceof ApiRequestError &&
-            [401, 403, 404].includes(caught.status) &&
-            (caught.code === 'IDENTITY_REQUIRED' ||
-              caught.code?.includes('PARTICIPANT') ||
-              caught.code?.includes('IDENTITY'))
-          ) {
-            localStorage.removeItem(storageKey);
-            setParticipantId('');
-            setWallet(null);
-            setNameDraft('');
-            setEntryStage('name');
-            return false;
-          } else throw caught;
-        }
-      } else setWallet(null);
-      if (selected) {
-        const influenceRequest = ++latestInfluenceRequest.current;
-        try {
-          const influence = currentInfluenceResponse.parse(
-            await request<CurrentInfluenceResponse>(
-              '/influence/current',
-              {},
-              selected,
-            ),
-          );
-          if (
-            influenceRequest === latestInfluenceRequest.current &&
-            localStorage.getItem(storageKey) === selected
-          ) {
-            setCurrentInfluence(influence);
-            setInfluenceError('');
-          }
-        } catch {
-          if (
-            influenceRequest === latestInfluenceRequest.current &&
-            localStorage.getItem(storageKey) === selected
-          )
-            setInfluenceError(
-              'Could not refresh positions. Controls are paused until the next successful update.',
-            );
-        }
-      } else setCurrentInfluence(null);
-      setPollingError('');
-      return true;
-    } catch (caught) {
-      setPollingError(
-        'Could not refresh the lunch wheel. It will retry shortly.',
-      );
-      throw caught;
-    }
+  const clockAnchor = useRef<{ serverMs: number; clientMs: number } | null>(
+    null,
+  );
+  const getServerNow = useCallback(() => {
+    const anchor = clockAnchor.current;
+    return anchor
+      ? anchor.serverMs + performance.now() - anchor.clientMs
+      : Date.now();
   }, []);
+  const loadToday = useCallback(async () => {
+    const requestId = ++latestTodayRequest.current;
+    const requestedAt = performance.now();
+    const data = await request<TodayResponse>('/today');
+    if (requestId === latestTodayRequest.current) {
+      clockAnchor.current = serverClockAnchor(
+        data.serverTime,
+        requestedAt,
+        performance.now(),
+        Date.now(),
+      );
+      setToday(data);
+    }
+    return data;
+  }, []);
+  const {
+    wheelRef,
+    rotation,
+    spin,
+    live: liveReveal,
+    snapshot: animationSnapshot,
+    replay: replayResult,
+  } = useWheelAnimation({
+    result: savedResult,
+    mode: wheelMode,
+    displayKey: wheelDisplayKey,
+    getServerNow,
+    revealPending: Boolean(
+      savedResult?.animation &&
+      today?.serverTime &&
+      spinIsLive(savedResult.animation, Date.parse(today.serverTime)),
+    ),
+  });
+
+  const refresh = useCallback(
+    async (selected: string) => {
+      try {
+        const [roster] = await Promise.all([
+          request<{ participants: Participant[] }>('/participants'),
+          loadToday(),
+        ]);
+        setParticipants(roster.participants);
+        if (selected) {
+          try {
+            setWallet(await request<WalletResponse>('/wallet', {}, selected));
+          } catch (caught) {
+            if (
+              caught instanceof ApiRequestError &&
+              [401, 403, 404].includes(caught.status) &&
+              (caught.code === 'IDENTITY_REQUIRED' ||
+                caught.code?.includes('PARTICIPANT') ||
+                caught.code?.includes('IDENTITY'))
+            ) {
+              localStorage.removeItem(storageKey);
+              setParticipantId('');
+              setWallet(null);
+              setNameDraft('');
+              setEntryStage('name');
+              return false;
+            } else throw caught;
+          }
+        } else setWallet(null);
+        if (selected) {
+          const influenceRequest = ++latestInfluenceRequest.current;
+          try {
+            const influence = currentInfluenceResponse.parse(
+              await request<CurrentInfluenceResponse>(
+                '/influence/current',
+                {},
+                selected,
+              ),
+            );
+            if (
+              influenceRequest === latestInfluenceRequest.current &&
+              localStorage.getItem(storageKey) === selected
+            ) {
+              setCurrentInfluence(influence);
+              setInfluenceError('');
+            }
+          } catch {
+            if (
+              influenceRequest === latestInfluenceRequest.current &&
+              localStorage.getItem(storageKey) === selected
+            )
+              setInfluenceError(
+                'Could not refresh positions. Controls are paused until the next successful update.',
+              );
+          }
+        } else setCurrentInfluence(null);
+        setPollingError('');
+        return true;
+      } catch (caught) {
+        setPollingError(
+          'Could not refresh the lunch wheel. It will retry shortly.',
+        );
+        throw caught;
+      }
+    },
+    [loadToday],
+  );
 
   const refreshAdmin = useCallback(async () => {
     const [
@@ -679,6 +703,40 @@ export default function Home() {
     );
     return () => window.clearInterval(interval);
   }, [entryStage, participantId, refresh]);
+
+  useEffect(() => {
+    if (entryStage !== 'game' || !today) return;
+    let loading = false;
+    const tick = async (wake = false) => {
+      if (document.hidden || loading) return;
+      const now = getServerNow();
+      const dueAt = scheduledInstant(
+        today.localDate,
+        today.schedule.time,
+        today.schedule.timezone,
+      ).getTime();
+      const nearDraw = today.status === 'pending' && now >= dueAt - 60000;
+      const live = today.result && spinIsLive(animationPlan(today.result), now);
+      if (!wake && !nearDraw && !live) return;
+      loading = true;
+      try {
+        await loadToday();
+      } catch {
+        /* The normal refresh reports connection failures. */
+      } finally {
+        loading = false;
+      }
+    };
+    const timer = window.setInterval(() => void tick(), 1000);
+    const wake = () => {
+      if (!document.hidden) void tick(true);
+    };
+    document.addEventListener('visibilitychange', wake);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', wake);
+    };
+  }, [entryStage, today, getServerNow, loadToday]);
 
   const refreshBets = useCallback(async (selected: string) => {
     const requestId = ++latestBetRequest.current;
@@ -886,8 +944,7 @@ export default function Home() {
     today?.wheel.mode === 'result' && today.result
       ? today.result.snapshot
       : odds;
-  const activeReplay =
-    replaySnapshot?.key === wheelDisplayKey ? replaySnapshot.options : null;
+  const activeReplay = animationSnapshot;
   const wheelOptions = activeReplay ?? baselineOptions;
   const gradient = useMemo(() => {
     if (!wheelOptions.length) return '#d9ddd1';
@@ -899,142 +956,6 @@ export default function Home() {
     });
     return `conic-gradient(${stops.join(',')})`;
   }, [wheelOptions]);
-
-  const animateCommittedResult = useCallback(
-    (result: NonNullable<TodayResponse['result']>) => {
-      if (animationTimer.current !== null)
-        window.clearTimeout(animationTimer.current);
-      upcomingRef.current = today?.wheel.mode === 'upcoming';
-      setReplaySnapshot({ key: wheelDisplayKey, options: result.snapshot });
-      const index = result.snapshot.findIndex(
-        (option) => option.placeId === result.placeId,
-      );
-      if (index < 0) {
-        setReplaySnapshot(null);
-        return;
-      }
-      const total = result.snapshot.reduce(
-        (sum, option) => sum + option.probability,
-        0,
-      );
-      const before = result.snapshot
-        .slice(0, index)
-        .reduce((sum, option) => sum + option.probability, 0);
-      const center =
-        ((before + result.snapshot[index]!.probability / 2) / (total || 1)) *
-        360;
-      const current = ((rotationRef.current % 360) + 360) % 360;
-      const target = (90 - center + 360) % 360;
-      const reducedMotion = window.matchMedia(
-        '(prefers-reduced-motion: reduce)',
-      ).matches;
-      setSpin(true);
-      const nextRotation =
-        rotationRef.current +
-        (reducedMotion ? 0 : 5 * 360) +
-        ((target - current + 360) % 360);
-      rotationRef.current = nextRotation;
-      setRotation(nextRotation);
-      if (reducedMotion) {
-        animationTimer.current = window.setTimeout(() => {
-          animationTimer.current = null;
-          setSpin(false);
-          setReplaySnapshot(null);
-          if (upcomingRef.current) {
-            rotationRef.current = 0;
-            setRotation(0);
-          }
-        }, 1500);
-      } else {
-        animationTimer.current = window.setTimeout(() => {
-          animationTimer.current = null;
-          setSpin(false);
-          setReplaySnapshot(null);
-          if (upcomingRef.current) {
-            rotationRef.current = 0;
-            setRotation(0);
-          }
-        }, 4700);
-      }
-    },
-    [today?.wheel.mode, wheelDisplayKey],
-  );
-
-  useEffect(() => {
-    if (!wheelMode) return;
-    if (animationTimer.current !== null) {
-      window.clearTimeout(animationTimer.current);
-      animationTimer.current = null;
-    }
-    upcomingRef.current = false;
-    if (wheelMode === 'result' && hasSavedResult) return;
-    const frame = window.requestAnimationFrame(() => {
-      setReplaySnapshot(null);
-      setSpin(false);
-      rotationRef.current = 0;
-      setRotation(0);
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [wheelMode, wheelDisplayKey, hasSavedResult]);
-
-  const lastObservedResultId = useRef<string | null | undefined>(undefined);
-  const lastObservedWheelMode = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    if (!wheelMode) return;
-    let frame: number | null = null;
-    const result = savedResult;
-    const resultId = result?.id ?? null;
-    const previousMode = lastObservedWheelMode.current;
-    lastObservedWheelMode.current = wheelMode;
-    if (lastObservedResultId.current === undefined) {
-      lastObservedResultId.current = resultId;
-      if (result && wheelMode === 'result') {
-        const settledRotation = resultRotation(result);
-        if (settledRotation !== null) {
-          frame = window.requestAnimationFrame(() => {
-            rotationRef.current = settledRotation;
-            setRotation(settledRotation);
-          });
-        }
-      }
-      return () => {
-        if (frame !== null) window.cancelAnimationFrame(frame);
-      };
-    }
-    if (resultId === lastObservedResultId.current) {
-      if (result && wheelMode === 'result' && previousMode !== 'result') {
-        const settledRotation = resultRotation(result);
-        if (settledRotation !== null) {
-          frame = window.requestAnimationFrame(() => {
-            rotationRef.current = settledRotation;
-            setRotation(settledRotation);
-          });
-        }
-      }
-      return () => {
-        if (frame !== null) window.cancelAnimationFrame(frame);
-      };
-    }
-    lastObservedResultId.current = resultId;
-    if (result && wheelMode === 'result') {
-      frame = window.requestAnimationFrame(() =>
-        animateCommittedResult(result),
-      );
-    }
-    return () => {
-      if (frame !== null) window.cancelAnimationFrame(frame);
-    };
-  }, [savedResult, wheelMode, animateCommittedResult]);
-
-  useEffect(
-    () => () => {
-      if (animationTimer.current !== null) {
-        window.clearTimeout(animationTimer.current);
-        animationTimer.current = null;
-      }
-    },
-    [],
-  );
 
   async function selectParticipant(event: FormEvent) {
     event.preventDefault();
@@ -1418,12 +1339,6 @@ export default function Home() {
     setCheckInConfirmOpen(false);
     window.setTimeout(() => checkInTrigger.current?.focus(), 0);
   }
-
-  const replayResult = useCallback(() => {
-    const result = today?.result;
-    if (!result || spin) return;
-    animateCommittedResult(result);
-  }, [today?.result, spin, animateCommittedResult]);
 
   useEffect(() => {
     if (!removeTarget) return;
@@ -1899,17 +1814,28 @@ export default function Home() {
                 <div
                   className="wheel-wrap"
                   aria-label={
-                    activeReplay
-                      ? `Replaying today's saved result for ${today?.result?.localDate ?? ''}`
-                      : today?.wheel.mode === 'result'
-                        ? `Today's committed result is ${drawnPlace ?? 'saved'} for ${wheelTargetLabel}`
-                        : `Live odds for the next scheduled draw on ${wheelTargetLabel}`
+                    liveReveal
+                      ? 'The shared lunch wheel is spinning'
+                      : activeReplay
+                        ? `Replaying today's saved result for ${today?.result?.localDate ?? ''}`
+                        : today?.wheel.mode === 'result'
+                          ? `Today's committed result is ${drawnPlace ?? 'saved'} for ${wheelTargetLabel}`
+                          : `Live odds for the next scheduled draw on ${wheelTargetLabel}`
                   }
                 >
                   <div className="pointer" aria-hidden="true">
                     ◀
                   </div>
                   <div
+                    ref={wheelRef}
+                    data-spin-phase={
+                      liveReveal ? 'live' : spin ? 'replay' : 'settled'
+                    }
+                    data-landing-rotation={
+                      savedResult
+                        ? animationPlan(savedResult).rotation
+                        : undefined
+                    }
                     className={`wheel ${spin ? 'wheel-spinning' : ''}`}
                     data-testid="lunch-wheel"
                     style={{
@@ -1965,13 +1891,17 @@ export default function Home() {
                 </div>
                 <div className="wheel-footer">
                   <span className="wheel-state">
-                    {activeReplay
-                      ? "REPLAYING TODAY'S RESULT"
-                      : today?.wheel.mode === 'result'
-                        ? "TODAY'S RESULT"
-                        : 'LIVE ODDS FOR NEXT DRAW'}
+                    {liveReveal
+                      ? 'THE WHEEL IS DECIDING…'
+                      : activeReplay
+                        ? "REPLAYING TODAY'S RESULT"
+                        : today?.wheel.mode === 'result'
+                          ? "TODAY'S RESULT"
+                          : 'LIVE ODDS FOR NEXT DRAW'}
                   </span>
                   <strong
+                    role="status"
+                    aria-live="polite"
                     data-testid="wheel-target"
                     data-target-date={
                       activeReplay && today?.result
@@ -1979,15 +1909,17 @@ export default function Home() {
                         : wheelTargetDate
                     }
                   >
-                    {activeReplay && today?.result
-                      ? `Saved pick · ${today.result.localDate}`
-                      : today?.wheel.mode === 'result'
-                        ? drawnPlace
-                          ? `${drawnPlace} · ${wheelTargetLabel}`
+                    {liveReveal
+                      ? 'Watch the pointer…'
+                      : activeReplay && today?.result
+                        ? `Saved pick · ${today.result.localDate}`
+                        : today?.wheel.mode === 'result'
+                          ? drawnPlace
+                            ? `${drawnPlace} · ${wheelTargetLabel}`
+                            : wheelTargetLabel
                           : wheelTargetLabel
-                        : wheelTargetLabel
-                          ? `Scheduled for ${wheelTargetLabel} at ${today?.schedule.time ?? ''}`
-                          : 'Loading schedule'}
+                            ? `Scheduled for ${wheelTargetLabel} at ${today?.schedule.time ?? ''}`
+                            : 'Loading schedule'}
                   </strong>
                   {today?.result && (
                     <button
@@ -2371,13 +2303,13 @@ export default function Home() {
                   </button>
                 </div>
               </form>
-              {today?.result?.healthBonus && (
+              {!liveReveal && today?.result?.healthBonus && (
                 <HealthBonusSummary
                   bonus={today.result.healthBonus}
                   winner={today.result.placeName}
                 />
               )}
-              {today?.result && (
+              {!liveReveal && today?.result && (
                 <div className="result-note" data-testid="today-result">
                   <span>✳</span>
                   <p>
