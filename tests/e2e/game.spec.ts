@@ -24,6 +24,7 @@ const fixturePrefix = `LR-E2E-${runId}`;
 const database = createDatabase(testDatabaseUrl);
 const game = new GameService(database);
 let originalSchedule: Awaited<ReturnType<GameService['getSchedule']>>;
+let originalPreferences: Awaited<ReturnType<GameService['getPreferences']>>;
 let apiParticipantId = '';
 
 function validOrigin() {
@@ -65,7 +66,7 @@ async function exerciseAdminUiAndGame(
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(appOrigin);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-    'Lunch Roller',
+    'Gambling about lunch',
   );
   await signIn(page);
 
@@ -73,10 +74,12 @@ async function exerciseAdminUiAndGame(
     .locator('.admin-tool-card')
     .filter({ has: page.getByRole('heading', { name: 'People' }) });
   await peopleCard.getByLabel('New team member name').fill(memberName);
-  await peopleCard.getByRole('button', { name: 'Add', exact: true }).click();
+  await peopleCard
+    .getByRole('button', { name: 'Add person', exact: true })
+    .click();
   await expect(peopleCard.getByText(memberName, { exact: true })).toBeVisible();
   await peopleCard
-    .locator('.admin-row')
+    .getByRole('row')
     .filter({ hasText: memberName })
     .getByRole('button', { name: 'Rename' })
     .click();
@@ -90,7 +93,9 @@ async function exerciseAdminUiAndGame(
   await expect(peopleCard.getByText(memberName, { exact: true })).toBeVisible();
 
   await peopleCard.getByLabel('New team member name').fill(archivedName);
-  await peopleCard.getByRole('button', { name: 'Add', exact: true }).click();
+  await peopleCard
+    .getByRole('button', { name: 'Add person', exact: true })
+    .click();
   await expect(
     peopleCard.getByText(archivedName, { exact: true }),
   ).toBeVisible();
@@ -104,9 +109,9 @@ async function exerciseAdminUiAndGame(
   await signIn(page);
 
   await peopleCard
-    .getByText(archivedName, { exact: true })
-    .locator('..')
-    .getByRole('button', { name: 'Archive', exact: true })
+    .getByRole('row')
+    .filter({ hasText: archivedName })
+    .getByRole('button', { name: 'Disable', exact: true })
     .click();
   await expect(page.getByTestId('name-picker')).toBeVisible();
   await expect(page.locator('.wheel')).toHaveCount(0);
@@ -302,31 +307,30 @@ async function exerciseAdminUiAndGame(
   expect(await game.wallet(selectedParticipantId!)).toEqual(beforeReplayWallet);
   await signIn(page);
 
-  const correctionCard = page
-    .locator('.admin-tool-card')
-    .filter({ has: page.getByRole('heading', { name: 'Token correction' }) });
-  await correctionCard
-    .getByLabel('Team member')
-    .selectOption({ label: memberName });
-  await correctionCard.getByLabel('Token change').fill('30');
-  await correctionCard.getByLabel('Reason').fill(correctionReason);
-  await correctionCard
-    .getByRole('button', { name: 'Record correction' })
-    .click();
-  await expect(page.getByText('Token correction recorded.')).toBeVisible();
+  const fundedRow = peopleCard.getByRole('row').filter({ hasText: memberName });
+  await fundedRow.getByLabel(`${memberName} new token balance`).fill('30');
+  await fundedRow
+    .getByLabel(`Reason for ${memberName} balance`)
+    .fill(correctionReason);
+  await fundedRow.getByRole('button', { name: 'Set', exact: true }).click();
+  await expect(
+    page.getByText(`Balance set for ${memberName}.`, { exact: true }),
+  ).toBeVisible();
 
-  await page.getByRole('button', { name: /Check in/ }).click();
+  await page.getByTestId('check-in').click();
+  await page
+    .getByRole('dialog', { name: 'Confirm your check-in' })
+    .getByRole('button', { name: 'I confirm' })
+    .click();
   await expect(
     page.getByText('Check-in complete — 10 tokens added.'),
   ).toBeVisible();
   await page.getByTitle('Boost place (5 tokens)').first().click();
-  await expect(
-    page.getByText('Place boosted for the next draw.'),
-  ).toBeVisible();
+  await expect(page.getByText('Boost staged for the next draw.')).toBeVisible();
   await page.getByLabel('Have a new spot in mind?').fill(addPlaceName);
   await page.getByRole('button', { name: 'Add place' }).click();
   await expect(
-    page.getByText('New lunch place added for 20 tokens.'),
+    page.getByText('Restaurant added or restored for 20 tokens.'),
   ).toBeVisible();
 
   const participantId = await page.evaluate(() =>
@@ -361,7 +365,7 @@ async function exerciseAdminUiAndGame(
     const secondPage = await secondContext.newPage();
     await secondPage.goto(appOrigin);
     await expect(secondPage.getByRole('heading', { level: 1 })).toHaveText(
-      'Lunch Roller',
+      'Gambling about lunch',
     );
     await expect(secondPage.getByTestId('name-picker')).toBeVisible();
     await expect(secondPage.getByLabel('Your name')).toBeVisible();
@@ -413,6 +417,8 @@ test.beforeAll(async () => {
     );
   }
   originalSchedule = await game.getSchedule();
+  originalPreferences = await game.getPreferences();
+  await game.setPreferences({ ...originalPreferences, bettingCloseMinutes: 0 });
   const person = await game.saveParticipant({
     name: `${fixturePrefix} API Member`,
   });
@@ -433,6 +439,7 @@ test.afterAll(async () => {
         await game.savePlace({ active: false }, place.id);
       }
     }
+    if (originalPreferences) await game.setPreferences(originalPreferences);
     if (originalSchedule) await game.setSchedule(originalSchedule);
   } finally {
     await database.close();

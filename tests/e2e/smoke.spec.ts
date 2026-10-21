@@ -7,7 +7,7 @@ test('landing page requires a saved name before showing the lunch wheel', async 
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto(process.env.APP_ORIGIN ?? '/');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-    'Lunch Roller',
+    'Gambling about lunch',
   );
   await expect(page.getByText('Web + database ready')).toBeVisible();
   await expect(page.getByTestId('name-picker')).toBeVisible();

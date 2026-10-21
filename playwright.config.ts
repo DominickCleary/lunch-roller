@@ -2,6 +2,8 @@ import { defineConfig } from '@playwright/test';
 import './tests/disposable-database';
 export default defineConfig({
   testDir: './tests/e2e',
+  // Browser scenarios mutate one workplace's singleton schedule/economy.
+  workers: 1,
   projects: [
     { name: 'first-run', testMatch: '**/setup.spec.ts' },
     {

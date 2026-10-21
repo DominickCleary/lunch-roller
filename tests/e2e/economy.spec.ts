@@ -90,6 +90,7 @@ test('admin economy is guarded, persists, and updates participant prices', async
   ).toBeVisible();
 
   const configured = {
+    ...originalEconomy,
     attendanceReward: 14,
     addPlaceCost: 22,
     boostCost: 6,

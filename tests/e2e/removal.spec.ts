@@ -164,16 +164,14 @@ test('admin removal can be cancelled, deletes unused profiles, and archives used
 }) => {
   await page.goto(appOrigin);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-    'Lunch Roller',
+    'Gambling about lunch',
   );
   await signIn(page);
 
   const peopleCard = page
     .locator('.admin-tool-card')
     .filter({ has: page.getByRole('heading', { name: 'People' }) });
-  const unusedRow = peopleCard
-    .locator('.admin-row')
-    .filter({ hasText: unusedName });
+  const unusedRow = peopleCard.getByRole('row').filter({ hasText: unusedName });
   await expect(unusedRow).toBeVisible();
   await peopleCard
     .getByRole('button', { name: `Remove ${unusedName}` })
@@ -208,7 +206,7 @@ test('admin removal can be cancelled, deletes unused profiles, and archives used
   ).toBe(false);
 
   const usedRow = peopleCard
-    .locator('.admin-row')
+    .getByRole('row')
     .filter({ hasText: browserUsedName });
   await expect(usedRow).toBeVisible();
   await peopleCard

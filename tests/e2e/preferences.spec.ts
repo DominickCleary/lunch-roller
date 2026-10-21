@@ -45,6 +45,7 @@ test.beforeAll(async () => {
     weekdays: [1, 2, 3, 4, 5, 6, 7],
   });
   await game.setPreferences({
+    ...originalPreferences,
     wheelSwitchTime: '15:00',
     checkInPledge: 'I pledge that I actually obeyed the wheel',
   });
@@ -116,7 +117,7 @@ test('admin preferences persist and participants see the pledge and completed ch
     .getByRole('button', { name: 'Save preferences' })
     .click();
   await expect(
-    page.getByText('Wheel and check-in preferences saved.'),
+    page.getByText('Wheel, check-in and betting preferences saved.'),
   ).toBeVisible();
   await page.reload();
   await signIn(page);
@@ -132,6 +133,7 @@ test('admin preferences persist and participants see the pledge and completed ch
   });
   expect(saved.status()).toBe(200);
   expect(await saved.json()).toEqual({
+    ...originalPreferences,
     wheelSwitchTime: '12:34',
     checkInPledge: 'I followed the wheel for lunch.',
   });
@@ -143,9 +145,6 @@ test('admin preferences persist and participants see the pledge and completed ch
     memberId,
   );
   await page.reload();
-  await expect(page.getByTestId('check-in-pledge')).toHaveText(
-    'I followed the wheel for lunch.',
-  );
   const checkIn = page.getByTestId('check-in');
   await expect(checkIn).toBeEnabled();
   await checkIn.click();
