@@ -1685,6 +1685,16 @@ export default function Home() {
               : (today?.localDate ?? 'TODAY')}{' '}
             · {today?.schedule.timezone ?? 'Europe/Dublin'}
           </span>
+          {entryStage === 'game' && currentName && (
+            <button
+              type="button"
+              className="quiet-link"
+              data-testid="change-name"
+              onClick={changeName}
+            >
+              Logout
+            </button>
+          )}
           {(entryStage === 'name' || entryStage === 'game') && (
             <a
               href="#admin"
@@ -1831,19 +1841,6 @@ export default function Home() {
                 </div>
                 <span className="mini-icon">↗</span>
               </div>
-              <p className="muted">
-                Check in and use your tokens to influence future lunches.
-              </p>
-              {currentName && (
-                <button
-                  type="button"
-                  className="quiet-link change-name"
-                  data-testid="change-name"
-                  onClick={changeName}
-                >
-                  Logout
-                </button>
-              )}
               <div className="member-status">
                 <div>
                   <span className="status-label">YOU ARE</span>
@@ -1971,6 +1968,189 @@ export default function Home() {
                   </p>
                 )}
               </div>
+              <TeamActivity
+                participants={participants}
+                currentParticipantId={participantId}
+                timezone={today?.schedule.timezone ?? 'UTC'}
+              />
+            </div>
+
+            <div className="panel odds-panel">
+              <div className="section-heading">
+                <div>
+                  <p className="eyebrow">02 / THE ODDS</p>
+                  <h2>Lunch spot</h2>
+                </div>
+                <span className="odds-total">{odds.length} PLACES</span>
+              </div>
+              <p className="muted">
+                Current chances for the next draw. Fair fractional odds show the
+                theoretical return ratio, not a payout.
+              </p>
+              <div
+                className="odds-format-toggle"
+                role="group"
+                aria-label="Choose how restaurant odds are shown"
+              >
+                <button
+                  type="button"
+                  aria-pressed={!showFairOdds}
+                  onClick={() => setShowFairOdds(false)}
+                >
+                  Chances
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={showFairOdds}
+                  onClick={() => setShowFairOdds(true)}
+                >
+                  Fair fractional odds
+                </button>
+              </div>
+              <div className="odds-list">
+                {odds.map((option, index) => {
+                  const placeId = 'placeId' in option ? option.placeId : '';
+                  const fairOdds = fairFractionalOdds(option.probability);
+                  return (
+                    <div className="odds-row" key={placeId}>
+                      <span
+                        className="odds-color"
+                        style={{ background: colors[index % colors.length] }}
+                      />
+                      <span className="odds-name">{option.name}</span>
+                      <span className="odds-bar">
+                        <span
+                          style={{
+                            width: `${Math.max(option.probability * 100, option.probability > 0 ? 0.5 : 0)}%`,
+                            background: colors[index % colors.length],
+                          }}
+                        />
+                      </span>
+                      <strong
+                        aria-label={`${option.name}: ${
+                          showFairOdds
+                            ? fairOdds === '—'
+                              ? 'unavailable fair odds'
+                              : `${fairOdds} fair fractional odds`
+                            : `${(option.probability * 100).toFixed(1)} percent chance`
+                        }`}
+                      >
+                        {showFairOdds
+                          ? fairOdds
+                          : `${(option.probability * 100).toFixed(1)}%`}
+                      </strong>
+                      <div className="influence-buttons">
+                        <button
+                          title={`Boost place (${currentEconomy.boostCost} tokens)`}
+                          disabled={busy || !participantId}
+                          onClick={() =>
+                            void mutate(
+                              '/purchases',
+                              { placeId, action: 'boost' },
+                              'Place boosted for the next draw.',
+                            )
+                          }
+                        >
+                          + ↗
+                        </button>
+                        <button
+                          title={`Reduce place (${currentEconomy.reduceCost} tokens)`}
+                          disabled={busy || !participantId}
+                          onClick={() =>
+                            void mutate(
+                              '/purchases',
+                              { placeId, action: 'reduce' },
+                              'Place reduced for the next draw.',
+                            )
+                          }
+                        >
+                          − ↘
+                        </button>
+                        <button
+                          className="remove-place-control"
+                          aria-label={`Remove ${option.name} from the wheel for ${currentEconomy.removePlaceCost} tokens`}
+                          title={`Remove place (${currentEconomy.removePlaceCost} tokens)`}
+                          disabled={busy || !participantId}
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `Remove ${option.name} from the wheel for ${currentEconomy.removePlaceCost} tokens? You can restore it later by adding the same name.`,
+                              )
+                            )
+                              void mutate(
+                                '/purchases',
+                                { placeId, action: 'remove' },
+                                'Restaurant removed.',
+                              );
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {!odds.length && (
+                  <p className="empty-note">
+                    The admin can add places to get the wheel rolling.
+                  </p>
+                )}
+              </div>
+              <form
+                className="add-place"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const form = event.currentTarget;
+                  const input = new FormData(form)
+                    .get('place')
+                    ?.toString()
+                    .trim();
+                  if (input)
+                    void mutate(
+                      '/places',
+                      { name: input },
+                      `New lunch place added for ${currentEconomy.addPlaceCost} tokens.`,
+                    ).then((saved) => {
+                      if (saved) form.reset();
+                    });
+                }}
+              >
+                <label htmlFor="place-name">Have a new spot in mind?</label>
+                <div className="inline-form">
+                  <input
+                    id="place-name"
+                    name="place"
+                    placeholder={`Add a lunch place · ${currentEconomy.addPlaceCost} tokens`}
+                    maxLength={100}
+                    required
+                    disabled={!participantId || busy}
+                  />
+                  <button
+                    className="button button-light"
+                    disabled={!participantId || busy}
+                  >
+                    Add place
+                  </button>
+                </div>
+              </form>
+              {today?.result && (
+                <div className="result-note" data-testid="today-result">
+                  <span>✳</span>
+                  <p>
+                    Today&apos;s pick was{' '}
+                    <strong>{today.result.placeName}</strong> on{' '}
+                    <time dateTime={today.result.localDate}>
+                      {new Intl.DateTimeFormat('en-GB', {
+                        dateStyle: 'medium',
+                        timeZone: 'UTC',
+                      }).format(
+                        new Date(`${today.result.localDate}T00:00:00Z`),
+                      )}
+                    </time>
+                    . The winner&apos;s weight is halved for next time.
+                  </p>
+                </div>
+              )}
               <section
                 className="betting-card"
                 aria-labelledby="betting-heading"
@@ -2174,194 +2354,6 @@ export default function Home() {
                   </div>
                 ) : null}
               </section>
-              <TeamActivity
-                participants={participants}
-                currentParticipantId={participantId}
-                timezone={today?.schedule.timezone ?? 'UTC'}
-              />
-            </div>
-
-            <div className="panel odds-panel">
-              <div className="section-heading">
-                <div>
-                  <p className="eyebrow">02 / THE ODDS</p>
-                  <h2>Places</h2>
-                </div>
-                <span className="odds-total">{odds.length} PLACES</span>
-              </div>
-              <p className="muted">
-                Current chances for the next draw. Fair fractional odds show the
-                theoretical return ratio, not a payout.
-              </p>
-              <div
-                className="odds-format-toggle"
-                role="group"
-                aria-label="Choose how restaurant odds are shown"
-              >
-                <button
-                  type="button"
-                  aria-pressed={!showFairOdds}
-                  onClick={() => setShowFairOdds(false)}
-                >
-                  Chances
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={showFairOdds}
-                  onClick={() => setShowFairOdds(true)}
-                >
-                  Fair fractional odds
-                </button>
-              </div>
-              <div className="odds-list">
-                {odds.map((option, index) => {
-                  const placeId = 'placeId' in option ? option.placeId : '';
-                  const fairOdds = fairFractionalOdds(option.probability);
-                  return (
-                    <div className="odds-row" key={placeId}>
-                      <span
-                        className="odds-color"
-                        style={{ background: colors[index % colors.length] }}
-                      />
-                      <span className="odds-name">{option.name}</span>
-                      <span className="odds-bar">
-                        <span
-                          style={{
-                            width: `${Math.max(option.probability * 100, option.probability > 0 ? 0.5 : 0)}%`,
-                            background: colors[index % colors.length],
-                          }}
-                        />
-                      </span>
-                      <strong
-                        aria-label={`${option.name}: ${
-                          showFairOdds
-                            ? fairOdds === '—'
-                              ? 'unavailable fair odds'
-                              : `${fairOdds} fair fractional odds`
-                            : `${(option.probability * 100).toFixed(1)} percent chance`
-                        }`}
-                      >
-                        {showFairOdds
-                          ? fairOdds
-                          : `${(option.probability * 100).toFixed(1)}%`}
-                      </strong>
-                      <div className="influence-buttons">
-                        <button
-                          title={`Boost place (${currentEconomy.boostCost} tokens)`}
-                          disabled={busy || !participantId}
-                          onClick={() =>
-                            void mutate(
-                              '/purchases',
-                              { placeId, action: 'boost' },
-                              'Place boosted for the next draw.',
-                            )
-                          }
-                        >
-                          + ↗
-                        </button>
-                        <button
-                          title={`Reduce place (${currentEconomy.reduceCost} tokens)`}
-                          disabled={busy || !participantId}
-                          onClick={() =>
-                            void mutate(
-                              '/purchases',
-                              { placeId, action: 'reduce' },
-                              'Place reduced for the next draw.',
-                            )
-                          }
-                        >
-                          − ↘
-                        </button>
-                        <button
-                          className="remove-place-control"
-                          aria-label={`Remove ${option.name} from the wheel for ${currentEconomy.removePlaceCost} tokens`}
-                          title={`Remove place (${currentEconomy.removePlaceCost} tokens)`}
-                          disabled={busy || !participantId}
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                `Remove ${option.name} from the wheel for ${currentEconomy.removePlaceCost} tokens? You can restore it later by adding the same name.`,
-                              )
-                            )
-                              void mutate(
-                                '/purchases',
-                                { placeId, action: 'remove' },
-                                'Restaurant removed.',
-                              );
-                          }}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-                {!odds.length && (
-                  <p className="empty-note">
-                    The admin can add places to get the wheel rolling.
-                  </p>
-                )}
-              </div>
-              <form
-                className="add-place"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const form = event.currentTarget;
-                  const input = new FormData(form)
-                    .get('place')
-                    ?.toString()
-                    .trim();
-                  if (input)
-                    void mutate(
-                      '/places',
-                      { name: input },
-                      `New lunch place added for ${currentEconomy.addPlaceCost} tokens.`,
-                    ).then((saved) => {
-                      if (saved) form.reset();
-                    });
-                }}
-              >
-                <label htmlFor="place-name">Have a new spot in mind?</label>
-                <p className="muted add-place-help">
-                  Add a restaurant for {currentEconomy.addPlaceCost} tokens. If
-                  it was removed before, adding the same name restores it with
-                  the admin-configured starting weight.
-                </p>
-                <div className="inline-form">
-                  <input
-                    id="place-name"
-                    name="place"
-                    placeholder={`Add a lunch place · ${currentEconomy.addPlaceCost} tokens`}
-                    maxLength={100}
-                    required
-                    disabled={!participantId || busy}
-                  />
-                  <button
-                    className="button button-light"
-                    disabled={!participantId || busy}
-                  >
-                    Add place
-                  </button>
-                </div>
-              </form>
-              {today?.result && (
-                <div className="result-note" data-testid="today-result">
-                  <span>✳</span>
-                  <p>
-                    Today&apos;s pick was{' '}
-                    <strong>{today.result.placeName}</strong> on{' '}
-                    <time dateTime={today.result.localDate}>
-                      {new Intl.DateTimeFormat('en-GB', {
-                        dateStyle: 'medium',
-                        timeZone: 'UTC',
-                      }).format(
-                        new Date(`${today.result.localDate}T00:00:00Z`),
-                      )}
-                    </time>
-                    . The winner&apos;s weight is halved for next time.
-                  </p>
-                </div>
-              )}
             </div>
           </section>
         </>
