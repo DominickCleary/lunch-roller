@@ -533,8 +533,8 @@ export function DailyActivity({
   localDate: string;
   nextDrawDate: string;
 }) {
-  const [scope, setScope] = useState<'day' | 'draw'>('draw');
-  const [selectedDate, setSelectedDate] = useState(nextDrawDate);
+  const [scope, setScope] = useState<'day' | 'draw'>('day');
+  const [selectedDate, setSelectedDate] = useState(localDate);
   const [result, setResult] = useState<ActivityResult | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [personFilter, setPersonFilter] = useState('all');
@@ -697,8 +697,8 @@ export function DailyActivity({
               setPlaceFilter('all');
             }}
           >
-            <option value="draw">Draw activity</option>
             <option value="day">Calendar day</option>
+            <option value="draw">Draw activity</option>
           </select>
           <label htmlFor="activity-date">
             {scope === 'draw' ? 'Draw date' : 'Activity date'}
@@ -716,15 +716,31 @@ export function DailyActivity({
           <div className="activity-date-shortcuts">
             <button
               type="button"
-              className={selectedDate === localDate ? 'selected' : ''}
-              onClick={() => setSelectedDate(localDate)}
+              className={
+                scope === 'day' && selectedDate === localDate ? 'selected' : ''
+              }
+              onClick={() => {
+                setScope('day');
+                setSelectedDate(localDate);
+                setPersonFilter('all');
+                setPlaceFilter('all');
+              }}
             >
               Today
             </button>
             <button
               type="button"
-              className={selectedDate === nextDrawDate ? 'selected' : ''}
-              onClick={() => setSelectedDate(nextDrawDate)}
+              className={
+                scope === 'draw' && selectedDate === nextDrawDate
+                  ? 'selected'
+                  : ''
+              }
+              onClick={() => {
+                setScope('draw');
+                setSelectedDate(nextDrawDate);
+                setPersonFilter('all');
+                setPlaceFilter('all');
+              }}
             >
               Next draw · {nextDrawDate}
             </button>

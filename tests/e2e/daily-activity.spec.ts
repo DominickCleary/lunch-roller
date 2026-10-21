@@ -173,6 +173,12 @@ test('draw and calendar views keep tomorrow positions and bets on the correct da
   page,
 }) => {
   const nextDate = '2026-10-22';
+  const morningPurchase = {
+    ...sample.entries[0]!,
+    id: randomUUID(),
+    createdAt: `${date}T09:51:30Z`,
+    influenceLocalDate: undefined,
+  };
   await page.route('**/api/v1/bets/current', async (route) => {
     const actual = await route.fetch();
     const body = await actual.json();
@@ -197,8 +203,12 @@ test('draw and calendar views keep tomorrow positions and bets on the correct da
           scope === 'draw'
             ? selected === nextDate
               ? actions
-              : []
-            : actions.filter((entry) => entry.createdAt.startsWith(selected)),
+              : selected === date
+                ? [morningPurchase]
+                : []
+            : [...actions, morningPurchase].filter((entry) =>
+                entry.createdAt.startsWith(selected),
+              ),
         healthBonuses: selected === date ? sample.healthBonuses : [],
         positions: selected === nextDate ? sample.positions : [],
         bets:
@@ -211,6 +221,16 @@ test('draw and calendar views keep tomorrow positions and bets on the correct da
   await page.goto('/');
   await page.getByRole('tab', { name: 'Activity' }).click();
   const panel = page.getByRole('tabpanel', { name: 'Activity' });
+  await expect(panel.getByLabel('View', { exact: true })).toHaveValue('day');
+  await expect(panel.getByLabel('Activity date')).toHaveValue(date);
+  await expect(panel.locator('.activity-timeline li')).toHaveCount(3);
+  await expect(panel.locator('.activity-timeline')).toContainText(
+    'Historical purchase · draw date not recorded',
+  );
+  await panel
+    .getByRole('button', { name: `Next draw · ${nextDate}`, exact: true })
+    .click();
+  await expect(panel.getByLabel('View', { exact: true })).toHaveValue('draw');
   await expect(panel.getByLabel('Draw date')).toHaveValue(nextDate);
   const board = panel.locator('.bet-board-panel');
   await expect(board).toContainText(`draw dated ${nextDate}`);
@@ -222,16 +242,11 @@ test('draw and calendar views keep tomorrow positions and bets on the correct da
   await expect(panel.locator('.activity-trend-chart')).toContainText('21 Oct');
   await expect(panel.locator('.activity-trend-chart')).toContainText('22 Oct');
   await panel.getByRole('button', { name: 'Today', exact: true }).click();
-  await expect(panel.getByLabel('Draw date')).toHaveValue(date);
+  await expect(panel.getByLabel('View', { exact: true })).toHaveValue('day');
+  await expect(panel.getByLabel('Activity date')).toHaveValue(date);
   await expect(board).toContainText(`draw dated ${date}`);
   await expect(board.locator('.bet-board')).toHaveCount(0);
-  await expect(panel.locator('.activity-timeline li')).toHaveCount(0);
-  await expect(
-    panel.getByRole('region', { name: 'Draw influence positions' }),
-  ).not.toContainText('↑ 2');
-  await panel.getByLabel('View', { exact: true }).selectOption('day');
-  await expect(panel.getByLabel('Activity date')).toHaveValue(date);
-  await expect(panel.locator('.activity-timeline li')).toHaveCount(2);
+  await expect(panel.locator('.activity-timeline li')).toHaveCount(3);
   await expect(board.locator('.bet-board')).toHaveCount(0);
   await expect(
     panel.getByRole('region', { name: 'Draw influence positions' }),
@@ -258,6 +273,7 @@ test('labels historical boosts without inventing draw positions', async ({
       exact: true,
     }),
   ).toHaveCount(4);
+  await panel.getByLabel('View', { exact: true }).selectOption('draw');
   await expect(
     panel.getByText('Their target draw was not recorded', { exact: false }),
   ).toBeVisible();
@@ -349,6 +365,7 @@ test('shows the schedule, charts, coalitions and bet board without changing iden
   ).toBeVisible();
   await expect(panel.locator('.activity-summary')).toContainText('15');
   await expect(panel.locator('.activity-summary')).toContainText('5');
+  await panel.getByLabel('View', { exact: true }).selectOption('draw');
   const healthBonus = panel.getByRole('region', {
     name: 'Automatic health bonus',
   });
@@ -457,13 +474,13 @@ test('retries failures and rejects a delayed response for a previous date', asyn
     'Sushi',
   );
   delay = true;
-  await panel.getByLabel('Draw date').fill('2026-10-20');
+  await panel.getByLabel('Activity date').fill('2026-10-20');
   await expect.poll(() => Boolean(release)).toBe(true);
-  await panel.getByLabel('Draw date').fill('2026-10-19');
+  await panel.getByLabel('Activity date').fill('2026-10-19');
   await expect(
     panel.getByText('No bets are recorded for this draw date.'),
   ).toBeVisible();
   release?.();
-  await expect(panel.getByLabel('Draw date')).toHaveValue('2026-10-19');
+  await expect(panel.getByLabel('Activity date')).toHaveValue('2026-10-19');
   await expect(panel.locator('.bet-board-panel .bet-board')).toHaveCount(0);
 });

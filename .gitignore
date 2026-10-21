@@ -9,5 +9,6 @@ test-results/
 !.env.example
 *.tsbuildinfo
 *.log
+*.dump
 .DS_Store
 .worktrees/
