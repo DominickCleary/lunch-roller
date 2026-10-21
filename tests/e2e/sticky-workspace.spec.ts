@@ -118,6 +118,7 @@ test('desktop activity and admin scroll independently without moving the wheel o
   await expect(
     activity.getByRole('heading', { name: 'Activity room' }),
   ).toBeVisible();
+  await expect(activity.locator('.activity-summary')).toBeVisible();
 
   const scrollHostSelector = await activity.evaluate((panel) => {
     let current: HTMLElement | null = panel;
@@ -158,7 +159,7 @@ test('desktop activity and admin scroll independently without moving the wheel o
   const sidebarScrollBeforeAdmin = await sidebar.evaluate(
     (element) => element.scrollTop,
   );
-  const pageScrollBeforeAdmin = await page.evaluate(() => window.scrollY);
+  let pageScrollBeforeAdmin = await page.evaluate(() => window.scrollY);
   const wheelBeforeAdmin = await page.locator('.wheel-wrap').boundingBox();
   await page.getByRole('button', { name: 'Admin', exact: true }).click();
   await expect(page.locator('.admin-disclosure')).toHaveAttribute('open', '');
@@ -174,6 +175,7 @@ test('desktop activity and admin scroll independently without moving the wheel o
   await page.getByLabel('Administrator password').fill(adminPassword);
   await page.getByRole('button', { name: 'Unlock', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'People' })).toBeVisible();
+  pageScrollBeforeAdmin = await page.evaluate(() => window.scrollY);
   const admin = page.locator('.admin-disclosure');
   await expect
     .poll(() =>
@@ -181,6 +183,7 @@ test('desktop activity and admin scroll independently without moving the wheel o
     )
     .toBe(true);
   await admin.hover();
+  pageScrollBeforeAdmin = await page.evaluate(() => window.scrollY);
   await page.mouse.wheel(0, 900);
   await expect
     .poll(() => admin.evaluate((element) => element.scrollTop))
@@ -243,7 +246,7 @@ test('mobile scrolls the document with a compact sticky wheel and accessible con
 
   await page.getByRole('tab', { name: 'Wheel' }).click();
   await page.evaluate(() => window.scrollTo(0, 0));
-  const pageScrollBeforeAdmin = await page.evaluate(() => window.scrollY);
+  let pageScrollBeforeAdmin = await page.evaluate(() => window.scrollY);
   await page.getByRole('button', { name: 'Admin', exact: true }).click();
   await expect(page.locator('.admin-disclosure')).toHaveAttribute('open', '');
   expect(await page.evaluate(() => window.scrollY)).toBe(pageScrollBeforeAdmin);
@@ -251,6 +254,7 @@ test('mobile scrolls the document with a compact sticky wheel and accessible con
   await page.getByLabel('Administrator password').fill(adminPassword);
   await page.getByRole('button', { name: 'Unlock', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'People' })).toBeVisible();
+  pageScrollBeforeAdmin = await page.evaluate(() => window.scrollY);
   const admin = page.locator('.admin-disclosure');
   await expect
     .poll(() =>
@@ -258,6 +262,7 @@ test('mobile scrolls the document with a compact sticky wheel and accessible con
     )
     .toBe(true);
   await admin.hover();
+  pageScrollBeforeAdmin = await page.evaluate(() => window.scrollY);
   await page.mouse.wheel(0, 700);
   await expect
     .poll(() => admin.evaluate((element) => element.scrollTop))
