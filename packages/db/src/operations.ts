@@ -62,6 +62,7 @@ import type {
   HealthRuleSettings,
   TransferRequest,
   TransferResponse,
+  DrawSkip,
 } from '@lunch/contracts';
 import {
   gamePreferences,
@@ -402,6 +403,24 @@ function placeView(row: typeof places.$inferSelect): Place {
 
 function getScheduleFromRow(row: typeof settings.$inferSelect): Schedule {
   return { timezone: row.timezone, time: row.spinTime, weekdays: row.weekdays };
+}
+
+function drawSkipFromRow(
+  row: typeof settings.$inferSelect,
+  now: Date,
+): DrawSkip {
+  const schedule = getScheduleFromRow(row);
+  const clock = localClock(now, schedule.timezone);
+  const localDate =
+    row.skipDrawDate && row.skipDrawDate >= clock.localDate
+      ? row.skipDrawDate
+      : null;
+  return {
+    localDate,
+    cancellable:
+      localDate !== null &&
+      (localDate > clock.localDate || clock.time < schedule.time),
+  };
 }
 
 function preferencesFromRow(
@@ -1033,7 +1052,12 @@ export class GameService {
       .select({ id: draws.id })
       .from(draws)
       .where(eq(draws.localDate, today));
-    const localDate = nextBettingDate(now, schedule, Boolean(todayDraw));
+    const localDate = nextBettingDate(
+      now,
+      schedule,
+      Boolean(todayDraw),
+      row.skipDrawDate,
+    );
     let [market] = await tx
       .select()
       .from(bettingMarkets)
@@ -1231,7 +1255,8 @@ export class GameService {
         requestHash: createHash(`refund:${bet.id}`),
         placeId: bet.placeId,
         betId: bet.id,
-        reason: 'Bet refunded because its draw schedule changed or expired',
+        reason:
+          'Bet refunded because its roll was skipped, its schedule changed, or it expired',
         createdAt: now,
       });
       await balance(tx, bet.participantId);
@@ -1390,6 +1415,69 @@ export class GameService {
     return getScheduleFromRow(row);
   }
 
+  async getDrawSkip(now = new Date()): Promise<DrawSkip> {
+    const [row] = await this.database.db
+      .select()
+      .from(settings)
+      .where(eq(settings.id, 1));
+    if (!row)
+      fail(503, 'NOT_INITIALIZED', 'Game settings are not initialized.');
+    return drawSkipFromRow(row, now);
+  }
+
+  async setDrawSkip(skip: boolean, now = new Date()): Promise<DrawSkip> {
+    return transaction(this.database, async (tx) => {
+      const [row] = await tx.select().from(settings).where(eq(settings.id, 1));
+      if (!row)
+        fail(503, 'NOT_INITIALIZED', 'Game settings are not initialized.');
+      const schedule = getScheduleFromRow(row);
+      const clock = localClock(now, schedule.timezone);
+
+      if (!skip) {
+        if (row.skipDrawDate === clock.localDate && clock.time >= schedule.time)
+          fail(
+            409,
+            'DRAW_SKIP_NOT_CANCELLABLE',
+            'This roll has reached its scheduled time and can no longer be restored.',
+          );
+        if (row.skipDrawDate) {
+          const [updated] = await tx
+            .update(settings)
+            .set({ skipDrawDate: null })
+            .where(eq(settings.id, 1))
+            .returning();
+          return drawSkipFromRow(updated!, now);
+        }
+        return drawSkipFromRow(row, now);
+      }
+
+      if (row.skipDrawDate && row.skipDrawDate >= clock.localDate)
+        return drawSkipFromRow(row, now);
+
+      const [todayDraw] = await tx
+        .select({ id: draws.id })
+        .from(draws)
+        .where(eq(draws.localDate, clock.localDate));
+      const localDate = nextBettingDate(now, schedule, Boolean(todayDraw));
+      const [market] = await tx
+        .select({ id: bettingMarkets.id })
+        .from(bettingMarkets)
+        .where(
+          and(
+            eq(bettingMarkets.localDate, localDate),
+            eq(bettingMarkets.status, 'open'),
+          ),
+        );
+      if (market) await this.refundMarket(tx, market.id, 'void');
+      const [updated] = await tx
+        .update(settings)
+        .set({ skipDrawDate: localDate })
+        .where(eq(settings.id, 1))
+        .returning();
+      return drawSkipFromRow(updated!, now);
+    });
+  }
+
   async setSchedule(schedule: Schedule): Promise<Schedule> {
     return transaction(this.database, async (tx) => {
       const current = await currentSchedule(tx);
@@ -1411,6 +1499,7 @@ export class GameService {
           timezone: schedule.timezone,
           spinTime: schedule.time,
           weekdays: schedule.weekdays,
+          skipDrawDate: null,
         })
         .where(eq(settings.id, 1))
         .returning();
@@ -2616,11 +2705,13 @@ export class GameService {
         const evaluated = evaluateSchedule(now, schedule);
         const status = existing
           ? 'drawn'
-          : !evaluated.scheduled
-            ? 'not-scheduled'
-            : active.length
-              ? 'pending'
-              : 'no-options';
+          : settingsRow.skipDrawDate === clock.localDate
+            ? 'skipped'
+            : !evaluated.scheduled
+              ? 'not-scheduled'
+              : active.length
+                ? 'pending'
+                : 'no-options';
         return {
           serverTime: now.toISOString(),
           localDate: clock.localDate,
@@ -2637,6 +2728,7 @@ export class GameService {
             schedule,
             Boolean(existing),
             settingsRow.wheelSwitchTime,
+            settingsRow.skipDrawDate,
           ),
           result: existing ? drawView(existing) : null,
           odds,
@@ -2664,6 +2756,11 @@ export class GameService {
         .from(draws)
         .where(eq(draws.localDate, due.localDate));
       if (existing) return drawView(existing);
+      const [skip] = await tx
+        .select({ localDate: settings.skipDrawDate })
+        .from(settings)
+        .where(eq(settings.id, 1));
+      if (skip?.localDate === due.localDate) return null;
       const active = await tx
         .select()
         .from(places)

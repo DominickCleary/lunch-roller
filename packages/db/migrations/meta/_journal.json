@@ -78,6 +78,13 @@
       "when": 1792603319689,
       "tag": "0010_robust_magik",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792608119593,
+      "tag": "0011_petite_shatterstar",
+      "breakpoints": true
     }
   ]
 }

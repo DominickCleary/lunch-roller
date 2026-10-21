@@ -110,6 +110,11 @@ export function RulesHelp({
                   server draw decides the winner each scheduled day.
                 </p>
                 <p>
+                  An administrator can skip the next roll for an office event.
+                  Any open bets and staged influence for that date are refunded,
+                  and the wheel moves on to the following scheduled roll.
+                </p>
+                <p>
                   The winner’s weight is <strong>halved</strong> for future
                   draws. Weights carry over without resetting. Spins last{' '}
                   <strong>{preferences.wheelSpinSeconds} seconds</strong>;

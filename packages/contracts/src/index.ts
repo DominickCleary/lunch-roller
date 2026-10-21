@@ -135,6 +135,11 @@ export const schedule = z.object({
     .max(7)
     .refine((days) => new Set(days).size === days.length, 'Duplicate weekdays'),
 });
+export const drawSkip = z.object({
+  localDate: z.iso.date().nullable(),
+  cancellable: z.boolean(),
+});
+export const drawSkipRequest = z.object({ skip: z.boolean() });
 export const defaultSchedule = {
   timezone: 'Europe/Dublin',
   time: '11:30',
@@ -178,7 +183,13 @@ export const todayResponse = z.object({
     mode: z.enum(['result', 'upcoming']),
     localDate: z.iso.date(),
   }),
-  status: z.enum(['pending', 'drawn', 'no-options', 'not-scheduled']),
+  status: z.enum([
+    'pending',
+    'drawn',
+    'no-options',
+    'not-scheduled',
+    'skipped',
+  ]),
   result: draw.nullable(),
   odds: z.array(
     z.object({
@@ -472,3 +483,4 @@ export const errorResponse = z.object({
 export type TodayResponse = z.infer<typeof todayResponse>;
 export type PurchaseRequest = z.infer<typeof purchaseRequest>;
 export type Schedule = z.infer<typeof schedule>;
+export type DrawSkip = z.infer<typeof drawSkip>;

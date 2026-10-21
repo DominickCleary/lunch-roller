@@ -71,6 +71,7 @@ export function wheelDisplay(
   schedule: { timezone: string; weekdays: number[] },
   hasTodayResult: boolean,
   switchTime = '15:00',
+  skippedDate?: string | null,
 ): { mode: 'result' | 'upcoming'; localDate: string } {
   const clock = localClock(now, schedule.timezone);
   if (hasTodayResult && clock.time < switchTime)
@@ -83,12 +84,13 @@ export function wheelDisplay(
     number,
     number,
   ];
-  for (let offset = firstOffset; offset <= 7; offset++) {
+  for (let offset = firstOffset; offset <= 14; offset++) {
     const weekday = ((clock.weekday - 1 + offset) % 7) + 1;
     if (!schedule.weekdays.includes(weekday)) continue;
     // UTC is used only for calendar arithmetic, never to advance a zoned instant by 24h.
     const date = new Date(Date.UTC(year, month - 1, day + offset));
-    return { mode: 'upcoming', localDate: date.toISOString().slice(0, 10) };
+    const localDate = date.toISOString().slice(0, 10);
+    if (localDate !== skippedDate) return { mode: 'upcoming', localDate };
   }
   throw new Error('Schedule needs at least one valid weekday');
 }
@@ -98,21 +100,27 @@ export function nextBettingDate(
   now: Date,
   schedule: { timezone: string; weekdays: number[] },
   hasTodayDraw: boolean,
+  skippedDate?: string | null,
 ): string {
   const clock = localClock(now, schedule.timezone);
-  if (!hasTodayDraw && schedule.weekdays.includes(clock.weekday))
+  if (
+    !hasTodayDraw &&
+    schedule.weekdays.includes(clock.weekday) &&
+    clock.localDate !== skippedDate
+  )
     return clock.localDate;
   const [year, month, day] = clock.localDate.split('-').map(Number) as [
     number,
     number,
     number,
   ];
-  for (let offset = 1; offset <= 7; offset++) {
+  for (let offset = 1; offset <= 14; offset++) {
     const weekday = ((clock.weekday - 1 + offset) % 7) + 1;
     if (!schedule.weekdays.includes(weekday)) continue;
-    return new Date(Date.UTC(year, month - 1, day + offset))
+    const localDate = new Date(Date.UTC(year, month - 1, day + offset))
       .toISOString()
       .slice(0, 10);
+    if (localDate !== skippedDate) return localDate;
   }
   throw new Error('Schedule needs at least one valid weekday');
 }

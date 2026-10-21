@@ -163,13 +163,30 @@ async function exerciseAdminUiAndGame(
   const scheduleCard = page
     .locator('.admin-tool-card')
     .filter({ has: page.getByRole('heading', { name: 'Draw schedule' }) });
-  await scheduleCard.getByLabel('Time', { exact: true }).fill('00:00');
+  await scheduleCard.getByLabel('Time', { exact: true }).fill('23:59');
   await scheduleCard.getByLabel('Timezone').fill('UTC');
   const weekdays = scheduleCard.locator('input[type="checkbox"]');
   for (const checkbox of await weekdays.all()) {
     if (await checkbox.isChecked()) await checkbox.uncheck();
   }
   for (const checkbox of await weekdays.all()) await checkbox.check();
+  await scheduleCard.getByRole('button', { name: 'Save schedule' }).click();
+  await expect(page.getByText('Schedule saved.')).toBeVisible();
+
+  const drawSkipCard = page.getByTestId('admin-draw-skip');
+  const skipNextRoll = drawSkipCard.getByRole('button', {
+    name: 'Skip next roll',
+  });
+  await expect(skipNextRoll).toBeEnabled();
+  await skipNextRoll.click();
+  await expect(drawSkipCard).toContainText('is marked to be skipped');
+  await expect(
+    drawSkipCard.getByRole('button', { name: 'Skip set' }),
+  ).toBeDisabled();
+  await drawSkipCard.getByRole('button', { name: 'Undo skip' }).click();
+  await expect(drawSkipCard).toContainText('Use this for an office event');
+
+  await scheduleCard.getByLabel('Time', { exact: true }).fill('00:00');
   await scheduleCard.getByRole('button', { name: 'Save schedule' }).click();
   await expect(page.getByText('Schedule saved.')).toBeVisible();
 

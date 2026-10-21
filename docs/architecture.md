@@ -4,7 +4,7 @@
 
 Next.js serves the interactive wheel, participant picker, wallet and administration UI. API adapters validate shared Zod schemas and call `GameService` in `packages/db/src/operations.ts`. `GET /api/v1/health` returns 200 only when PostgreSQL is reachable and settings row 1 exists; failures return safe 503 JSON. It checks initialization, not exhaustive schema compatibility or scheduler progress.
 
-The worker checks the database and processes today's due draw every 30 seconds, emits structured logs, and optionally writes a health timestamp. Ticks do not overlap. SIGINT/SIGTERM wakes idle waits; bounded in-flight work finishes before shutdown. Configured push delivery runs in concurrent batches of ten with ten-second send timeouts. Missing or invalid VAPID settings disable delivery while retaining scheduling.
+The worker checks the database and processes today's due draw every 30 seconds, emits structured logs, and optionally writes a health timestamp. An admin's one-time skip is stored on the settings row by local draw date and checked under the same lock as a draw. Ticks do not overlap. SIGINT/SIGTERM wakes idle waits; bounded in-flight work finishes before shutdown. Configured push delivery runs in concurrent batches of ten with ten-second send timeouts. Missing or invalid VAPID settings disable delivery while retaining scheduling.
 
 The pure domain package calculates odds, selects from an injected [0,1) sample, halves weights, applies influence, computes mean new-place weights, validates spending and evaluates explicit instants against local schedules. Contracts declare request/response schemas. The database service composes these calculations with authoritative persistence and server cryptographic randomness.
 

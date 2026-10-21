@@ -79,6 +79,7 @@ afterAll(async () => {
           checkInPledge: originalSettings.checkInPledge,
           bettingCloseMinutes: originalSettings.bettingCloseMinutes,
           setupCompleted: originalSettings.setupCompleted,
+          skipDrawDate: originalSettings.skipDrawDate,
         })
         .where(eq(settings.id, 1));
   } finally {
@@ -280,4 +281,61 @@ it('refunds unsettled stakes when the draw schedule changes or a participant is 
     .where(eq(bets.id, disabledBet.bet!.id));
   expect(refundedForDisable[0]?.status).toBe('refunded');
   expect((await service.wallet(person.id)).balance).toBe(100);
+});
+
+it('skips the selected roll once, refunds its market, and resumes the next roll', async () => {
+  await service.setSchedule({
+    timezone: 'UTC',
+    time: '13:00',
+    weekdays: [1, 2, 3, 4, 5, 6, 7],
+  });
+  const beforeDraw = new Date('2200-01-03T12:00:00.000Z');
+  const current = await service.currentBets(person.id, beforeDraw);
+  expect(current.window.localDate).toBe('2200-01-03');
+  const marketRows = await database.db
+    .select()
+    .from(bettingMarkets)
+    .where(eq(bettingMarkets.localDate, current.window.localDate));
+  marketIds.push(...marketRows.map((row) => row.id));
+  const bet = await service.setBet(
+    person.id,
+    {
+      localDate: current.window.localDate,
+      placeId: restaurant.id,
+      stake: 7,
+    },
+    crypto.randomUUID(),
+    beforeDraw,
+  );
+  betIds.push(bet.bet!.id);
+
+  expect(await service.setDrawSkip(true, beforeDraw)).toEqual({
+    localDate: '2200-01-03',
+    cancellable: true,
+  });
+  const refunded = await database.db
+    .select()
+    .from(bets)
+    .where(eq(bets.id, bet.bet!.id));
+  expect(refunded[0]?.status).toBe('refunded');
+  expect((await service.wallet(person.id)).balance).toBe(100);
+  const nextMarket = await service.currentBets(person.id, beforeDraw);
+  expect(nextMarket.window.localDate).toBe('2200-01-04');
+  const nextMarketRows = await database.db
+    .select()
+    .from(bettingMarkets)
+    .where(eq(bettingMarkets.localDate, nextMarket.window.localDate));
+  marketIds.push(...nextMarketRows.map((row) => row.id));
+
+  const skippedAt = new Date('2200-01-03T13:00:00.000Z');
+  expect(await service.drawIfDue(skippedAt)).toBeNull();
+  expect((await service.today(skippedAt)).status).toBe('skipped');
+  expect((await service.today(skippedAt)).wheel.localDate).toBe('2200-01-04');
+  await expect(service.setDrawSkip(false, skippedAt)).rejects.toMatchObject({
+    code: 'DRAW_SKIP_NOT_CANCELLABLE',
+  });
+
+  const next = await service.drawIfDue(new Date('2200-01-04T13:00:00.000Z'));
+  if (next) drawIds.push(next.id);
+  expect(next?.localDate).toBe('2200-01-04');
 });

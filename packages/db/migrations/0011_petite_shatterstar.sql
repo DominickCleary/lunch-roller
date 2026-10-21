@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "skip_draw_date" date;

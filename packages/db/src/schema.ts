@@ -107,6 +107,7 @@ export const settings = pgTable(
       .array()
       .default(sql`ARRAY[1,2,3,4,5]`)
       .notNull(),
+    skipDrawDate: date('skip_draw_date'),
   },
   (t) => [
     check(

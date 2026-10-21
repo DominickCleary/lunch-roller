@@ -89,4 +89,16 @@ describe('wheelDisplay', () => {
       ),
     ).toEqual({ mode: 'upcoming', localDate: '2026-04-10' });
   });
+
+  it('moves the wheel preview past a one-time skipped roll', () => {
+    expect(
+      wheelDisplay(
+        new Date('2026-04-08T10:00:00Z'),
+        { timezone: 'UTC', weekdays: [1, 3, 5] },
+        false,
+        '15:00',
+        '2026-04-08',
+      ),
+    ).toEqual({ mode: 'upcoming', localDate: '2026-04-10' });
+  });
 });

@@ -56,6 +56,8 @@ GET `/setup` returns `{ completed, participantCount, placeCount }`. POST `/admin
 | PATCH /admin/places/:id        | updatePlace            | place                                                      | Admin                                          |
 | GET /admin/schedule            | —                      | schedule                                                   | Admin                                          |
 | PUT /admin/schedule            | schedule               | schedule                                                   | Admin                                          |
+| GET /admin/draw-skip           | —                      | `{ localDate: date or null, cancellable: boolean }`        | Admin                                          |
+| PUT /admin/draw-skip           | `{ skip: boolean }`    | `{ localDate: date or null, cancellable: boolean }`        | Admin; marks or cancels the one-time skip      |
 | POST /admin/token-corrections  | tokenCorrection        | walletResponse                                             | Admin                                          |
 
 Participant calls use `X-Participant-Id`; no member authentication is claimed. Admin calls use a separate server-verified cookie. Do not implement admin authorization through the name picker.

@@ -37,6 +37,8 @@ import {
   transferResponse,
   refundInfluenceRequest,
   setPlaceWeightRequest,
+  drawSkip,
+  drawSkipRequest,
 } from '@lunch/contracts';
 import {
   createHash,
@@ -506,6 +508,12 @@ async function dispatch(request: NextRequest, context: Context) {
       return response(
         await game.setSchedule(parse(scheduleSchema, await body(request))),
       );
+    if (route === '/admin/draw-skip' && method === 'GET')
+      return response(drawSkip.parse(await game.getDrawSkip()));
+    if (route === '/admin/draw-skip' && method === 'PUT') {
+      const { skip } = parse(drawSkipRequest, await body(request));
+      return response(drawSkip.parse(await game.setDrawSkip(skip)));
+    }
     if (route === '/admin/token-corrections' && method === 'POST')
       return response(
         await game.correctTokens(

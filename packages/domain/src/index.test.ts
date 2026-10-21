@@ -39,6 +39,26 @@ it('uses scheduled local dates and computes betting cutoffs across midnight', ()
   });
 });
 
+it('moves the next betting date past a one-time skipped roll', () => {
+  const schedule = { timezone: 'UTC', weekdays: [1, 2, 3, 4, 5, 6, 7] };
+  expect(
+    nextBettingDate(
+      new Date('2026-10-21T08:00:00Z'),
+      schedule,
+      false,
+      '2026-10-21',
+    ),
+  ).toBe('2026-10-22');
+  expect(
+    nextBettingDate(
+      new Date('2026-10-21T08:00:00Z'),
+      schedule,
+      false,
+      '2026-10-23',
+    ),
+  ).toBe('2026-10-21');
+});
+
 const places = [
   { id: 'a', logWeight: Math.log(1) },
   { id: 'b', logWeight: Math.log(3) },

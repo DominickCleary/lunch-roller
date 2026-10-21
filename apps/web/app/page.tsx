@@ -19,6 +19,7 @@ import type {
   ParticipantRemoval,
   Place,
   Schedule,
+  DrawSkip,
   SetupStatus,
   TodayResponse,
   WalletResponse,
@@ -404,6 +405,10 @@ export default function Home() {
     time: '11:30',
     weekdays: [1, 2, 3, 4, 5],
   });
+  const [drawSkip, setDrawSkip] = useState<DrawSkip>({
+    localDate: null,
+    cancellable: false,
+  });
   const [preferences, setPreferences] = useState<GamePreferences>(
     defaultGamePreferences,
   );
@@ -546,6 +551,7 @@ export default function Home() {
       savedPreferences,
       savedEconomy,
       savedHealthRule,
+      savedDrawSkip,
     ] = await Promise.all([
       request<{ participants: Participant[] }>('/admin/participants'),
       request<{ places: Place[] }>('/admin/places'),
@@ -555,6 +561,7 @@ export default function Home() {
       request<GamePreferences>('/admin/preferences'),
       request<RestaurantEconomySettings>('/admin/economy'),
       request<HealthRuleSettings>('/admin/health-rule'),
+      request<DrawSkip>('/admin/draw-skip'),
     ]);
     setAllParticipants(people.participants);
     const balanceMap = Object.fromEntries(
@@ -593,6 +600,7 @@ export default function Home() {
       ),
     );
     setSchedule(savedSchedule);
+    setDrawSkip(savedDrawSkip);
     setPreferences(savedPreferences);
     setEconomy(savedEconomy);
     setAdmin(true);
@@ -1185,7 +1193,10 @@ export default function Home() {
       await request(route, { method, body: json(payload), headers });
       await refreshAdmin();
       const status = await loadSetupStatus();
-      if (status.completed) await refresh(participantId);
+      if (status.completed) {
+        await refresh(participantId);
+        if (route === '/admin/draw-skip') await refreshBets(participantId);
+      }
       setNotice(done);
       if (
         route === '/admin/token-corrections' ||
@@ -1859,7 +1870,9 @@ export default function Home() {
                         ? `Replaying today's saved result for ${today?.result?.localDate ?? ''}`
                         : today?.wheel.mode === 'result'
                           ? `Today's committed result is ${drawnPlace ?? 'saved'} for ${wheelTargetLabel}`
-                          : `Live odds for the next scheduled draw on ${wheelTargetLabel}`
+                          : today?.status === 'skipped'
+                            ? `Today's roll is skipped for an event; the next roll is ${wheelTargetLabel}`
+                            : `Live odds for the next scheduled draw on ${wheelTargetLabel}`
                   }
                 >
                   <div
@@ -1940,7 +1953,9 @@ export default function Home() {
                         ? "REPLAYING TODAY'S RESULT"
                         : today?.wheel.mode === 'result'
                           ? "TODAY'S RESULT"
-                          : 'LIVE ODDS FOR NEXT DRAW'}
+                          : today?.status === 'skipped'
+                            ? 'ROLL SKIPPED · NEXT DRAW'
+                            : 'LIVE ODDS FOR NEXT DRAW'}
                   </span>
                   <strong
                     role="status"
@@ -1960,9 +1975,11 @@ export default function Home() {
                           ? drawnPlace
                             ? `${drawnPlace} · ${wheelTargetLabel}`
                             : wheelTargetLabel
-                          : wheelTargetLabel
-                            ? `Scheduled for ${wheelTargetLabel} at ${today?.schedule.time ?? ''}`
-                            : 'Loading schedule'}
+                          : today?.status === 'skipped'
+                            ? `Roll skipped for an event · next roll ${wheelTargetLabel} at ${today.schedule.time}`
+                            : wheelTargetLabel
+                              ? `Scheduled for ${wheelTargetLabel} at ${today?.schedule.time ?? ''}`
+                              : 'Loading schedule'}
                   </strong>
                   {today?.result && (
                     <button
@@ -3223,7 +3240,8 @@ export default function Home() {
                   <h3>Draw schedule</h3>
                   <p className="muted">
                     Changing the schedule refunds any open bets so they are not
-                    silently moved to a different draw.
+                    silently moved to a different draw, and clears a pending
+                    one-time skip.
                   </p>
                   <form
                     onSubmit={(event) => {
@@ -3286,6 +3304,47 @@ export default function Home() {
                       Save schedule
                     </button>
                   </form>
+                  <div data-testid="admin-draw-skip">
+                    <p className="muted">
+                      {drawSkip.localDate
+                        ? `The roll scheduled for ${drawSkip.localDate} is marked to be skipped. Any open bets on it have been refunded.`
+                        : 'Use this for an office event or another day when the team will not be drawing lunch.'}
+                    </p>
+                    <div className="inline-form">
+                      <button
+                        className="button button-light"
+                        type="button"
+                        disabled={busy || Boolean(drawSkip.localDate)}
+                        onClick={() =>
+                          void adminSave(
+                            '/admin/draw-skip',
+                            'PUT',
+                            { skip: true },
+                            'The next scheduled roll will be skipped.',
+                          )
+                        }
+                      >
+                        {drawSkip.localDate ? 'Skip set' : 'Skip next roll'}
+                      </button>
+                      {drawSkip.localDate && (
+                        <button
+                          className="button button-dark"
+                          type="button"
+                          disabled={busy || !drawSkip.cancellable}
+                          onClick={() =>
+                            void adminSave(
+                              '/admin/draw-skip',
+                              'PUT',
+                              { skip: false },
+                              'The pending roll skip was cancelled.',
+                            )
+                          }
+                        >
+                          Undo skip
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
                 <div
                   className="admin-tool-card"
