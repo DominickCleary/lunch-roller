@@ -233,6 +233,7 @@ export const walletResponse = z.object({
 });
 export const dailyActivityQuery = z.object({
   date: z.iso.date().optional(),
+  scope: z.enum(['day', 'draw']).optional(),
 });
 export const drawInfluencePosition = z.object({
   placeId: id,
@@ -258,6 +259,20 @@ export const dailyActivityResponse = z.object({
     betView.extend({
       participantId: id,
       participantName: name,
+      currentProbability: z
+        .number()
+        .finite()
+        .min(0)
+        .max(1)
+        .nullable()
+        .optional(),
+      estimatedWinPayout: z
+        .number()
+        .int()
+        .nonnegative()
+        .max(2147483647)
+        .nullable()
+        .optional(),
     }),
   ),
   positions: z.array(drawInfluencePosition).optional(),

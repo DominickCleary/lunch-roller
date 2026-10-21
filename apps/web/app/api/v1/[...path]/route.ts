@@ -313,10 +313,16 @@ async function dispatch(request: NextRequest, context: Context) {
     if (route === '/activity' && method === 'GET') {
       const query = parse(dailyActivityQuery, {
         date: request.nextUrl.searchParams.get('date') ?? undefined,
+        scope: request.nextUrl.searchParams.get('scope') ?? undefined,
       });
       return response(
         dailyActivityResponse.parse(
-          await game.dailyActivity(participantId(request), query.date),
+          await game.dailyActivity(
+            participantId(request),
+            query.date,
+            undefined,
+            query.scope,
+          ),
         ),
       );
     }

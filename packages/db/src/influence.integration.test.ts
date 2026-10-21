@@ -647,6 +647,10 @@ it('refunds pending units on schedule changes, deactivation and exact odds overr
   ).toBeCloseTo(baseWeight);
   await service.saveParticipant({ active: true }, owner.id);
 
+  const baseTotal = (await service.listPlaces()).reduce(
+    (sum, place) => sum + Math.exp(place.logWeight),
+    0,
+  );
   await service.changeInfluence(owner.id, body, crypto.randomUUID(), now);
   const active = await service.listPlaces();
   const overridden = await service.setRestaurantOdds({
@@ -656,6 +660,12 @@ it('refunds pending units on schedule changes, deactivation and exact odds overr
     })),
   });
   expect((await service.wallet(owner.id)).balance).toBe(baseBalance);
+  expect(
+    (await service.listPlaces()).reduce(
+      (sum, place) => sum + Math.exp(place.logWeight),
+      0,
+    ),
+  ).toBeCloseTo(baseTotal);
   expect(
     overridden.places.every(
       (place) => Math.abs(place.percent - 100 / active.length) < 0.000001,

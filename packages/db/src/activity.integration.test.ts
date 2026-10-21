@@ -3,6 +3,7 @@ import { afterAll, expect, it } from 'vitest';
 import { eq, inArray, sql } from 'drizzle-orm';
 import { createDatabase } from './index';
 import { GameService } from './operations';
+import { probabilities } from '@lunch/domain';
 import {
   bettingMarkets,
   bets,
@@ -36,6 +37,82 @@ const secondPlace = await service.savePlace({
 const addedPlaceIds: string[] = [];
 const marketIds: string[] = [];
 const betIds: string[] = [];
+
+it('quotes open bets at live odds, refreshes changed weights and caps estimated returns', async () => {
+  await service.savePlace({ active: true }, secondPlace.id);
+  const [market] = await database.db
+    .insert(bettingMarkets)
+    .values({
+      localDate: '2200-01-02',
+      timezone: 'UTC',
+      scheduledTime: '12:00',
+      cutoffMinutes: 5,
+    })
+    .returning();
+  marketIds.push(market!.id);
+  const [bet] = await database.db
+    .insert(bets)
+    .values({
+      marketId: market!.id,
+      localDate: market!.localDate,
+      participantId: activePerson.id,
+      placeId: secondPlace.id,
+      placeName: secondPlace.name,
+      stake: 12,
+      status: 'open',
+    })
+    .returning();
+  betIds.push(bet!.id);
+  const quote = async () =>
+    (await service.dailyActivity(activePerson.id, market!.localDate)).bets.find(
+      (row) => row.id === bet!.id,
+    )!;
+  const expectedProbability = async () =>
+    probabilities(await service.listPlaces()).find(
+      (row) => row.id === secondPlace.id,
+    )!.probability;
+  const before = await quote();
+  expect(before.currentProbability).toBeCloseTo(await expectedProbability());
+  expect(before.estimatedWinPayout).toBe(
+    Math.floor(12 / before.currentProbability!),
+  );
+  await service.setPlaceWeight({ placeId: secondPlace.id, weight: 10 });
+  const changed = await quote();
+  expect(changed.currentProbability).toBeCloseTo(await expectedProbability());
+  expect(changed.currentProbability).not.toBeCloseTo(
+    before.currentProbability!,
+  );
+  expect(changed.estimatedWinPayout).toBe(
+    Math.floor(12 / changed.currentProbability!),
+  );
+  await database.db
+    .update(places)
+    .set({ logWeight: -100 })
+    .where(eq(places.id, secondPlace.id));
+  expect((await quote()).estimatedWinPayout).toBe(2147483647);
+  await database.db
+    .update(places)
+    .set({ logWeight: -10000 })
+    .where(eq(places.id, secondPlace.id));
+  expect(await quote()).toMatchObject({
+    currentProbability: 0,
+    estimatedWinPayout: null,
+  });
+  await database.db
+    .update(bets)
+    .set({ status: 'lost', probability: 0.25, payout: 0 })
+    .where(eq(bets.id, bet!.id));
+  expect(await quote()).toMatchObject({
+    probability: 0.25,
+    currentProbability: null,
+    estimatedWinPayout: null,
+    payout: 0,
+  });
+  await database.db
+    .update(places)
+    .set({ logWeight: secondPlace.logWeight })
+    .where(eq(places.id, secondPlace.id));
+});
 
 afterAll(async () => {
   try {

@@ -23,6 +23,44 @@ import {
   currentInfluenceResponse,
 } from './index';
 
+it('accepts optional live bet quotes and rejects invalid probabilities and returns', () => {
+  const quote = dailyActivityResponse.shape.bets.element;
+  const id = 'ca982f50-f7c6-4eb3-8572-28fa01106ed7';
+  const base = {
+    id,
+    participantId: id,
+    participantName: 'Alex',
+    placeId: id,
+    placeName: 'Sushi',
+    localDate: '2026-10-21',
+    stake: 12,
+    status: 'open',
+    probability: null,
+    payout: null,
+    updatedAt: '2026-10-21T10:00:00Z',
+    settledAt: null,
+  };
+  expect(quote.safeParse(base).success).toBe(true);
+  expect(
+    quote.parse({ ...base, currentProbability: 0.25, estimatedWinPayout: 48 }),
+  ).toMatchObject({ currentProbability: 0.25, estimatedWinPayout: 48 });
+  expect(
+    quote.safeParse({
+      ...base,
+      currentProbability: null,
+      estimatedWinPayout: null,
+    }).success,
+  ).toBe(true);
+  for (const currentProbability of [-0.1, 1.1, NaN, Infinity])
+    expect(quote.safeParse({ ...base, currentProbability }).success).toBe(
+      false,
+    );
+  for (const estimatedWinPayout of [-1, 1.5, 2147483648, Infinity])
+    expect(quote.safeParse({ ...base, estimatedWinPayout }).success).toBe(
+      false,
+    );
+});
+
 it('limits influence edits to a unit of either direction on an explicit draw date', () => {
   const base = {
     localDate: '2026-10-21',
@@ -82,6 +120,13 @@ it('accepts enriched activity while supplying defaults for saved wallet receipts
     }).entries[0]?.placeName,
   ).toBe('Sushi');
   expect(dailyActivityQuery.parse({})).toEqual({});
+  expect(dailyActivityQuery.parse({ scope: 'draw' })).toEqual({
+    scope: 'draw',
+  });
+  expect(dailyActivityQuery.parse({ scope: 'day' })).toEqual({ scope: 'day' });
+  expect(dailyActivityQuery.safeParse({ scope: 'invalid' }).success).toBe(
+    false,
+  );
   expect(dailyActivityQuery.safeParse({ date: '2026-02-30' }).success).toBe(
     false,
   );

@@ -69,6 +69,8 @@ const sample: DailyActivityResponse = {
       status: 'open',
       payout: null,
       probability: null,
+      currentProbability: 0.25,
+      estimatedWinPayout: 48,
       updatedAt: `${date}T10:30:00.000Z`,
       settledAt: null,
     },
@@ -118,6 +120,13 @@ test.beforeEach(async ({ page, request }) => {
     (id) => localStorage.setItem('lunch-roller.participant-id', id),
     participantId,
   );
+  await page.route('**/api/v1/bets/current', async (route) => {
+    const actual = await route.fetch();
+    const body = await actual.json();
+    await route.fulfill({
+      json: { ...body, window: { ...body.window, localDate: date } },
+    });
+  });
   await page.route('**/api/v1/today', async (route) => {
     const actual = await route.fetch();
     const body: TodayResponse = await actual.json();
@@ -132,6 +141,78 @@ test.beforeEach(async ({ page, request }) => {
       },
     });
   });
+});
+
+test('draw and calendar views keep tomorrow positions and bets on the correct dates', async ({
+  page,
+}) => {
+  const nextDate = '2026-10-22';
+  await page.route('**/api/v1/bets/current', async (route) => {
+    const actual = await route.fetch();
+    const body = await actual.json();
+    await route.fulfill({
+      json: { ...body, window: { ...body.window, localDate: nextDate } },
+    });
+  });
+  await page.route('**/api/v1/activity?*', async (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    const selected = params.get('date')!;
+    const scope = params.get('scope');
+    const actions = sample.entries.map((entry, index) => ({
+      ...entry,
+      influenceLocalDate: nextDate,
+      createdAt: index < 2 ? `${date}T20:00:00Z` : `${nextDate}T08:00:00Z`,
+    }));
+    await route.fulfill({
+      json: {
+        ...sample,
+        localDate: selected,
+        entries:
+          scope === 'draw'
+            ? selected === nextDate
+              ? actions
+              : []
+            : actions.filter((entry) => entry.createdAt.startsWith(selected)),
+        healthBonuses: selected === date ? sample.healthBonuses : [],
+        positions: selected === nextDate ? sample.positions : [],
+        bets:
+          selected === nextDate
+            ? sample.bets.map((bet) => ({ ...bet, localDate: nextDate }))
+            : [],
+      },
+    });
+  });
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Daily activity' }).click();
+  const panel = page.getByRole('tabpanel', { name: 'Daily activity' });
+  await expect(panel.getByLabel('Draw date')).toHaveValue(nextDate);
+  const board = panel.locator('.bet-board-panel');
+  await expect(board).toContainText(`draw dated ${nextDate}`);
+  await expect(board.locator('.bet-board')).toContainText('12 tokens');
+  await expect(board.locator('.bet-board')).toContainText('Open');
+  await expect(board.locator('.bet-board')).toContainText('3/1 · 25.0%');
+  await expect(board.locator('.bet-board')).toContainText('48 tokens');
+  await expect(panel.locator('.activity-timeline li')).toHaveCount(4);
+  await expect(panel.locator('.activity-trend-chart')).toContainText('21 Oct');
+  await expect(panel.locator('.activity-trend-chart')).toContainText('22 Oct');
+  await panel.getByRole('button', { name: 'Today', exact: true }).click();
+  await expect(panel.getByLabel('Draw date')).toHaveValue(date);
+  await expect(board).toContainText(`draw dated ${date}`);
+  await expect(board.locator('.bet-board')).toHaveCount(0);
+  await expect(panel.locator('.activity-timeline li')).toHaveCount(0);
+  await expect(
+    panel.getByRole('region', { name: 'Draw influence positions' }),
+  ).not.toContainText('↑ 2');
+  await panel.getByLabel('View', { exact: true }).selectOption('day');
+  await expect(panel.getByLabel('Activity date')).toHaveValue(date);
+  await expect(panel.locator('.activity-timeline li')).toHaveCount(2);
+  await expect(board.locator('.bet-board')).toHaveCount(0);
+  await expect(
+    panel.getByRole('region', { name: 'Draw influence positions' }),
+  ).toHaveCount(0);
+  await panel.getByLabel('View', { exact: true }).selectOption('draw');
+  await expect(panel.getByLabel('Draw date')).toHaveValue(nextDate);
+  await expect(board.locator('.bet-board')).toContainText('12 tokens');
 });
 
 test('shows the schedule, charts, coalitions and bet board without changing identity', async ({
@@ -282,13 +363,13 @@ test('retries failures and rejects a delayed response for a previous date', asyn
     'Sushi',
   );
   delay = true;
-  await panel.getByLabel('Activity date').fill('2026-10-20');
+  await panel.getByLabel('Draw date').fill('2026-10-20');
   await expect.poll(() => Boolean(release)).toBe(true);
-  await panel.getByLabel('Activity date').fill('2026-10-19');
+  await panel.getByLabel('Draw date').fill('2026-10-19');
   await expect(
     panel.getByText('No bets are recorded for this draw date.'),
   ).toBeVisible();
   release?.();
-  await expect(panel.getByLabel('Activity date')).toHaveValue('2026-10-19');
+  await expect(panel.getByLabel('Draw date')).toHaveValue('2026-10-19');
   await expect(panel.locator('.bet-board-panel .bet-board')).toHaveCount(0);
 });

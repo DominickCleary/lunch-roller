@@ -9,6 +9,7 @@ import type {
 import './daily-activity.css';
 import { HealthBonusSummary } from './health-label';
 import { DrawPositions } from './draw-positions';
+import { approximateOdds } from '../lib/odds';
 
 type ActivityResult = {
   key: string;
@@ -39,15 +40,6 @@ const actionLabel: Record<string, string> = {
 const tokenCount = (value: number) =>
   new Intl.NumberFormat('en-GB').format(value);
 
-function localHour(instant: string, timezone: string) {
-  const hour = new Intl.DateTimeFormat('en-GB', {
-    timeZone: timezone,
-    hour: '2-digit',
-    hourCycle: 'h23',
-  }).format(new Date(instant));
-  return Number(hour) % 24;
-}
-
 function dateLabel(date: string) {
   return new Intl.DateTimeFormat('en-GB', {
     weekday: 'long',
@@ -68,32 +60,54 @@ function ActivityTrend({
   entries: ActionEntry[];
   timezone: string;
 }) {
-  const hours = Array.from({ length: 24 }, () => ({ boost: 0, reduce: 0 }));
-  for (const entry of entries) {
-    if (entry.kind !== 'boost' && entry.kind !== 'reduce') continue;
-    const hour = localHour(entry.createdAt, timezone);
-    hours[hour]![entry.kind] += Math.abs(entry.delta);
-  }
-  const points = [{ boost: 0, reduce: 0 }];
-  for (const hour of hours) {
+  const purchases = entries
+    .filter((entry) => entry.kind === 'boost' || entry.kind === 'reduce')
+    .slice()
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  if (!purchases.length)
+    return (
+      <p className="activity-empty">
+        No influence purchases for this selection.
+      </p>
+    );
+  const start = new Date(purchases[0]!.createdAt).getTime();
+  const end = Math.max(
+    start + 60_000,
+    new Date(purchases[purchases.length - 1]!.createdAt).getTime(),
+  );
+  const points = [{ boost: 0, reduce: 0, time: start }];
+  for (const entry of purchases) {
     const prior = points[points.length - 1]!;
     points.push({
-      boost: prior.boost + hour.boost,
-      reduce: prior.reduce + hour.reduce,
+      boost: prior.boost + (entry.kind === 'boost' ? Math.abs(entry.delta) : 0),
+      reduce:
+        prior.reduce + (entry.kind === 'reduce' ? Math.abs(entry.delta) : 0),
+      time: new Date(entry.createdAt).getTime(),
     });
   }
+  const timestamp = (time: number) =>
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: timezone,
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).format(new Date(time));
   const peak = Math.max(
     1,
     ...points.flatMap((point) => [point.boost, point.reduce]),
   );
-  const x = (index: number) => 54 + (index / 24) * 620;
+  const x = (time: number) => 54 + ((time - start) / (end - start)) * 620;
   const y = (value: number) => 174 - (value / peak) * 142;
   const path = (key: 'boost' | 'reduce') =>
     points
-      .map(
-        (point, index) => `${index ? 'L' : 'M'} ${x(index)} ${y(point[key])}`,
+      .map((point, index) =>
+        index
+          ? `H ${x(point.time)} V ${y(point[key])}`
+          : `M ${x(point.time)} ${y(point[key])}`,
       )
-      .join(' ');
+      .join(' ') + ' H 674';
 
   return (
     <div className="activity-chart-scroll">
@@ -107,9 +121,9 @@ function ActivityTrend({
           Cumulative boost and anti-boost tokens spent
         </title>
         <desc id="trend-desc">
-          The lines show tokens spent over the selected local day, grouped by
-          local hour, before refunds. They describe token actions, not
-          restaurant odds or outstanding positions.
+          The lines show tokens spent in timestamp order for this selection,
+          before refunds. They describe token actions, not restaurant odds or
+          outstanding positions.
         </desc>
         {[0, 1, 2, 3].map((step) => {
           const value = Math.round((peak * step) / 3);
@@ -130,15 +144,20 @@ function ActivityTrend({
         >
           Tokens spent
         </text>
-        {[0, 6, 12, 18, 24].map((hour) => (
-          <g key={hour} className="activity-axis-label">
-            <line x1={x(hour)} x2={x(hour)} y1="32" y2="176" />
+        {[0, 1, 2, 3, 4].map((step) => (
+          <g key={step} className="activity-axis-label">
+            <line
+              x1={x(start + ((end - start) * step) / 4)}
+              x2={x(start + ((end - start) * step) / 4)}
+              y1="32"
+              y2="176"
+            />
             <text
-              x={x(hour)}
+              x={x(start + ((end - start) * step) / 4)}
               y="198"
-              textAnchor={hour === 0 ? 'start' : hour === 24 ? 'end' : 'middle'}
+              textAnchor={step === 0 ? 'start' : step === 4 ? 'end' : 'middle'}
             >
-              {String(hour).padStart(2, '0')}:00
+              {timestamp(start + ((end - start) * step) / 4)}
             </text>
           </g>
         ))}
@@ -161,12 +180,11 @@ function ActivityTrend({
       </div>
       <table className="visually-hidden">
         <caption>
-          Cumulative boost and anti-boost tokens spent at the end of each local
-          hour
+          Cumulative boost and anti-boost tokens spent after each purchase
         </caption>
         <thead>
           <tr>
-            <th>Hour</th>
+            <th>Action time</th>
             <th>Boosted tokens</th>
             <th>Anti-boosted tokens</th>
           </tr>
@@ -174,7 +192,7 @@ function ActivityTrend({
         <tbody>
           {points.slice(1).map((point, index) => (
             <tr key={index}>
-              <th>{String(index + 1).padStart(2, '0')}:00</th>
+              <th>{timestamp(point.time)}</th>
               <td>{point.boost}</td>
               <td>{point.reduce}</td>
             </tr>
@@ -356,6 +374,9 @@ function CoalitionMatrix({ entries }: { entries: ActionEntry[] }) {
 function formatInstant(instant: string, timezone: string) {
   return new Intl.DateTimeFormat('en-GB', {
     timeZone: timezone,
+    day: '2-digit',
+    month: 'short',
+    timeZoneName: 'short',
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(instant));
@@ -374,16 +395,17 @@ export function DailyActivity({
   localDate: string;
   nextDrawDate: string;
 }) {
-  const [selectedDate, setSelectedDate] = useState(localDate);
+  const [scope, setScope] = useState<'day' | 'draw'>('draw');
+  const [selectedDate, setSelectedDate] = useState(nextDrawDate);
   const [result, setResult] = useState<ActivityResult | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [personFilter, setPersonFilter] = useState('all');
   const [placeFilter, setPlaceFilter] = useState('all');
-  const requestKey = `${participantId}:${selectedDate}`;
+  const requestKey = `${participantId}:${scope}:${selectedDate}`;
 
   useEffect(() => {
-    setSelectedDate(localDate);
-  }, [localDate]);
+    setSelectedDate(scope === 'draw' ? nextDrawDate : localDate);
+  }, [scope, nextDrawDate, localDate]);
 
   useEffect(() => {
     if (!participantId || !selectedDate) return;
@@ -397,25 +419,35 @@ export function DailyActivity({
           : { key: requestKey, refreshing: true },
       );
       try {
-        const response = await fetch(
-          `/api/v1/activity?date=${encodeURIComponent(selectedDate)}`,
-          {
-            headers: { 'X-Participant-Id': participantId },
-            cache: 'no-store',
-            signal: controller.signal,
-          },
-        );
-        if (!response.ok)
-          throw new Error(
-            response.status === 403 || response.status === 404
-              ? 'Your selected name is no longer available. Choose an active name and try again.'
-              : 'Could not load daily activity. Check your connection and retry.',
+        const loadDay = async (date: string) => {
+          const response = await fetch(
+            `/api/v1/activity?date=${encodeURIComponent(date)}&scope=${scope}`,
+            {
+              headers: { 'X-Participant-Id': participantId },
+              cache: 'no-store',
+              signal: controller.signal,
+            },
           );
-        const data = dailyActivityResponse.parse(await response.json());
-        if (data.localDate !== selectedDate)
-          throw new Error('The server returned a different day. Please retry.');
+          if (!response.ok)
+            throw new Error(
+              response.status === 403 || response.status === 404
+                ? 'Your selected name is no longer available. Choose an active name and try again.'
+                : 'Could not load daily activity. Check your connection and retry.',
+            );
+          const data = dailyActivityResponse.parse(await response.json());
+          if (data.localDate !== date)
+            throw new Error(
+              'The server returned a different day. Please retry.',
+            );
+          return data;
+        };
+        const data = await loadDay(selectedDate);
         if (!controller.signal.aborted && sequence === requestSequence)
-          setResult({ key: requestKey, data, refreshing: false });
+          setResult({
+            key: requestKey,
+            data,
+            refreshing: false,
+          });
       } catch (error) {
         if (controller.signal.aborted || sequence !== requestSequence) return;
         setResult((previous) =>
@@ -445,10 +477,11 @@ export function DailyActivity({
       controller.abort();
       window.clearInterval(timer);
     };
-  }, [participantId, requestKey, retryCount, selectedDate]);
+  }, [participantId, requestKey, retryCount, selectedDate, scope]);
 
   const current = result?.key === requestKey ? result : null;
   const data = current?.data;
+  const board = data;
   const timezone = data?.timezone ?? 'UTC';
   const entries = data?.entries ?? emptyEntries;
   const boosts = entries
@@ -503,7 +536,11 @@ export function DailyActivity({
     >
       <header className="daily-activity-header">
         <div>
-          <p className="activity-eyebrow">The day’s token economy</p>
+          <p className="activity-eyebrow">
+            {scope === 'draw'
+              ? 'Activity for one draw'
+              : 'Actions by calendar day'}
+          </p>
           <h2>Activity room</h2>
           <p className="activity-date-caption">
             {drawDateLabel}
@@ -511,7 +548,22 @@ export function DailyActivity({
           </p>
         </div>
         <div className="activity-date-controls">
-          <label htmlFor="activity-date">Activity date</label>
+          <label htmlFor="activity-scope">View</label>
+          <select
+            id="activity-scope"
+            value={scope}
+            onChange={(event) => {
+              setScope(event.target.value as 'day' | 'draw');
+              setPersonFilter('all');
+              setPlaceFilter('all');
+            }}
+          >
+            <option value="draw">Draw activity</option>
+            <option value="day">Calendar day</option>
+          </select>
+          <label htmlFor="activity-date">
+            {scope === 'draw' ? 'Draw date' : 'Activity date'}
+          </label>
           <input
             id="activity-date"
             type="date"
@@ -569,6 +621,11 @@ export function DailyActivity({
         )
       ) : (
         <>
+          <p className="activity-chart-note">
+            {scope === 'draw'
+              ? `Boosts, reductions, refunds and bets targeting ${selectedDate}, including actions made on earlier days.`
+              : `Token actions made on ${selectedDate}. The bet board shows bets targeting that date; draw dates are shown on individual actions.`}
+          </p>
           <div className="activity-summary" aria-label="Daily activity summary">
             <article>
               <span>Boosted</span>
@@ -591,28 +648,29 @@ export function DailyActivity({
             </article>
             <article>
               <span>Bet slips</span>
-              <strong>{tokenCount(data.bets.length)}</strong>
+              <strong>{tokenCount(board?.bets.length ?? 0)}</strong>
               <p>on the draw dated {selectedDate}</p>
             </article>
           </div>
-          {data.positions && (
+          {scope === 'draw' && data.positions && (
             <DrawPositions
               positions={data.positions}
               localDate={selectedDate}
             />
           )}
-          {data.healthBonuses?.map((event) => (
-            <HealthBonusSummary
-              key={event.drawId}
-              bonus={event.bonus}
-              winner={event.placeName}
-            />
-          ))}
+          {scope === 'draw' &&
+            data.healthBonuses?.map((event) => (
+              <HealthBonusSummary
+                key={event.drawId}
+                bonus={event.bonus}
+                winner={event.placeName}
+              />
+            ))}
           <div className="activity-dashboard-grid">
             <section className="activity-panel activity-trend-panel">
               <div className="activity-panel-heading">
                 <div>
-                  <h3>Influence through the day</h3>
+                  <h3>Influence over time</h3>
                   <p>When the group spent tokens to move restaurant weights</p>
                 </div>
                 <span className="activity-live-indicator">
@@ -626,8 +684,7 @@ export function DailyActivity({
                 <div>
                   <h3>Restaurants in the crossfire</h3>
                   <p>
-                    Today’s purchases before refunds; current positions are
-                    shown above
+                    Purchases before refunds; current positions are shown above
                   </p>
                 </div>
               </div>
@@ -637,7 +694,7 @@ export function DailyActivity({
           <section className="activity-panel activity-coalition-panel">
             <div className="activity-panel-heading">
               <div>
-                <h3>Who bought what today?</h3>
+                <h3>Who backed each restaurant?</h3>
                 <p>
                   Compare purchase activity before refunds; outstanding
                   positions are shown above
@@ -652,13 +709,12 @@ export function DailyActivity({
               <div>
                 <h3>Bet board</h3>
                 <p>
-                  Open and settled bets for the draw dated {selectedDate}. Bet
-                  history can refer to a different day from the token actions
-                  above.
+                  Open and settled bets for the draw dated {selectedDate}. Win
+                  payouts include the stake and use current odds until the draw.
                 </p>
               </div>
             </div>
-            {data.bets.length ? (
+            {board?.bets.length ? (
               <div className="activity-table-scroll">
                 <table className="bet-board">
                   <thead>
@@ -666,13 +722,15 @@ export function DailyActivity({
                       <th>Person</th>
                       <th>Restaurant</th>
                       <th>Stake</th>
+                      <th>Odds</th>
+                      <th>Est. win payout</th>
                       <th>Status</th>
                       <th>Payout</th>
                       <th>Updated</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {data.bets
+                    {board.bets
                       .slice()
                       .sort((a, b) =>
                         a.participantName.localeCompare(b.participantName),
@@ -682,6 +740,28 @@ export function DailyActivity({
                           <td>{bet.participantName}</td>
                           <td>{bet.placeName}</td>
                           <td>{tokenCount(bet.stake)} tokens</td>
+                          <td
+                            title={
+                              bet.status === 'open'
+                                ? 'Current odds; may change before the draw'
+                                : 'Final odds at settlement'
+                            }
+                          >
+                            {(() => {
+                              const probability =
+                                bet.status === 'open'
+                                  ? bet.currentProbability
+                                  : bet.probability;
+                              return probability == null
+                                ? '—'
+                                : `${approximateOdds(probability)} · ${(probability * 100).toFixed(1)}%`;
+                            })()}
+                          </td>
+                          <td>
+                            {bet.estimatedWinPayout == null
+                              ? '—'
+                              : `${tokenCount(bet.estimatedWinPayout)} tokens`}
+                          </td>
                           <td>
                             <span
                               className={`bet-status bet-status-${bet.status}`}
@@ -716,7 +796,11 @@ export function DailyActivity({
               <div>
                 <h3>Token actions</h3>
                 <p>
-                  Every ledger event recorded on {drawDateLabel}, in {timezone}
+                  {scope === 'draw'
+                    ? 'Actions targeting the draw on'
+                    : 'Actions recorded on'}{' '}
+                  {drawDateLabel}, in {timezone}. Times show when each action
+                  happened.
                 </p>
               </div>
               <span className="timeline-count">

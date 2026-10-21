@@ -272,11 +272,16 @@ async function tokenLedgerActivity(
   participantId?: string,
   localDate?: string,
   timezone?: string,
+  drawDate?: string,
 ) {
   const predicates = [];
   if (participantId)
     predicates.push(eq(tokenLedger.participantId, participantId));
-  if (localDate && timezone) {
+  if (drawDate) {
+    predicates.push(
+      sql`coalesce(influence_market.local_date, ${bettingMarkets.localDate}) = ${drawDate}::date`,
+    );
+  } else if (localDate && timezone) {
     predicates.push(
       sql`(${tokenLedger.createdAt} at time zone ${timezone})::date = ${localDate}::date`,
     );
@@ -912,7 +917,11 @@ export class GameService {
         'Restaurant odds changed by an administrator',
       );
       const active = await tx
-        .select({ id: places.id, name: places.name })
+        .select({
+          id: places.id,
+          name: places.name,
+          logWeight: places.logWeight,
+        })
         .from(places)
         .where(eq(places.active, true))
         .orderBy(asc(places.id));
@@ -929,6 +938,10 @@ export class GameService {
           'The active restaurant list changed. Refresh and try again.',
         );
       const total = supplied.reduce((sum, entry) => sum + entry.percent, 0);
+      // Refunds restore base weights first. Preserve their total in log space,
+      // including weights too small or large to exponentiate directly.
+      const logTotalWeight =
+        newPlaceLogWeight(active) + Math.log(active.length);
       for (const entry of supplied) {
         const weight = entry.percent / total;
         if (!Number.isFinite(weight) || weight <= 0)
@@ -939,7 +952,7 @@ export class GameService {
           );
         await tx
           .update(places)
-          .set({ logWeight: Math.log(weight) })
+          .set({ logWeight: logTotalWeight + Math.log(weight) })
           .where(eq(places.id, entry.placeId));
       }
       return this.listRestaurantOddsIn(tx);
@@ -1232,6 +1245,7 @@ export class GameService {
           placeId: bet.placeId,
           betId: bet.id,
           reason: 'Winning lunch bet payout',
+          createdAt: now,
         });
       await tx
         .update(bets)
@@ -1388,8 +1402,9 @@ export class GameService {
     participantId: string,
     date?: string,
     now = new Date(),
+    scope: 'day' | 'draw' = 'day',
   ): Promise<DailyActivityResponse> {
-    const parsed = dailyActivityQuery.safeParse({ date });
+    const parsed = dailyActivityQuery.safeParse({ date, scope });
     if (!parsed.success)
       fail(
         400,
@@ -1421,6 +1436,7 @@ export class GameService {
           undefined,
           localDate,
           configuration.timezone,
+          scope === 'draw' ? localDate : undefined,
         );
         const dayBets = await typedTx
           .select({
@@ -1437,6 +1453,12 @@ export class GameService {
           localDate,
           now,
         );
+        const liveOdds = probabilities(
+          await typedTx
+            .select({ id: places.id, logWeight: places.logWeight })
+            .from(places)
+            .where(eq(places.active, true)),
+        );
         return {
           localDate,
           timezone: configuration.timezone,
@@ -1446,11 +1468,26 @@ export class GameService {
             participantName: row.participantName,
           })),
           bets: dayBets.map(
-            ({ bet, participantId: ownerId, participantName }) => ({
-              ...betView(bet),
-              participantId: ownerId,
-              participantName,
-            }),
+            ({ bet, participantId: ownerId, participantName }) => {
+              const currentProbability =
+                bet.status === 'open'
+                  ? (liveOdds.find((place) => place.id === bet.placeId)
+                      ?.probability ?? null)
+                  : null;
+              return {
+                ...betView(bet),
+                participantId: ownerId,
+                participantName,
+                currentProbability,
+                estimatedWinPayout:
+                  currentProbability !== null && currentProbability > 0
+                    ? Math.min(
+                        2147483647,
+                        Math.floor(bet.stake / currentProbability),
+                      )
+                    : null,
+              };
+            },
           ),
           positions,
           healthBonuses: (
@@ -2137,6 +2174,7 @@ export class GameService {
             delta < 0
               ? 'Tokens reserved for lunch bet'
               : 'Bet stake reduced and tokens released',
+          createdAt: instant,
         });
       const responseBody = {
         bet: betView(row!),
@@ -2194,6 +2232,7 @@ export class GameService {
           placeId: existing.placeId,
           betId: existing.id,
           reason: 'Lunch bet cancelled and stake refunded',
+          createdAt: instant,
         });
         await tx
           .update(bets)

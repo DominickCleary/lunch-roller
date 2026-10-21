@@ -69,6 +69,12 @@ test('follows system theme until a choice is saved, persists it and syncs tabs',
 test('dark mode covers the name picker, wheel, admin forms and removal dialog on mobile', async ({
   page,
 }) => {
+  await page.addLocatorHandler(
+    page.getByRole('button', { name: 'Praise the Wheel', exact: true }),
+    async (button) => {
+      await button.click();
+    },
+  );
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.goto('/');
   await expect(page.getByTestId('name-picker')).toBeVisible();
