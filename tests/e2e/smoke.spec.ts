@@ -32,6 +32,9 @@ test('landing page requires a saved name before showing the lunch wheel', async 
   const wheel = page.locator('.wheel');
   await expect(wheel).toBeVisible();
   const footprint = page.locator('.wheel-wrap');
+  await expect
+    .poll(async () => (await footprint.boundingBox())?.width ?? 0)
+    .toBeGreaterThan(600);
   const desktopBounds = await footprint.boundingBox();
   expect(desktopBounds).not.toBeNull();
   expect(desktopBounds!.width).toBeGreaterThan(600);

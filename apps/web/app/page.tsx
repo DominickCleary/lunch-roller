@@ -1784,7 +1784,7 @@ export default function Home() {
       ) : (
         <>
           <section
-            className="hero"
+            className={mainView === 'wheel' ? 'hero hero-wheel' : 'hero'}
             id="top"
             aria-label="Lunch wheel and activity"
           >
@@ -2102,50 +2102,6 @@ export default function Home() {
                   Lunch alerts are not configured yet.
                 </p>
               )}
-              <div className="ledger">
-                <div className="ledger-heading">
-                  <h3>Recent token activity</h3>
-                  {wallet && wallet.ledger.length > 5 ? (
-                    <button
-                      className="ledger-toggle"
-                      aria-expanded={showAllLedger}
-                      aria-controls="token-ledger"
-                      onClick={() => setShowAllLedger((showing) => !showing)}
-                    >
-                      {showAllLedger ? 'Show recent' : 'Show all'}
-                    </button>
-                  ) : (
-                    <span>YOUR WALLET</span>
-                  )}
-                </div>
-                {wallet?.ledger.length ? (
-                  <div id="token-ledger">
-                    {wallet.ledger
-                      .slice(0, showAllLedger ? undefined : 5)
-                      .map((entry) => (
-                        <div className="ledger-row" key={entry.id}>
-                          <TokenEntryDescription entry={entry} />
-                          <span className="ledger-date">
-                            <time dateTime={entry.createdAt}>
-                              {new Intl.DateTimeFormat(undefined, {
-                                dateStyle: 'short',
-                                timeStyle: 'short',
-                                timeZone: today?.schedule.timezone ?? 'UTC',
-                              }).format(new Date(entry.createdAt))}
-                            </time>
-                          </span>
-                          <strong className={entry.delta > 0 ? 'positive' : ''}>
-                            {moneyLabel(entry.delta)}
-                          </strong>
-                        </div>
-                      ))}
-                  </div>
-                ) : (
-                  <p className="empty-note">
-                    Your token activity will show up here.
-                  </p>
-                )}
-              </div>
               <TokenTransfer
                 key={participantId}
                 participantId={participantId}
@@ -2154,13 +2110,187 @@ export default function Home() {
                 busy={busy}
                 onSend={(body, message) => mutate('/transfers', body, message)}
               />
-              <WalletBets bets={wallet?.bets ?? []} />
-              <TeamActivity
-                participants={participants}
-                currentParticipantId={participantId}
-                timezone={today?.schedule.timezone ?? 'UTC'}
-              />
             </div>
+
+            <section
+              className="panel betting-card"
+              aria-labelledby="betting-heading"
+            >
+              <div className="section-heading">
+                <div>
+                  <p className="eyebrow">YOUR TOKENS, YOUR CALL</p>
+                  <h2 id="betting-heading">Bet on lunch</h2>
+                </div>
+                <span className="betting-mark" aria-hidden="true">
+                  ✳
+                </span>
+              </div>
+              {!currentBets ? (
+                <p className="empty-note" role={betError ? 'alert' : 'status'}>
+                  {betError || 'Loading betting window…'}
+                </p>
+              ) : (
+                <>
+                  <p className="muted">
+                    {currentBets.window.open
+                      ? `Bet on ${currentBets.window.localDate}. Changes close ${currentBets.window.cutoffLocalDate} at ${currentBets.window.cutoffLocalTime} (${currentBets.window.timezone}).`
+                      : `Betting for ${currentBets.window.localDate} is closed.`}
+                  </p>
+                  <form
+                    className="bet-form"
+                    onSubmit={(event) => void saveBet(event)}
+                  >
+                    <label>
+                      Lunch place
+                      <select
+                        value={betPlaceDraft}
+                        onChange={(event) =>
+                          setBetPlaceDraft(event.target.value)
+                        }
+                        disabled={
+                          betBusy ||
+                          !currentBets.window.open ||
+                          !today?.odds.length
+                        }
+                      >
+                        <option value="">Choose a place</option>
+                        {(today?.odds ?? []).map((option) => (
+                          <option key={option.placeId} value={option.placeId}>
+                            {option.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Stake
+                      <span className="bet-stake-field">
+                        <input
+                          type="number"
+                          min="1"
+                          max={Math.min(
+                            2147483647,
+                            (wallet?.balance ?? 0) +
+                              (currentBets.bet?.stake ?? 0),
+                          )}
+                          step="1"
+                          inputMode="numeric"
+                          value={betStakeDraft}
+                          onChange={(event) =>
+                            setBetStakeDraft(event.target.value)
+                          }
+                          disabled={betBusy || !currentBets.window.open}
+                          aria-describedby="bet-balance-help"
+                        />
+                        <span>tokens</span>
+                      </span>
+                    </label>
+                    <p className="bet-balance-help" id="bet-balance-help">
+                      Available: {wallet?.balance ?? '—'} tokens
+                      {currentBets.bet
+                        ? ` · ${currentBets.bet.stake} reserved on your current bet`
+                        : ''}
+                    </p>
+                    {(() => {
+                      const probability = today?.odds.find(
+                        (option) => option.placeId === betPlaceDraft,
+                      )?.probability;
+                      const stake = Number(betStakeDraft);
+                      const gross =
+                        probability !== undefined &&
+                        probability > 0 &&
+                        Number.isSafeInteger(stake) &&
+                        stake > 0
+                          ? Math.min(
+                              2147483647,
+                              Math.floor(stake / probability),
+                            )
+                          : null;
+                      return (
+                        <div className="bet-estimate" aria-live="polite">
+                          <div>
+                            <span>Odds</span>
+                            <strong>
+                              {probability === undefined
+                                ? '—'
+                                : approximateOdds(probability)}
+                            </strong>
+                          </div>
+                          <div>
+                            <span>Est. return if it wins</span>
+                            <strong>
+                              {gross === null
+                                ? '—'
+                                : `${gross.toLocaleString()} tokens`}
+                            </strong>
+                          </div>
+                          <div>
+                            <span>Est. net gain</span>
+                            <strong>
+                              {gross === null
+                                ? '—'
+                                : `${(gross - stake).toLocaleString()} tokens`}
+                            </strong>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    <div className="bet-actions">
+                      <button
+                        className="button button-yellow"
+                        type="submit"
+                        disabled={
+                          betBusy ||
+                          !participantId ||
+                          !currentBets.window.open ||
+                          !today?.odds.length ||
+                          !betPlaceDraft ||
+                          !Number.isSafeInteger(Number(betStakeDraft)) ||
+                          Number(betStakeDraft) < 1 ||
+                          Number(betStakeDraft) >
+                            (wallet?.balance ?? 0) +
+                              (currentBets.bet?.stake ?? 0)
+                        }
+                      >
+                        {betBusy
+                          ? 'Saving…'
+                          : currentBets.bet
+                            ? 'Update bet'
+                            : 'Place bet'}
+                      </button>
+                      {currentBets.bet && (
+                        <button
+                          className="button button-light"
+                          type="button"
+                          onClick={() => void cancelBet()}
+                          disabled={betBusy || !currentBets.window.open}
+                        >
+                          Cancel bet
+                        </button>
+                      )}
+                    </div>
+                  </form>
+                </>
+              )}
+              {betError && (
+                <p className="bet-message bet-error" role="alert">
+                  {betError}
+                </p>
+              )}
+              {betNotice && (
+                <p className="bet-message" role="status" aria-live="polite">
+                  {betNotice}
+                </p>
+              )}
+              {currentBets?.bet && (
+                <p className="current-bet-note">
+                  Current bet:{' '}
+                  <strong>
+                    {currentBets.bet.stake} tokens on{' '}
+                    {currentBets.bet.placeName}
+                  </strong>
+                </p>
+              )}
+            </section>
 
             <div className="panel odds-panel">
               <div className="section-heading">
@@ -2353,204 +2483,74 @@ export default function Home() {
                   </p>
                 </div>
               )}
-              <section
-                className="betting-card"
-                aria-labelledby="betting-heading"
-              >
-                <div className="section-heading">
-                  <div>
-                    <p className="eyebrow">YOUR TOKENS, YOUR CALL</p>
-                    <h2 id="betting-heading">Bet on lunch</h2>
-                  </div>
-                  <span className="betting-mark" aria-hidden="true">
-                    ✳
-                  </span>
-                </div>
-                {!currentBets ? (
-                  <p
-                    className="empty-note"
-                    role={betError ? 'alert' : 'status'}
-                  >
-                    {betError || 'Loading betting window…'}
-                  </p>
-                ) : (
-                  <>
-                    <p className="muted">
-                      {currentBets.window.open
-                        ? `Bet on ${currentBets.window.localDate}. Changes close ${currentBets.window.cutoffLocalDate} at ${currentBets.window.cutoffLocalTime} (${currentBets.window.timezone}).`
-                        : `Betting for ${currentBets.window.localDate} is closed.`}
-                    </p>
-                    <form
-                      className="bet-form"
-                      onSubmit={(event) => void saveBet(event)}
+            </div>
+            <div className="panel token-activity-panel">
+              <div className="ledger">
+                <div className="ledger-heading">
+                  <h3>Recent token activity</h3>
+                  {wallet && wallet.ledger.length > 5 ? (
+                    <button
+                      className="ledger-toggle"
+                      aria-expanded={showAllLedger}
+                      aria-controls="token-ledger"
+                      onClick={() => setShowAllLedger((showing) => !showing)}
                     >
-                      <label>
-                        Lunch place
-                        <select
-                          value={betPlaceDraft}
-                          onChange={(event) =>
-                            setBetPlaceDraft(event.target.value)
-                          }
-                          disabled={
-                            betBusy ||
-                            !currentBets.window.open ||
-                            !today?.odds.length
-                          }
-                        >
-                          <option value="">Choose a place</option>
-                          {(today?.odds ?? []).map((option) => (
-                            <option key={option.placeId} value={option.placeId}>
-                              {option.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label>
-                        Stake
-                        <span className="bet-stake-field">
-                          <input
-                            type="number"
-                            min="1"
-                            max={Math.min(
-                              2147483647,
-                              (wallet?.balance ?? 0) +
-                                (currentBets.bet?.stake ?? 0),
-                            )}
-                            step="1"
-                            inputMode="numeric"
-                            value={betStakeDraft}
-                            onChange={(event) =>
-                              setBetStakeDraft(event.target.value)
-                            }
-                            disabled={betBusy || !currentBets.window.open}
-                            aria-describedby="bet-balance-help"
-                          />
-                          <span>tokens</span>
-                        </span>
-                      </label>
-                      <p className="bet-balance-help" id="bet-balance-help">
-                        Available: {wallet?.balance ?? '—'} tokens
-                        {currentBets.bet
-                          ? ` · ${currentBets.bet.stake} reserved on your current bet`
-                          : ''}
-                      </p>
-                      {(() => {
-                        const probability = today?.odds.find(
-                          (option) => option.placeId === betPlaceDraft,
-                        )?.probability;
-                        const stake = Number(betStakeDraft);
-                        const gross =
-                          probability !== undefined &&
-                          probability > 0 &&
-                          Number.isSafeInteger(stake) &&
-                          stake > 0
-                            ? Math.min(
-                                2147483647,
-                                Math.floor(stake / probability),
-                              )
-                            : null;
-                        return (
-                          <div className="bet-estimate" aria-live="polite">
-                            <div>
-                              <span>Odds</span>
-                              <strong>
-                                {probability === undefined
-                                  ? '—'
-                                  : approximateOdds(probability)}
-                              </strong>
-                            </div>
-                            <div>
-                              <span>Est. return if it wins</span>
-                              <strong>
-                                {gross === null
-                                  ? '—'
-                                  : `${gross.toLocaleString()} tokens`}
-                              </strong>
-                            </div>
-                            <div>
-                              <span>Est. net gain</span>
-                              <strong>
-                                {gross === null
-                                  ? '—'
-                                  : `${(gross - stake).toLocaleString()} tokens`}
-                              </strong>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                      <div className="bet-actions">
-                        <button
-                          className="button button-yellow"
-                          type="submit"
-                          disabled={
-                            betBusy ||
-                            !participantId ||
-                            !currentBets.window.open ||
-                            !today?.odds.length ||
-                            !betPlaceDraft ||
-                            !Number.isSafeInteger(Number(betStakeDraft)) ||
-                            Number(betStakeDraft) < 1 ||
-                            Number(betStakeDraft) >
-                              (wallet?.balance ?? 0) +
-                                (currentBets.bet?.stake ?? 0)
-                          }
-                        >
-                          {betBusy
-                            ? 'Saving…'
-                            : currentBets.bet
-                              ? 'Update bet'
-                              : 'Place bet'}
-                        </button>
-                        {currentBets.bet && (
-                          <button
-                            className="button button-light"
-                            type="button"
-                            onClick={() => void cancelBet()}
-                            disabled={betBusy || !currentBets.window.open}
-                          >
-                            Cancel bet
-                          </button>
-                        )}
-                      </div>
-                    </form>
-                  </>
-                )}
-                {betError && (
-                  <p className="bet-message bet-error" role="alert">
-                    {betError}
-                  </p>
-                )}
-                {betNotice && (
-                  <p className="bet-message" role="status" aria-live="polite">
-                    {betNotice}
-                  </p>
-                )}
-                {currentBets?.bet && (
-                  <p className="current-bet-note">
-                    Current bet:{' '}
-                    <strong>
-                      {currentBets.bet.stake} tokens on{' '}
-                      {currentBets.bet.placeName}
-                    </strong>
-                  </p>
-                )}
-                {currentBets?.recent.length ? (
-                  <div className="bet-history" aria-label="Recent bet activity">
-                    <h3>Recent bets</h3>
-                    {currentBets.recent.map((bet) => (
-                      <div className="bet-history-row" key={bet.id}>
-                        <span>
-                          <strong>{bet.placeName}</strong>
-                          <small>
-                            {bet.localDate} · {bet.stake} tokens · {bet.status}
-                          </small>
-                        </span>
-                        <b>{bet.payout === null ? '—' : `+${bet.payout} ✳`}</b>
-                      </div>
-                    ))}
+                      {showAllLedger ? 'Show recent' : 'Show all'}
+                    </button>
+                  ) : (
+                    <span>YOUR WALLET</span>
+                  )}
+                </div>
+                {wallet?.ledger.length ? (
+                  <div id="token-ledger">
+                    {wallet.ledger
+                      .slice(0, showAllLedger ? undefined : 5)
+                      .map((entry) => (
+                        <div className="ledger-row" key={entry.id}>
+                          <TokenEntryDescription entry={entry} />
+                          <span className="ledger-date">
+                            <time dateTime={entry.createdAt}>
+                              {new Intl.DateTimeFormat(undefined, {
+                                dateStyle: 'short',
+                                timeStyle: 'short',
+                                timeZone: today?.schedule.timezone ?? 'UTC',
+                              }).format(new Date(entry.createdAt))}
+                            </time>
+                          </span>
+                          <strong className={entry.delta > 0 ? 'positive' : ''}>
+                            {moneyLabel(entry.delta)}
+                          </strong>
+                        </div>
+                      ))}
                   </div>
-                ) : null}
-              </section>
+                ) : (
+                  <p className="empty-note">
+                    Your token activity will show up here.
+                  </p>
+                )}
+              </div>
+              <WalletBets bets={wallet?.bets ?? []} />
+              <TeamActivity
+                participants={participants}
+                currentParticipantId={participantId}
+                timezone={today?.schedule.timezone ?? 'UTC'}
+              />
+              {currentBets?.recent.length ? (
+                <div className="bet-history" aria-label="Recent bet activity">
+                  <h3>Recent bets</h3>
+                  {currentBets.recent.map((bet) => (
+                    <div className="bet-history-row" key={bet.id}>
+                      <span>
+                        <strong>{bet.placeName}</strong>
+                        <small>
+                          {bet.localDate} · {bet.stake} tokens · {bet.status}
+                        </small>
+                      </span>
+                      <b>{bet.payout === null ? '—' : `+${bet.payout} ✳`}</b>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </section>
         </>

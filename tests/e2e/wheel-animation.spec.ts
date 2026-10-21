@@ -12,6 +12,10 @@ const plan = {
   startsAt: new Date(epoch - 1000).toISOString(),
 };
 
+test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
+});
+
 async function prepare(
   page: Page,
   base: TodayResponse,

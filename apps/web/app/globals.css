@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 
 :root {
+  --header-height: 58px;
   --page-bg: #e7dfcd;
   --surface: #f6f0e2;
   --surface-soft: #eee5d2;
@@ -64,6 +65,7 @@
 }
 html {
   scroll-behavior: smooth;
+  scroll-padding-top: calc(var(--header-height) + 12px);
 }
 body {
   margin: 0;
@@ -94,9 +96,37 @@ textarea::placeholder {
   grid-template-rows: 58px minmax(0, 1fr) auto auto;
   gap: 0 20px;
 }
+.site-shell:has(.hero) {
+  height: 100dvh;
+  min-height: 0;
+  grid-template-rows: var(--header-height) minmax(0, 1fr) auto auto;
+}
+.site-shell:has(.hero):not(:has(.admin-disclosure[open])) {
+  overflow: hidden;
+}
+.site-shell:has(.admin-disclosure[open]) {
+  height: auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+  grid-template-rows: var(--header-height) auto auto auto;
+  overflow: visible;
+}
+.site-shell:has(.admin-disclosure[open]) .hero,
+.site-shell:has(.admin-disclosure[open]) .play-grid {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  scrollbar-gutter: auto;
+  padding-right: 0;
+}
+.site-shell:has(.admin-disclosure[open]) .hero {
+  container-type: normal;
+}
 .topbar {
+  position: static;
+  background: var(--page-bg);
   grid-column: 1 / -1;
-  height: 58px;
+  height: var(--header-height);
   border-bottom: 1px solid var(--line);
   display: flex;
   align-items: center;
@@ -146,10 +176,18 @@ textarea::placeholder {
   grid-row: 2;
   min-width: 0;
   min-height: 0;
-  padding: 18px 0 10px;
+  padding: 18px 12px 10px 0;
   display: flex;
   flex-direction: column;
   align-items: center;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  container-type: size;
+}
+.hero-wheel {
+  position: static;
+  align-self: stretch;
 }
 .wheel-card {
   width: 100%;
@@ -190,7 +228,7 @@ textarea::placeholder {
   display: none;
 }
 .wheel-wrap {
-  width: min(100%, calc(100vh - 230px));
+  width: min(100%, calc(100cqh - 135px));
   aspect-ratio: 1;
   margin: 0 auto;
   position: relative;
@@ -318,12 +356,17 @@ textarea::placeholder {
   grid-column: 2;
   grid-row: 2;
   min-width: 0;
-  align-self: stretch;
+  align-self: start;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 0;
-  padding-top: 15px;
+  padding: 15px 16px 12px 0;
   overflow: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior-y: contain;
+  scroll-padding-block: 12px;
 }
 .panel {
   min-width: 0;
@@ -793,6 +836,9 @@ button:disabled {
   display: none;
 }
 .admin-disclosure {
+  position: relative;
+  z-index: 2;
+  background: var(--page-bg);
   grid-column: 1 / -1;
   grid-row: 3;
   margin: 12px 0;
@@ -1075,6 +1121,9 @@ button:disabled {
   cursor: pointer;
 }
 .footer {
+  position: relative;
+  z-index: 2;
+  background: var(--page-bg);
   grid-column: 1 / -1;
   grid-row: 4;
   display: flex;
@@ -1180,7 +1229,7 @@ button:disabled {
     justify-content: flex-start;
   }
   .wheel-wrap {
-    width: min(100%, calc(100vh - 230px));
+    width: min(100%, calc(100cqh - 135px));
   }
 }
 @media (max-width: 850px) {
@@ -1190,7 +1239,7 @@ button:disabled {
     gap: 0 14px;
   }
   .wheel-wrap {
-    width: min(100%, calc(100vh - 210px));
+    width: min(100%, calc(100cqh - 135px));
   }
   .wheel-label {
     font-size: clamp(11px, 1.6vw, 16px);
@@ -1204,11 +1253,25 @@ button:disabled {
   }
 }
 @media (max-width: 620px) {
+  :root {
+    --header-height: 54px;
+  }
+  html:has(.hero-wheel) {
+    scroll-padding-top: calc(28dvh + 150px);
+  }
   .site-shell {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
     padding: 0 12px;
+  }
+  .site-shell:has(.hero),
+  .site-shell:has(.hero):not(:has(.admin-disclosure[open])) {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    grid-template-rows: none;
+    overflow: visible;
   }
   .topbar {
     flex: 0 0 54px;
@@ -1222,6 +1285,19 @@ button:disabled {
   .hero {
     order: 1;
     padding: 14px 0 4px;
+    overflow: visible;
+    scrollbar-gutter: auto;
+    container-type: normal;
+  }
+  .hero-wheel {
+    position: sticky;
+    top: 0;
+    align-self: stretch;
+    z-index: 1;
+    background: var(--page-bg);
+  }
+  .hero-wheel .wheel-wrap {
+    width: min(100%, 28dvh);
   }
   .wheel-card {
     width: 100%;
@@ -1255,6 +1331,12 @@ button:disabled {
     order: 2;
     padding-top: 4px;
     overflow: visible;
+    position: static;
+    height: auto;
+    max-height: none;
+    align-self: stretch;
+    scrollbar-gutter: auto;
+    padding-right: 0;
   }
   .panel {
     padding: 12px 0;
