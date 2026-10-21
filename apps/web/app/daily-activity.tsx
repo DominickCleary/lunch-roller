@@ -19,7 +19,7 @@ type ActivityResult = {
   refreshing: boolean;
 };
 
-function TokenOverview({ participantId }: { participantId: string }) {
+export function TokenOverview({ participantId }: { participantId: string }) {
   const [data, setData] = useState<TokenOverviewResponse | null>(null);
   const [error, setError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
@@ -664,7 +664,6 @@ export function DailyActivity({
       aria-label="Daily token activity"
       aria-busy={!current || current.refreshing}
     >
-      <TokenOverview participantId={participantId} />
       <header className="daily-activity-header">
         <div>
           <p className="activity-eyebrow">

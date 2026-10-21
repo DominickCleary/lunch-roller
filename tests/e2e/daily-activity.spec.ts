@@ -293,12 +293,21 @@ test('shows the schedule, charts, coalitions and bet board without changing iden
     if (request.method() !== 'GET') mutations.push(request.url());
   });
   const panel = page.getByRole('tabpanel', { name: 'Activity' });
+  await page.getByRole('tab', { name: 'Token standings' }).click();
+  const standings = page.getByRole('tabpanel', { name: 'Token standings' });
   await expect(
-    panel.getByRole('heading', { name: 'Token standings' }),
+    standings.getByRole('heading', { name: 'Token standings' }),
   ).toBeVisible();
-  await expect(panel.locator('.token-overview-table tbody tr')).toHaveCount(3);
-  await expect(panel.locator('.token-overview-table')).toContainText('↑ +5');
-  await expect(panel.locator('.token-overview-table')).toContainText('↓ −2');
+  await expect(standings.locator('.token-overview-table tbody tr')).toHaveCount(
+    3,
+  );
+  await expect(standings.locator('.token-overview-table')).toContainText(
+    '↑ +5',
+  );
+  await expect(standings.locator('.token-overview-table')).toContainText(
+    '↓ −2',
+  );
+  await page.getByRole('tab', { name: 'Activity' }).click();
   await expect(
     panel.getByRole('heading', { name: 'Activity room' }),
   ).toBeVisible();
@@ -362,7 +371,14 @@ test('shows the schedule, charts, coalitions and bet board without changing iden
     ),
   ).toBe(true);
   await page.getByRole('tab', { name: 'Activity' }).focus();
-  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('ArrowRight');
+  await expect(
+    page.getByRole('tab', { name: 'Token standings' }),
+  ).toBeFocused();
+  await expect(
+    page.getByRole('tabpanel', { name: 'Token standings' }),
+  ).toBeVisible();
+  await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('tab', { name: 'The wheel' })).toBeFocused();
   await expect(page.getByTestId('lunch-wheel')).toBeVisible();
   expect(

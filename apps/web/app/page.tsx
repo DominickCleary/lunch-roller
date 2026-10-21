@@ -29,7 +29,7 @@ import { Readiness } from './readiness';
 import { ThemeToggle } from './theme-toggle';
 import { RulesHelp } from './rules-help';
 import { TeamActivity } from './team-activity';
-import { DailyActivity } from './daily-activity';
+import { DailyActivity, TokenOverview } from './daily-activity';
 import { TokenEntryDescription, WalletBets } from './token-history';
 import { HealthBadge, HealthSelect, HealthBonusSummary } from './health-label';
 import { TokenTransfer } from './token-transfer';
@@ -320,8 +320,10 @@ function uuid() {
 function moneyLabel(delta: number) {
   return `${delta > 0 ? '+' : ''}${delta} tokens`;
 }
+const workspaceViews = ['wheel', 'activity', 'standings'] as const;
 export default function Home() {
-  const [mainView, setMainView] = useState<'wheel' | 'activity'>('wheel');
+  const [mainView, setMainView] =
+    useState<(typeof workspaceViews)[number]>('wheel');
   const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
   const [entryStage, setEntryStage] = useState<
     'loading' | 'setup' | 'name' | 'game'
@@ -1784,7 +1786,7 @@ export default function Home() {
           <section
             className={mainView === 'wheel' ? 'hero hero-wheel' : 'hero'}
             id="top"
-            aria-label="Lunch wheel and activity"
+            aria-label="Lunch workspace"
           >
             <div className="wheel-card">
               <div
@@ -1792,7 +1794,7 @@ export default function Home() {
                 role="tablist"
                 aria-label="Lunch workspace"
               >
-                {(['wheel', 'activity'] as const).map((view) => (
+                {workspaceViews.map((view) => (
                   <button
                     key={view}
                     id={`${view}-tab`}
@@ -1810,19 +1812,27 @@ export default function Home() {
                       )
                         return;
                       event.preventDefault();
+                      const viewIndex = workspaceViews.indexOf(view);
                       const next =
                         event.key === 'Home'
                           ? 'wheel'
                           : event.key === 'End'
-                            ? 'activity'
-                            : view === 'wheel'
-                              ? 'activity'
-                              : 'wheel';
+                            ? 'standings'
+                            : (workspaceViews[
+                                (viewIndex +
+                                  (event.key === 'ArrowLeft' ? -1 : 1) +
+                                  workspaceViews.length) %
+                                  workspaceViews.length
+                              ] ?? 'wheel');
                       setMainView(next);
                       document.getElementById(`${next}-tab`)?.focus();
                     }}
                   >
-                    {view === 'wheel' ? 'The wheel' : 'Activity'}
+                    {view === 'wheel'
+                      ? 'The wheel'
+                      : view === 'activity'
+                        ? 'Activity'
+                        : 'Token standings'}
                   </button>
                 ))}
               </div>
@@ -1982,6 +1992,17 @@ export default function Home() {
                       currentBets?.window.localDate ?? today.wheel.localDate
                     }
                   />
+                )}
+              </div>
+              <div
+                id="standings-panel"
+                role="tabpanel"
+                aria-labelledby="standings-tab"
+                hidden={mainView !== 'standings'}
+                tabIndex={0}
+              >
+                {mainView === 'standings' && (
+                  <TokenOverview participantId={participantId} />
                 )}
               </div>
             </div>
