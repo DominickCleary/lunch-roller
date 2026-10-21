@@ -1,0 +1,223 @@
+import './env';
+import { afterAll, expect, it } from 'vitest';
+import { eq, inArray } from 'drizzle-orm';
+import { createDatabase } from './index';
+import { GameService } from './operations';
+import {
+  settings,
+  places,
+  participants,
+  tokenLedger,
+  influenceLots,
+  betRequests,
+  bets,
+  bettingMarkets,
+  draws,
+  notificationOutbox,
+} from './schema';
+
+const database = createDatabase();
+const game = new GameService(database);
+const [original] = await database.db.select().from(settings);
+const originalPlaces = await database.db.select().from(places);
+const person = await game.saveParticipant({
+  name: `activity-dates-${crypto.randomUUID()}`,
+});
+const place = await game.savePlace({
+  name: `activity-dates-${crypto.randomUUID()}`,
+});
+const marketIds: string[] = [];
+const drawIds: string[] = [];
+const friday = '2026-10-23';
+const monday = '2026-10-26';
+
+afterAll(async () => {
+  try {
+    await database.db
+      .delete(influenceLots)
+      .where(eq(influenceLots.participantId, person.id));
+    await database.db
+      .delete(tokenLedger)
+      .where(eq(tokenLedger.participantId, person.id));
+    await database.db
+      .delete(betRequests)
+      .where(eq(betRequests.participantId, person.id));
+    await database.db.delete(bets).where(eq(bets.participantId, person.id));
+    if (marketIds.length)
+      await database.db
+        .delete(bettingMarkets)
+        .where(inArray(bettingMarkets.id, marketIds));
+    if (drawIds.length) {
+      await database.db
+        .delete(notificationOutbox)
+        .where(inArray(notificationOutbox.drawId, drawIds));
+      await database.db.delete(draws).where(inArray(draws.id, drawIds));
+    }
+    await database.db.delete(places).where(eq(places.id, place.id));
+    await database.db
+      .delete(participants)
+      .where(eq(participants.id, person.id));
+    for (const row of originalPlaces)
+      await database.db
+        .update(places)
+        .set({ logWeight: row.logWeight })
+        .where(eq(places.id, row.id));
+    await database.db.update(settings).set(original!).where(eq(settings.id, 1));
+  } finally {
+    await database.close();
+  }
+});
+
+it('keeps Friday actions for Monday together across midnight, weekend DST, refunds and settlement', async () => {
+  await game.setSchedule({
+    timezone: 'Europe/Dublin',
+    time: '11:30',
+    weekdays: [1, 2, 3, 4, 5],
+  });
+  await game.setPreferences({
+    ...(await game.getPreferences()),
+    wheelSwitchTime: '15:00',
+    bettingCloseMinutes: 5,
+  });
+  await game.correctTokens(
+    {
+      participantId: person.id,
+      delta: 200,
+      reason: 'Disposable activity date audit',
+    },
+    crypto.randomUUID(),
+  );
+  const fridayDraw = await game.drawIfDue(new Date(`${friday}T10:30:00Z`));
+  expect(fridayDraw).not.toBeNull();
+  drawIds.push(fridayDraw!.id);
+  const fridayAt = new Date(`${friday}T16:00:00Z`);
+  // Still Friday in UTC, already Saturday in the workplace timezone.
+  const saturdayAt = new Date('2026-10-23T23:30:00Z');
+  const market = await game.currentInfluence(person.id, fridayAt);
+  expect(market.window.localDate).toBe(monday);
+  marketIds.push(
+    ...(
+      await database.db
+        .select()
+        .from(bettingMarkets)
+        .where(eq(bettingMarkets.localDate, monday))
+    ).map((row) => row.id),
+  );
+  expect((await game.today(fridayAt)).wheel.localDate).toBe(monday);
+  const body = { localDate: monday, placeId: place.id };
+  await game.changeInfluence(
+    person.id,
+    { ...body, action: 'boost', change: 1 },
+    crypto.randomUUID(),
+    fridayAt,
+  );
+  await game.setBet(
+    person.id,
+    { ...body, stake: 12 },
+    crypto.randomUUID(),
+    fridayAt,
+  );
+  await game.changeInfluence(
+    person.id,
+    { ...body, action: 'reduce', change: 1 },
+    crypto.randomUUID(),
+    saturdayAt,
+  );
+  await game.cancelBet(
+    person.id,
+    { localDate: monday },
+    crypto.randomUUID(),
+    saturdayAt,
+  );
+  const sundayAt = new Date('2026-10-25T01:30:00Z');
+  await game.changeInfluence(
+    person.id,
+    { ...body, action: 'boost', change: 1 },
+    crypto.randomUUID(),
+    sundayAt,
+  );
+  await game.setBet(
+    person.id,
+    { ...body, stake: 15 },
+    crypto.randomUUID(),
+    sundayAt,
+  );
+
+  const read = (date: string, scope: 'draw' | 'day') =>
+    game.dailyActivity(person.id, date, sundayAt, scope);
+  const target = await read(monday, 'draw');
+  const entries = target.entries.filter(
+    (entry) => entry.participantId === person.id,
+  );
+  expect(entries).toHaveLength(6);
+  expect(
+    entries.every(
+      (entry) => (entry.influenceLocalDate ?? entry.betLocalDate) === monday,
+    ),
+  ).toBe(true);
+  expect(entries.filter((entry) => entry.kind === 'boost')).toHaveLength(2);
+  expect(entries.filter((entry) => entry.kind === 'boost-refund')).toHaveLength(
+    1,
+  );
+  expect(
+    target.positions?.find((row) => row.participantId === person.id),
+  ).toMatchObject({ boosts: 1, reductions: 0, status: 'staged' });
+  expect(
+    target.bets.find((row) => row.participantId === person.id),
+  ).toMatchObject({ localDate: monday, status: 'open', stake: 15 });
+  const todayDraw = await read(friday, 'draw');
+  expect(
+    todayDraw.entries.filter((entry) => entry.participantId === person.id),
+  ).toEqual([]);
+  expect(
+    todayDraw.bets.filter((row) => row.participantId === person.id),
+  ).toEqual([]);
+  expect(
+    todayDraw.positions?.filter((row) => row.participantId === person.id),
+  ).toEqual([]);
+  for (const [date, count] of [
+    [friday, 2],
+    ['2026-10-24', 2],
+    ['2026-10-25', 2],
+    [monday, 0],
+  ] as const) {
+    const calendar = await read(date, 'day');
+    const actions = calendar.entries.filter(
+      (entry) =>
+        entry.participantId === person.id && entry.kind !== 'correction',
+    );
+    expect(actions).toHaveLength(count);
+    expect(
+      calendar.bets.filter((row) => row.participantId === person.id),
+    ).toHaveLength(date === monday ? 1 : 0);
+  }
+  const locked = await game.dailyActivity(
+    person.id,
+    monday,
+    new Date(`${monday}T11:26:00Z`),
+    'draw',
+  );
+  expect(
+    locked.positions?.find((row) => row.participantId === person.id)?.status,
+  ).toBe('locked');
+  const mondayDraw = await game.drawIfDue(new Date(`${monday}T11:30:00Z`));
+  expect(mondayDraw).not.toBeNull();
+  drawIds.push(mondayDraw!.id);
+  const settled = await game.dailyActivity(
+    person.id,
+    monday,
+    new Date(`${monday}T12:00:00Z`),
+    'draw',
+  );
+  const settledBet = settled.bets.find(
+    (row) => row.participantId === person.id,
+  )!;
+  expect(settledBet.probability).toBe(
+    mondayDraw!.snapshot.find((row) => row.placeId === place.id)!.probability,
+  );
+  expect(settledBet.currentProbability).toBeNull();
+  expect(settledBet.estimatedWinPayout).toBeNull();
+  expect(
+    settled.positions?.find((row) => row.participantId === person.id)?.status,
+  ).toBe('committed');
+});
