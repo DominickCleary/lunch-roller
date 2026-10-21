@@ -5,6 +5,7 @@ import type { FormEvent } from 'react';
 import Link from 'next/link';
 import {
   defaultEconomySettings,
+  defaultHealthRuleSettings,
   defaultGamePreferences,
   currentInfluenceResponse,
 } from '@lunch/contracts';
@@ -21,12 +22,16 @@ import type {
   SetupStatus,
   TodayResponse,
   WalletResponse,
+  HealthRuleSettings,
+  HealthLevel,
 } from '@lunch/contracts';
 import { Readiness } from './readiness';
 import { ThemeToggle } from './theme-toggle';
 import { TeamActivity } from './team-activity';
 import { DailyActivity } from './daily-activity';
 import { TokenEntryDescription, WalletBets } from './token-history';
+import { HealthBadge, HealthSelect, HealthBonusSummary } from './health-label';
+import { TokenTransfer } from './token-transfer';
 import { InfluenceControls } from './influence-controls';
 import { calendarDateLabel } from '../lib/date-label';
 
@@ -431,6 +436,11 @@ export default function Home() {
   const [adminPassword, setAdminPassword] = useState('');
   const [newName, setNewName] = useState('');
   const [setupPlaceName, setSetupPlaceName] = useState('');
+  const [setupHealthLevel, setSetupHealthLevel] =
+    useState<HealthLevel>('balanced');
+  const [healthRule, setHealthRule] = useState<HealthRuleSettings>(
+    defaultHealthRuleSettings,
+  );
   const [finishingSetup, setFinishingSetup] = useState(false);
   const [editingPersonId, setEditingPersonId] = useState('');
   const [editingPersonName, setEditingPersonName] = useState('');
@@ -534,6 +544,7 @@ export default function Home() {
       savedSchedule,
       savedPreferences,
       savedEconomy,
+      savedHealthRule,
     ] = await Promise.all([
       request<{ participants: Participant[] }>('/admin/participants'),
       request<{ places: Place[] }>('/admin/places'),
@@ -542,6 +553,7 @@ export default function Home() {
       request<Schedule>('/admin/schedule'),
       request<GamePreferences>('/admin/preferences'),
       request<RestaurantEconomySettings>('/admin/economy'),
+      request<HealthRuleSettings>('/admin/health-rule'),
     ]);
     setAllParticipants(people.participants);
     const balanceMap = Object.fromEntries(
@@ -560,6 +572,7 @@ export default function Home() {
       ),
     );
     setPlaces(locations.places);
+    setHealthRule(savedHealthRule);
     setRestaurantOdds(savedOdds.places);
     setSelectedOddsPlaceIds([]);
     setRestaurantOddsDraft(
@@ -1655,11 +1668,17 @@ export default function Home() {
                         void adminSave(
                           '/admin/places',
                           'POST',
-                          { name },
+                          { name, healthLevel: setupHealthLevel },
                           'Place added.',
                         ).then(() => setSetupPlaceName(''));
                     }}
                   >
+                    <HealthSelect
+                      label="New place health level"
+                      value={setupHealthLevel}
+                      onChange={setSetupHealthLevel}
+                      disabled={busy}
+                    />
                     <label htmlFor="setup-place">New lunch place</label>
                     <input
                       id="setup-place"
@@ -1682,7 +1701,10 @@ export default function Home() {
                     {places
                       .filter((place) => place.active)
                       .map((place) => (
-                        <li key={place.id}>{place.name}</li>
+                        <li key={place.id}>
+                          <span>{place.name}</span>{' '}
+                          <HealthBadge level={place.healthLevel} />
+                        </li>
                       ))}
                   </ul>
                 </section>
@@ -2161,6 +2183,14 @@ export default function Home() {
                   </p>
                 )}
               </div>
+              <TokenTransfer
+                key={participantId}
+                participantId={participantId}
+                participants={participants}
+                balance={wallet?.balance ?? 0}
+                busy={busy}
+                onSend={(body, message) => mutate('/transfers', body, message)}
+              />
               <WalletBets bets={wallet?.bets ?? []} />
               <TeamActivity
                 participants={participants}
@@ -2228,6 +2258,7 @@ export default function Home() {
                       <InfluenceControls
                         placeId={placeId}
                         placeName={option.name}
+                        healthLevel={option.healthLevel}
                         position={influencePosition}
                         window={currentInfluence?.window ?? null}
                         balance={wallet?.balance ?? 0}
@@ -2289,6 +2320,13 @@ export default function Home() {
                   </p>
                 )}
               </div>
+              {today?.healthRule?.enabled && (
+                <p className="health-rule-note">
+                  After a Treat place wins, Healthy places receive ×
+                  {today.healthRule.multiplier} weight. Balanced places are
+                  unchanged. The winner’s weight is always halved.
+                </p>
+              )}
               <form
                 className="add-place"
                 onSubmit={(event) => {
@@ -2301,13 +2339,20 @@ export default function Home() {
                   if (input)
                     void mutate(
                       '/places',
-                      { name: input },
+                      {
+                        name: input,
+                        healthLevel: new FormData(form).get('healthLevel'),
+                      },
                       `New lunch place added for ${currentEconomy.addPlaceCost} tokens.`,
                     ).then((saved) => {
                       if (saved) form.reset();
                     });
                 }}
               >
+                <HealthSelect
+                  label="New spot health level"
+                  disabled={!participantId || busy}
+                />
                 <label htmlFor="place-name">Have a new spot in mind?</label>
                 <div className="inline-form">
                   <input
@@ -2326,6 +2371,12 @@ export default function Home() {
                   </button>
                 </div>
               </form>
+              {today?.result?.healthBonus && (
+                <HealthBonusSummary
+                  bonus={today.result.healthBonus}
+                  winner={today.result.placeName}
+                />
+              )}
               {today?.result && (
                 <div className="result-note" data-testid="today-result">
                   <span>✳</span>
@@ -2811,11 +2862,20 @@ export default function Home() {
                         void adminSave(
                           '/admin/places',
                           'POST',
-                          { name },
+                          {
+                            name,
+                            healthLevel: new FormData(event.currentTarget).get(
+                              'healthLevel',
+                            ),
+                          },
                           'Place added.',
                         );
                     }}
                   >
+                    <HealthSelect
+                      label="New admin place health level"
+                      disabled={busy}
+                    />
                     <input
                       name="admin-place"
                       aria-label="New lunch place"
@@ -2866,6 +2926,19 @@ export default function Home() {
                           </small>
                         </span>
                       )}
+                      <HealthSelect
+                        label={`Health level for ${place.name}`}
+                        value={place.healthLevel}
+                        disabled={busy}
+                        onChange={(healthLevel) => {
+                          void adminSave(
+                            `/admin/places/${place.id}`,
+                            'PATCH',
+                            { healthLevel },
+                            'Health level updated.',
+                          );
+                        }}
+                      />
                       <button
                         disabled={busy}
                         onClick={() => {
@@ -3224,6 +3297,66 @@ export default function Home() {
                       disabled={busy || !preferences.checkInPledge.trim()}
                     >
                       Save preferences
+                    </button>
+                  </form>
+                </div>
+                <div
+                  className="admin-tool-card"
+                  data-testid="admin-health-rule"
+                >
+                  <h3>Health balance</h3>
+                  <p>
+                    After a Treat place wins, boost every active Healthy place
+                    for future draws. Balanced places do not trigger or receive
+                    the bonus. Existing places start Balanced.
+                  </p>
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void adminSave(
+                        '/admin/health-rule',
+                        'PUT',
+                        healthRule,
+                        'Health balance rule saved.',
+                      );
+                    }}
+                  >
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={healthRule.enabled}
+                        onChange={(event) =>
+                          setHealthRule({
+                            ...healthRule,
+                            enabled: event.target.checked,
+                          })
+                        }
+                      />{' '}
+                      Enable health balance bonus
+                    </label>
+                    <label>
+                      Healthy place weight multiplier
+                      <input
+                        type="number"
+                        min="1.01"
+                        max="100"
+                        step="0.01"
+                        required
+                        value={healthRule.multiplier}
+                        onChange={(event) =>
+                          setHealthRule({
+                            ...healthRule,
+                            multiplier: Number(event.target.value),
+                          })
+                        }
+                      />
+                    </label>
+                    <p className="muted">
+                      ×1.25 means 25% more weight, not 25 percentage points.
+                      Changes apply to future draws; past bonuses remain.
+                    </p>
+                    <button className="button button-light" disabled={busy}>
+                      Save health rule
                     </button>
                   </form>
                 </div>

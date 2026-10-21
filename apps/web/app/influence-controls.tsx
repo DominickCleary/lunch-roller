@@ -1,14 +1,20 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { BettingWindow, InfluencePosition } from '@lunch/contracts';
+import type {
+  BettingWindow,
+  InfluencePosition,
+  HealthLevel,
+} from '@lunch/contracts';
 import { calendarDateLabel } from '../lib/date-label';
 import './influence-controls.css';
+import { HealthBadge } from './health-label';
 
 type InfluenceAction = 'boost' | 'reduce';
 type Props = {
   placeId: string;
   placeName: string;
+  healthLevel?: HealthLevel;
   position: InfluencePosition | undefined;
   window: BettingWindow | null;
   balance: number;
@@ -37,6 +43,7 @@ function localMinute(now: Date, timezone: string): string {
 export function InfluenceControls({
   placeId,
   placeName,
+  healthLevel,
   position,
   window,
   balance,
@@ -112,7 +119,10 @@ export function InfluenceControls({
       aria-label={`${placeName} market positions`}
     >
       <div className="influence-place-heading">
-        <span className="odds-name">{placeName}</span>
+        <div className="influence-place-title">
+          <span className="odds-name">{placeName}</span>
+          <HealthBadge level={healthLevel} />
+        </div>
         <div className="influence-market-counts" aria-label="Market positions">
           <span className="market-count team-count">
             Team <span aria-label={`${boosts} boosts`}>↑{boosts}</span>{' '}

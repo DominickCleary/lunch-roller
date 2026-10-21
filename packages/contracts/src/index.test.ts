@@ -1,6 +1,9 @@
 import { expect, it } from 'vitest';
 import {
   createPlace,
+  updatePlace,
+  healthRuleSettings,
+  transferRequest,
   defaultSchedule,
   schedule,
   pushSubscription,
@@ -212,4 +215,35 @@ it('accepts browser push services and rejects internal or credentialed targets',
   ]) {
     expect(pushSubscription.safeParse({ endpoint, keys }).success).toBe(false);
   }
+});
+
+it('validates three health levels and bounded bonus settings', () => {
+  expect(createPlace.parse({ name: 'New spot' }).healthLevel).toBe('balanced');
+  for (const healthLevel of ['treat', 'balanced', 'healthy']) {
+    expect(
+      createPlace.safeParse({ name: 'New spot', healthLevel }).success,
+    ).toBe(true);
+    expect(updatePlace.safeParse({ healthLevel }).success).toBe(true);
+  }
+  expect(
+    createPlace.safeParse({ name: 'New spot', healthLevel: 'unknown' }).success,
+  ).toBe(false);
+  for (const multiplier of [1, 0, 101, Infinity])
+    expect(
+      healthRuleSettings.safeParse({ enabled: true, multiplier }).success,
+    ).toBe(false);
+});
+it('requires a recipient UUID and positive whole-token transfer amount', () => {
+  const recipientId = crypto.randomUUID();
+  expect(transferRequest.parse({ recipientId, amount: 25 })).toEqual({
+    recipientId,
+    amount: 25,
+  });
+  for (const amount of [0, -1, 0.5, 2147483648, NaN, Infinity])
+    expect(transferRequest.safeParse({ recipientId, amount }).success).toBe(
+      false,
+    );
+  expect(
+    transferRequest.safeParse({ recipientId: 'nobody', amount: 1 }).success,
+  ).toBe(false);
 });

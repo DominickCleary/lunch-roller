@@ -22,6 +22,10 @@ Use the header's Dark mode / Light mode toggle to change the theme. The site fol
 
 Open Team token activity below your own token history to view another active roster member's balance, transactions, reasons and dates. Viewing activity leaves your selected name and game actions unchanged.
 
+Places have three health levels: **Treat**, **Balanced**, and **Healthy**. Choose a level when adding a place; admins can edit it later. Existing places start Balanced. After a Treat place wins, every active Healthy place receives a permanent ×1.25 weight bonus, alongside the winner’s usual halving. Admins can disable the rule or change its multiplier under Health balance. Result and Daily activity panels show automatic bonuses separately from paid boosts, with saved chances before/after the bonus.
+
+Open **Send tokens** in your wallet to choose another active person, enter a whole-token amount, review, and confirm. Transfers are immediate, final, and fee-free; both wallets and Daily activity record the other person and amount. Only available tokens can be sent. The server serializes transfers with purchases and prevents overdrafts and duplicate sends on retries. Transfers use the same trust-based name selection as the rest of the game.
+
 Token history names the restaurant boosted, anti-boosted, added or removed, and identifies bet reservations, refunds and payouts. Personal and team wallets also show each person's bets, stakes, draw dates and outcomes, including changes that did not move tokens.
 
 Choose **Daily activity** above the wheel for a workplace-day overview: influence spending over time, boosts versus anti-boosts by restaurant, who supported or opposed each place, a filterable activity feed, and the bets for that draw date. Use the date selector to review another day or the next draw. Charts show recorded token spending, not historical odds. The scheduled label beneath the wheel shows the weekday, date without a year, and draw time.

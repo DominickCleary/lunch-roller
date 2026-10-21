@@ -5,6 +5,8 @@ import type { BetView, TokenActivityEntry } from '@lunch/contracts';
 import './token-history.css';
 
 const entryLabels: Record<string, string> = {
+  'transfer-sent': 'Sent tokens',
+  'transfer-received': 'Received tokens',
   attendance: 'Lunch check-in',
   boost: 'Boosted',
   reduce: 'Anti-boosted',

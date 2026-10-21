@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   halveWeight,
+  postDrawWeights,
   influenceWeight,
   newPlaceLogWeight,
   probabilities,
@@ -123,4 +124,38 @@ describe('economy', () => {
     for (const balance of [-1, 1.5, NaN])
       expect(() => spendTokens(balance, 'boost')).toThrow();
   });
+});
+
+it('permanently boosts healthy alternatives only after a Treat win, preserving relative extreme weights', () => {
+  const options = [
+    { id: 't', logWeight: -10000, healthLevel: 'treat' as const },
+    { id: 'b', logWeight: -10000, healthLevel: 'balanced' as const },
+    { id: 'h', logWeight: -10000, healthLevel: 'healthy' as const },
+  ];
+  const rule = { enabled: true, multiplier: 1.25 };
+  const next = postDrawWeights(options, 't', rule);
+  expect(next[0]!.logWeight).toBeCloseTo(-10000 - Math.LN2);
+  expect(next[1]!.logWeight).toBe(-10000);
+  expect(next[2]!.logWeight).toBeCloseTo(-10000 + Math.log(1.25));
+  expect(probabilities(next).map((entry) => entry.probability)).toEqual([
+    expect.closeTo(0.5 / 2.75),
+    expect.closeTo(1 / 2.75),
+    expect.closeTo(1.25 / 2.75),
+  ]);
+  expect(options[0]!.logWeight).toBe(-10000);
+  for (const winner of ['b', 'h']) {
+    const result = postDrawWeights(options, winner, rule);
+    expect(result.find((entry) => entry.id === 't')!.logWeight).toBe(-10000);
+    expect(result.find((entry) => entry.id === winner)!.logWeight).toBeCloseTo(
+      -10000 - Math.LN2,
+    );
+  }
+  expect(
+    postDrawWeights(options, 't', { ...rule, enabled: false })[2]!.logWeight,
+  ).toBe(-10000);
+  expect(() => postDrawWeights(options, 'missing', rule)).toThrow();
+  for (const multiplier of [1, 0, 101, Infinity, NaN])
+    expect(() =>
+      postDrawWeights(options, 't', { enabled: true, multiplier }),
+    ).toThrow();
 });

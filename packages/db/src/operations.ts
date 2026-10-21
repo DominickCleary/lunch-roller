@@ -17,7 +17,7 @@ import {
 } from 'drizzle-orm';
 import {
   evaluateSchedule,
-  halveWeight,
+  postDrawWeights,
   influenceWeight,
   localClock,
   newPlaceLogWeight,
@@ -55,6 +55,10 @@ import type {
   TokenActivityEntry,
   DailyActivityResponse,
   DrawInfluencePosition,
+  HealthLevel,
+  HealthRuleSettings,
+  TransferRequest,
+  TransferResponse,
 } from '@lunch/contracts';
 import {
   gamePreferences,
@@ -65,6 +69,9 @@ import {
   setBetRequest,
   cancelBetRequest,
   changeInfluenceRequest,
+  healthLevel,
+  healthRuleSettings,
+  transferRequest,
 } from '@lunch/contracts';
 import type { createDatabase } from './index';
 import {
@@ -182,6 +189,7 @@ function drawView(row: DrawRow): DrawResponse {
     drawnAt: row.drawnAt.toISOString(),
     timezone: row.timezone,
     snapshot: row.snapshot,
+    healthBonus: row.healthBonus,
   };
 }
 
@@ -211,6 +219,8 @@ function tokenActivityView(row: {
   betId: string | null;
   betLocalDate: string | null;
   influenceLocalDate?: string | null;
+  transferId?: string | null;
+  counterpartyId?: string | null;
 }): TokenActivityEntry {
   return {
     id: row.id,
@@ -222,6 +232,8 @@ function tokenActivityView(row: {
     placeName: row.placeName,
     betId: row.betId,
     betLocalDate: row.betLocalDate,
+    transferId: row.transferId ?? null,
+    counterpartyId: row.counterpartyId ?? null,
     ...(row.influenceLocalDate
       ? { influenceLocalDate: row.influenceLocalDate }
       : {}),
@@ -255,6 +267,8 @@ async function tokenLedgerActivity(
     .select({
       id: tokenLedger.id,
       delta: tokenLedger.delta,
+      transferId: tokenLedger.transferId,
+      counterpartyId: tokenLedger.counterpartyId,
       kind: tokenLedger.kind,
       reason: tokenLedger.reason,
       createdAt: tokenLedger.createdAt,
@@ -314,6 +328,7 @@ function placeView(row: typeof places.$inferSelect): Place {
     name: row.name,
     active: row.active,
     logWeight: row.logWeight,
+    healthLevel: row.healthLevel,
   };
 }
 
@@ -1217,9 +1232,14 @@ export class GameService {
   }
 
   async savePlace(
-    input: { name?: string; active?: boolean },
+    input: { name?: string; active?: boolean; healthLevel?: HealthLevel },
     id?: string,
   ): Promise<Place> {
+    if (
+      input.healthLevel !== undefined &&
+      !healthLevel.safeParse(input.healthLevel).success
+    )
+      fail(400, 'INVALID_HEALTH_LEVEL', 'Choose Treat, Balanced or Healthy.');
     return transaction(this.database, async (tx) => {
       if (!id) {
         if (input.name === undefined)
@@ -1232,7 +1252,11 @@ export class GameService {
         const logWeight = newPlaceLogWeight(active, economy.newPlaceMultiplier);
         const [row] = await tx
           .insert(places)
-          .values({ name: normalizedName(input.name), logWeight })
+          .values({
+            name: normalizedName(input.name),
+            logWeight,
+            healthLevel: input.healthLevel ?? 'balanced',
+          })
           .returning();
         return placeView(row!);
       }
@@ -1241,7 +1265,11 @@ export class GameService {
       if (input.active === false && current.active) {
         await this.refundPlaceActivity(tx, id, new Date());
       }
-      if (input.name === undefined && input.active === undefined)
+      if (
+        input.name === undefined &&
+        input.active === undefined &&
+        input.healthLevel === undefined
+      )
         return placeView(current);
       const [row] = await tx
         .update(places)
@@ -1250,6 +1278,9 @@ export class GameService {
             ? {}
             : { name: normalizedName(input.name) }),
           ...(input.active === undefined ? {} : { active: input.active }),
+          ...(input.healthLevel === undefined
+            ? {}
+            : { healthLevel: input.healthLevel }),
         })
         .where(eq(places.id, id))
         .returning();
@@ -1403,6 +1434,19 @@ export class GameService {
             }),
           ),
           positions,
+          healthBonuses: (
+            await typedTx
+              .select()
+              .from(draws)
+              .where(eq(draws.localDate, localDate))
+          )
+            .filter((row) => row.healthBonus !== null)
+            .map((row) => ({
+              drawId: row.id,
+              placeName: row.placeName,
+              drawnAt: row.drawnAt.toISOString(),
+              bonus: row.healthBonus!,
+            })),
         };
       },
       { isolationLevel: 'repeatable read', accessMode: 'read only' },
@@ -1949,6 +1993,113 @@ export class GameService {
     });
   }
 
+  async getHealthRule(): Promise<HealthRuleSettings> {
+    const [row] = await this.database.db
+      .select()
+      .from(settings)
+      .where(eq(settings.id, 1));
+    if (!row)
+      fail(503, 'NOT_INITIALIZED', 'Game settings are not initialized.');
+    return {
+      enabled: row.healthBonusEnabled,
+      multiplier: row.healthBonusMultiplier,
+    };
+  }
+
+  async setHealthRule(input: HealthRuleSettings): Promise<HealthRuleSettings> {
+    const parsed = healthRuleSettings.safeParse(input);
+    if (!parsed.success)
+      fail(
+        400,
+        'INVALID_HEALTH_RULE',
+        'Provide a health bonus multiplier greater than 1 and at most 100.',
+      );
+    return transaction(this.database, async (tx) => {
+      await tx
+        .update(settings)
+        .set({
+          healthBonusEnabled: parsed.data.enabled,
+          healthBonusMultiplier: parsed.data.multiplier,
+        })
+        .where(eq(settings.id, 1));
+      return parsed.data;
+    });
+  }
+
+  async transferTokens(
+    participantId: string,
+    input: TransferRequest,
+    key: string,
+  ): Promise<TransferResponse> {
+    const parsed = transferRequest.safeParse(input);
+    if (!parsed.success)
+      fail(
+        400,
+        'INVALID_TRANSFER',
+        'Choose a recipient and a positive whole-token amount.',
+      );
+    const body = parsed.data;
+    const hash = requestHash('POST', '/api/v1/transfers', body);
+    return transaction(this.database, async (tx) => {
+      await requireSetupComplete(tx);
+      const sender = await activeParticipant(tx, participantId);
+      const prior = await existingKey(tx, participantId, key, hash);
+      if (prior) return replay<TransferResponse>(prior);
+      if (body.recipientId === participantId)
+        fail(400, 'SELF_TRANSFER', 'Choose someone other than yourself.');
+      const recipient = await activeParticipant(tx, body.recipientId);
+      const current = await balance(tx, participantId);
+      if (current < body.amount)
+        fail(
+          409,
+          'INSUFFICIENT_TOKENS',
+          'There are not enough available tokens for this transfer.',
+        );
+      const recipientBalance = await balance(tx, recipient.id);
+      if (!Number.isSafeInteger(recipientBalance + body.amount))
+        fail(
+          409,
+          'BALANCE_OVERFLOW',
+          'The recipient balance exceeds the supported range.',
+        );
+      const transferId = randomUUID();
+      const response = {
+        transferId,
+        recipientId: recipient.id,
+        recipientName: recipient.name,
+        amount: body.amount,
+        balance: current - body.amount,
+      };
+      const createdAt = new Date();
+      await tx.insert(tokenLedger).values([
+        {
+          participantId,
+          delta: -body.amount,
+          kind: 'transfer-sent',
+          idempotencyKey: key,
+          requestHash: hash,
+          response,
+          transferId,
+          counterpartyId: recipient.id,
+          reason: `Sent to ${recipient.name}`,
+          createdAt,
+        },
+        {
+          participantId: recipient.id,
+          delta: body.amount,
+          kind: 'transfer-received',
+          idempotencyKey: `transfer-received:${transferId}`,
+          requestHash: hash,
+          transferId,
+          counterpartyId: participantId,
+          reason: `Received from ${sender.name}`,
+          createdAt,
+        },
+      ]);
+      return response;
+    });
+  }
+
   async getPreferences(): Promise<GamePreferences> {
     const [row] = await this.database.db
       .select()
@@ -2066,6 +2217,7 @@ export class GameService {
             id: places.id,
             name: places.name,
             logWeight: places.logWeight,
+            healthLevel: places.healthLevel,
           })
           .from(places)
           .where(eq(places.active, true))
@@ -2073,6 +2225,8 @@ export class GameService {
         const odds = probabilities(active).map((item) => ({
           placeId: item.id,
           name: active.find((place) => place.id === item.id)!.name,
+          healthLevel: active.find((place) => place.id === item.id)!
+            .healthLevel,
           probability: item.probability,
         }));
         const evaluated = evaluateSchedule(now, schedule);
@@ -2088,6 +2242,10 @@ export class GameService {
           schedule,
           preferences: preferencesFromRow(settingsRow),
           economy: economyFromRow(settingsRow),
+          healthRule: {
+            enabled: settingsRow.healthBonusEnabled,
+            multiplier: settingsRow.healthBonusMultiplier,
+          },
           status,
           wheel: wheelDisplay(
             now,
@@ -2136,7 +2294,38 @@ export class GameService {
         name: place.name,
         logWeight: place.logWeight,
         probability: odds.find((item) => item.id === place.id)!.probability,
+        healthLevel: place.healthLevel,
       }));
+      const [rule] = await tx.select().from(settings).where(eq(settings.id, 1));
+      const healthRule = {
+        enabled: rule!.healthBonusEnabled,
+        multiplier: rule!.healthBonusMultiplier,
+      };
+      const nextWeights = postDrawWeights(active, winner.id, healthRule);
+      const healthy = active.filter(
+        (place) =>
+          healthRule.enabled &&
+          winner.healthLevel === 'treat' &&
+          place.healthLevel === 'healthy',
+      );
+      const beforeBonus = probabilities(
+        postDrawWeights(active, winner.id, { ...healthRule, enabled: false }),
+      );
+      const afterBonus = probabilities(nextWeights);
+      const healthBonus = healthy.length
+        ? {
+            multiplier: healthRule.multiplier,
+            places: healthy.map((place) => ({
+              placeId: place.id,
+              name: place.name,
+              probabilityBefore: beforeBonus.find(
+                (item) => item.id === place.id,
+              )!.probability,
+              probabilityAfter: afterBonus.find((item) => item.id === place.id)!
+                .probability,
+            })),
+          }
+        : null;
       const [row] = await tx
         .insert(draws)
         .values({
@@ -2145,15 +2334,22 @@ export class GameService {
           placeId: winner.id,
           placeName: winner.name,
           snapshot,
+          healthBonus,
           sample,
           drawnAt: instant,
         })
         .returning();
       await this.settleMarket(tx, due.localDate, row!, instant);
-      await tx
-        .update(places)
-        .set({ logWeight: halveWeight(winner.logWeight) })
-        .where(eq(places.id, winner.id));
+      for (const place of nextWeights) {
+        if (
+          place.id === winner.id ||
+          healthy.some((entry) => entry.id === place.id)
+        )
+          await tx
+            .update(places)
+            .set({ logWeight: place.logWeight })
+            .where(eq(places.id, place.id));
+      }
       const subs = await tx
         .select()
         .from(pushSubscriptions)
@@ -2356,10 +2552,20 @@ export class GameService {
 
   async addPlace(
     participantId: string,
-    input: { name: string },
+    input: { name: string; healthLevel?: HealthLevel },
     key: string,
   ): Promise<PurchaseResponse> {
-    const body = { name: normalizedName(input.name) };
+    if (
+      input.healthLevel !== undefined &&
+      !healthLevel.safeParse(input.healthLevel).success
+    )
+      fail(400, 'INVALID_HEALTH_LEVEL', 'Choose Treat, Balanced or Healthy.');
+    const body = {
+      name: normalizedName(input.name),
+      ...(input.healthLevel && input.healthLevel !== 'balanced'
+        ? { healthLevel: input.healthLevel }
+        : {}),
+    };
     const hash = requestHash('POST', '/api/v1/places', body);
     return transaction(this.database, async (tx) => {
       await requireSetupComplete(tx);
@@ -2408,7 +2614,12 @@ export class GameService {
       const [place] = archived
         ? await tx
             .update(places)
-            .set({ name: body.name, active: true, logWeight: startingWeight })
+            .set({
+              name: body.name,
+              active: true,
+              logWeight: startingWeight,
+              healthLevel: input.healthLevel ?? 'balanced',
+            })
             .where(eq(places.id, archived.id))
             .returning()
         : await tx
@@ -2417,6 +2628,7 @@ export class GameService {
               name: body.name,
               addedBy: participantId,
               logWeight: startingWeight,
+              healthLevel: input.healthLevel ?? 'balanced',
             })
             .returning();
       const response = {

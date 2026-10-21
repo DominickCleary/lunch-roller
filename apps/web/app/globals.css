@@ -1486,3 +1486,131 @@ button:disabled {
 :root[data-theme='dark'] :focus-visible {
   outline-color: #88b4ff;
 }
+
+.health-badge {
+  display: inline-flex;
+  padding: 3px 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+}
+.health-healthy {
+  color: var(--success);
+  border-color: var(--success);
+}
+.health-select {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-width: 0;
+}
+.health-select select {
+  min-width: 90px;
+  max-width: 100%;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+}
+.health-rule-note {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.health-bonus-summary {
+  margin: 14px 0;
+  padding: 14px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--success);
+  border-radius: 10px;
+  font-size: 13px;
+}
+.health-bonus-summary h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+.health-bonus-summary p {
+  line-height: 1.5;
+}
+.health-bonus-summary ul {
+  list-style: none;
+  padding: 0;
+}
+.health-bonus-summary li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 7px 0;
+}
+.token-transfer {
+  margin: 16px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.token-transfer summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.token-transfer p {
+  line-height: 1.5;
+}
+.token-transfer form {
+  display: grid;
+  gap: 12px;
+}
+.token-transfer label {
+  display: grid;
+  gap: 5px;
+}
+.token-transfer select,
+.token-transfer input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+}
+.transfer-review .inline-form {
+  flex-wrap: wrap;
+}
+[data-testid='admin-health-rule'] form {
+  display: grid;
+  gap: 12px;
+}
+[data-testid='admin-health-rule'] label {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.influence-place-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.influence-place-title .odds-name {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+[data-testid='admin-health-rule'] input[type='checkbox'] {
+  width: 16px;
+  min-height: 16px;
+  height: 16px;
+  margin: 0;
+  flex: 0 0 auto;
+}

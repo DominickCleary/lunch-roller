@@ -31,6 +31,9 @@ import {
   currentInfluenceResponse,
   changeInfluenceRequest,
   influenceMutationResponse,
+  healthRuleSettings,
+  transferRequest,
+  transferResponse,
 } from '@lunch/contracts';
 import {
   createHash,
@@ -267,6 +270,16 @@ async function dispatch(request: NextRequest, context: Context) {
     }
     if (route === '/today' && method === 'GET')
       return response(await game.today());
+    if (route === '/transfers' && method === 'POST')
+      return response(
+        transferResponse.parse(
+          await game.transferTokens(
+            participantId(request),
+            parse(transferRequest, await body(request)),
+            idempotencyKey(request),
+          ),
+        ),
+      );
     if (route === '/wallet' && method === 'GET')
       return response(await game.wallet(participantId(request)));
     if (route === '/influence/current' && method === 'GET')
@@ -365,6 +378,16 @@ async function dispatch(request: NextRequest, context: Context) {
       return response(undefined, 204);
     }
     if (route.startsWith('/admin/')) requireAdmin(request);
+    if (route === '/admin/health-rule' && method === 'GET')
+      return response(healthRuleSettings.parse(await game.getHealthRule()));
+    if (route === '/admin/health-rule' && method === 'PUT')
+      return response(
+        healthRuleSettings.parse(
+          await game.setHealthRule(
+            parse(healthRuleSettings, await body(request)),
+          ),
+        ),
+      );
     if (route === '/admin/economy' && method === 'GET')
       return response(economySettings.parse(await game.getEconomy()));
     if (route === '/admin/economy' && method === 'PUT')

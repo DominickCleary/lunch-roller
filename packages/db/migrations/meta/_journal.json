@@ -57,6 +57,13 @@
       "when": 1792584481930,
       "tag": "0007_volatile_landau",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792587094273,
+      "tag": "0008_condemned_madripoor",
+      "breakpoints": true
     }
   ]
 }

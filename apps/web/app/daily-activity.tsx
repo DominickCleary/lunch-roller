@@ -7,6 +7,7 @@ import type {
   TokenActivityEntry,
 } from '@lunch/contracts';
 import './daily-activity.css';
+import { HealthBonusSummary } from './health-label';
 import { DrawPositions } from './draw-positions';
 
 type ActivityResult = {
@@ -20,6 +21,8 @@ type ActionEntry = DailyActivityResponse['entries'][number];
 const emptyEntries: ActionEntry[] = [];
 
 const actionLabel: Record<string, string> = {
+  'transfer-sent': 'Sent tokens',
+  'transfer-received': 'Received tokens',
   attendance: 'Check-in reward',
   boost: 'Boosted',
   reduce: 'Anti-boosted',
@@ -598,6 +601,13 @@ export function DailyActivity({
               localDate={selectedDate}
             />
           )}
+          {data.healthBonuses?.map((event) => (
+            <HealthBonusSummary
+              key={event.drawId}
+              bonus={event.bonus}
+              winner={event.placeName}
+            />
+          ))}
           <div className="activity-dashboard-grid">
             <section className="activity-panel activity-trend-panel">
               <div className="activity-panel-heading">

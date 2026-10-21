@@ -11,6 +11,24 @@ const pizza = randomUUID();
 const sample: DailyActivityResponse = {
   localDate: date,
   timezone: 'Europe/Dublin',
+  healthBonuses: [
+    {
+      drawId: randomUUID(),
+      placeName: 'Pizza',
+      drawnAt: `${date}T11:30:00.000Z`,
+      bonus: {
+        multiplier: 1.25,
+        places: [
+          {
+            placeId: sushi,
+            name: 'Sushi',
+            probabilityBefore: 0.4,
+            probabilityAfter: 0.454545,
+          },
+        ],
+      },
+    },
+  ],
   entries: [
     [alex, 'Alex', sushi, 'Sushi', 'boost', 5, '08:00'],
     [sam, 'Sam', sushi, 'Sushi', 'boost', 5, '09:00'],
@@ -163,6 +181,13 @@ test('shows the schedule, charts, coalitions and bet board without changing iden
   ).toBeVisible();
   await expect(panel.locator('.activity-summary')).toContainText('15');
   await expect(panel.locator('.activity-summary')).toContainText('5');
+  const healthBonus = panel.getByRole('region', {
+    name: 'Automatic health bonus',
+  });
+  await expect(healthBonus).toContainText('Pizza was a Treat place');
+  await expect(healthBonus).toContainText('×1.25');
+  await expect(healthBonus).toContainText('40.0% → 45.5%');
+  await expect(healthBonus).toContainText('No tokens spent.');
   const positions = panel.getByRole('region', {
     name: 'Draw influence positions',
   });

@@ -1,0 +1,18 @@
+# Task: Health balance bonuses and participant token transfers
+
+- Owner / branch / worktree: coordinator, main, primary checkout.
+- Goal and current behavior: introduce Treat/Balanced/Healthy ratings and permanent automatic healthy-place bonuses after Treat wins; allow immediate fee-free token transfers between active participants.
+- Owned files or directories: contracts and tests, domain and tests, DB schema/migrations/operations and integration tests, web API/page/components/styles, affected browser tests, README and docs/api.md, docs/game-rules.md, docs/architecture.md, this brief.
+- Dependencies and contracts: existing settings-first transactions, logarithmic weights, append-only ledger, immutable draw snapshots. Health rule defaults enabled with multiplier 1.25; existing places default Balanced. Transfers accept recipientId and positive whole amount, use participant identity plus idempotency key, record equal debit/credit and both counterparties. No dependencies.
+- Explicit exclusions: no accounts, exchange/offers, transfer fees, real-money trades, nutrition assessment, commits, pushes or deployments.
+- Acceptance criteria: creation/admin editing of ratings; visible badges; configurable bonus; atomic one-time post-draw bonus and historical activity; transfer confirmation/history, no self-transfer/inactive recipients/overdrafts, safe retries and concurrent spending.
+- Checks and required fixtures: format/lint/types/unit/build; fresh disposable PostgreSQL migration twice and seed twice, integration tests and focused browser checks. Never use production configuration.
+- Migration/environment effects: additive place/settings/draw/ledger columns and constraints; existing data preserved. Compose applies migration before app startup.
+
+## Handoff
+
+- Result and behavior changed: implemented three health levels on creation/admin editing, public badges, configurable permanent post-Treat health bonuses and immutable bonus history. Implemented confirmed, immediate fee-free transfers with atomic paired ledger entries, both wallet receipts, daily activity and safe retries.
+- Files touched / commit if available: contracts/domain/schema/operations and tests; migration 0008_condemned_madripoor.sql plus metadata; web API/page, health-label and token-transfer components, influence/activity/history UI and styling; health-transfers and daily-activity browser tests; README, API, architecture and rules docs. Working diff on main, no commit.
+- Checks executed and outcomes: pnpm format:check, pnpm lint, pnpm typecheck, pnpm test (48 tests), pnpm build and git diff --check passed. Fresh isolated PostgreSQL migrations and seed each passed twice; pnpm test:integration passed all 40 tests. Seven affected Playwright checks passed, including first-run setup/fixture loading, health/transfer flows, daily activity and influence regression coverage. Browser checks include mobile overflow and snapshots. Initial fixture no-op funding and accessible-label/setup-name regression failures were corrected before the passing runs. The full unrelated browser suite and full Compose image startup were not rerun.
+- Known issues or blockers: no feature blockers found. The pre-existing full-browser CI issues reported in the deployment task were outside this change; this handoff does not claim full CI passed.
+- Integration order and follow-up work: complete in the working tree. The normal docker compose up -d --build --wait sequence runs migration 0008 before web/worker. Existing places become Balanced, so admins must classify Treat/Healthy places to activate useful bonuses. No dependencies, secrets, commits, pushes or deployments. The isolated test container was removed after validation.

@@ -319,3 +319,33 @@ export function spendTokens(
   if (balance < cost) throw new Error('Insufficient tokens');
   return balance - cost;
 }
+
+/** Apply permanent post-draw changes without changing the saved selection odds. */
+export function postDrawWeights<
+  T extends WeightedPlace & { healthLevel: 'treat' | 'balanced' | 'healthy' },
+>(
+  places: readonly T[],
+  winnerId: string,
+  healthRule: { enabled: boolean; multiplier: number },
+): T[] {
+  const winner = places.find((place) => place.id === winnerId);
+  if (!winner) throw new Error('Winner must be an active place.');
+  if (
+    !Number.isFinite(healthRule.multiplier) ||
+    healthRule.multiplier <= 1 ||
+    healthRule.multiplier > 100
+  )
+    throw new Error('Invalid health bonus multiplier.');
+  return places.map((place) => ({
+    ...place,
+    logWeight: finite(
+      place.id === winnerId
+        ? halveWeight(place.logWeight)
+        : healthRule.enabled &&
+            winner.healthLevel === 'treat' &&
+            place.healthLevel === 'healthy'
+          ? place.logWeight + Math.log(healthRule.multiplier)
+          : place.logWeight,
+    ),
+  }));
+}

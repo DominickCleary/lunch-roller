@@ -54,19 +54,60 @@ export const attendanceStatus = z.object({
   open: z.boolean(),
 });
 export type AttendanceStatus = z.infer<typeof attendanceStatus>;
+export const healthLevel = z.enum(['treat', 'balanced', 'healthy']);
+export type HealthLevel = z.infer<typeof healthLevel>;
+export const healthRuleSettings = z.object({
+  enabled: z.boolean(),
+  multiplier: z.number().finite().gt(1).max(100),
+});
+export type HealthRuleSettings = z.infer<typeof healthRuleSettings>;
+export const defaultHealthRuleSettings: HealthRuleSettings = {
+  enabled: true,
+  multiplier: 1.25,
+};
+export const healthBonus = z.object({
+  multiplier: z.number().finite().gt(1).max(100),
+  places: z.array(
+    z.object({
+      placeId: id,
+      name,
+      probabilityBefore: z.number().min(0).max(1),
+      probabilityAfter: z.number().min(0).max(1),
+    }),
+  ),
+});
+export type HealthBonus = z.infer<typeof healthBonus>;
+export const transferRequest = z.object({
+  recipientId: id,
+  amount: tokenAmount,
+});
+export const transferResponse = z.object({
+  transferId: id,
+  recipientId: id,
+  recipientName: name,
+  amount: tokenAmount,
+  balance: z.number().int().nonnegative(),
+});
+export type TransferRequest = z.infer<typeof transferRequest>;
+export type TransferResponse = z.infer<typeof transferResponse>;
 export const place = z.object({
   id,
   name,
   active: z.boolean(),
   logWeight: z.number().finite(),
+  healthLevel: healthLevel.default('balanced'),
 });
 export const createParticipant = z.object({ name });
 export const updateParticipant = z.object({
   name: name.optional(),
   active: z.boolean().optional(),
 });
-export const createPlace = z.object({ name });
+export const createPlace = z.object({
+  name,
+  healthLevel: healthLevel.default('balanced'),
+});
 export const updatePlace = z.object({
+  healthLevel: healthLevel.optional(),
   name: name.optional(),
   active: z.boolean().optional(),
 });
@@ -103,12 +144,14 @@ export const draw = z.object({
   placeName: name,
   drawnAt: z.iso.datetime(),
   timezone: z.string(),
+  healthBonus: healthBonus.nullable().optional(),
   snapshot: z.array(
     z.object({
       placeId: id,
       name,
       logWeight: z.number().finite(),
       probability: z.number().min(0).max(1),
+      healthLevel: healthLevel.optional(),
     }),
   ),
 });
@@ -117,6 +160,7 @@ export const todayResponse = z.object({
   schedule,
   preferences: gamePreferences,
   economy: economySettings,
+  healthRule: healthRuleSettings.optional(),
   wheel: z.object({
     mode: z.enum(['result', 'upcoming']),
     localDate: z.iso.date(),
@@ -124,7 +168,12 @@ export const todayResponse = z.object({
   status: z.enum(['pending', 'drawn', 'no-options', 'not-scheduled']),
   result: draw.nullable(),
   odds: z.array(
-    z.object({ placeId: id, name, probability: z.number().min(0).max(1) }),
+    z.object({
+      placeId: id,
+      name,
+      probability: z.number().min(0).max(1),
+      healthLevel: healthLevel.optional(),
+    }),
   ),
 });
 export const tokenActivityEntry = z.object({
@@ -138,6 +187,8 @@ export const tokenActivityEntry = z.object({
   betId: id.nullable().default(null),
   betLocalDate: z.iso.date().nullable().default(null),
   influenceLocalDate: z.iso.date().nullable().optional(),
+  transferId: id.nullable().optional(),
+  counterpartyId: id.nullable().optional(),
 });
 export const attendanceResponse = z.object({
   drawId: id,
@@ -196,6 +247,16 @@ export const dailyActivityResponse = z.object({
     }),
   ),
   positions: z.array(drawInfluencePosition).optional(),
+  healthBonuses: z
+    .array(
+      z.object({
+        drawId: id,
+        placeName: name,
+        drawnAt: z.iso.datetime(),
+        bonus: healthBonus,
+      }),
+    )
+    .optional(),
 });
 export type DrawInfluencePosition = z.infer<typeof drawInfluencePosition>;
 export type TokenActivityEntry = z.infer<typeof tokenActivityEntry>;

@@ -35,6 +35,12 @@ Influence shares the betting market and its saved cutoff. Each new unit has an `
 
 Schedule voids, expiry without a draw and participant deactivation refund affected pending units using the same inverse operation. A ban refunds affected units and bets even after cutoff, because the restaurant is removed from the undrawn wheel. Admin exact-odds overrides refund pending influence before replacing effective weights, so later withdrawals cannot distort the override. Additions/bans remain immediate final purchases. Daily read-only activity snapshots expose outstanding units grouped by person, restaurant and staged/locked/committed state for a draw date, separately from gross purchase/refund events by action date.
 
+## Health balance and transfers
+
+Places persist a checked three-value `health_level`, default Balanced. Settings hold an enabled flag and health multiplier, default true and 1.25. The pure domain `postDrawWeights` computes winner halving plus the healthy-place bonus only for Treat winners. In the same draw transaction, selection and bet settlement use the original pre-change probabilities; the server then persists updated weights and a `health_bonus` receipt on the draw. New snapshot entries retain ratings. Legacy snapshots remain untouched, with no inferred bonuses. Daily activity reads these receipts separately from token spending, and presentation compares the post-halving distribution immediately before/after the health bonus. Admin rule/rating edits take the common settings lock and affect future draws only.
+
+Transfers use the common settings-first transaction and sender-scoped ledger idempotency. They validate active sender/recipient, different identities, whole positive amount and available ledger balance, then insert equal debit/credit rows with a shared transfer UUID, reciprocal participant references, and saved counterpart names in reasons. A unique transfer/direction index and signed-direction constraints guard record shape. Both rows commit or neither does; recipient credits never mint a net balance. Credits cannot be replayed as outgoing requests. Existing archive rules retain referenced people. UI confirmation precedes the existing persistent pending-request mechanism, so network retries reuse the original key.
+
 ## Identity and transport
 
 Store the participant ID as `lunch-roller.participant-id` in localStorage, send it as `X-Participant-Id`, and validate that the participant is active. It is identity selection, not authentication. Reset stale selection when an ID is inactive or unknown.

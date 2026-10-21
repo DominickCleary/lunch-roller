@@ -1,3 +1,4 @@
+import type { HealthBonus, HealthLevel } from '@lunch/contracts';
 import { sql } from 'drizzle-orm';
 import {
   boolean,
@@ -43,6 +44,11 @@ export const places = pgTable(
     name: text().notNull(),
     active: boolean().default(true).notNull(),
     logWeight: doublePrecision('log_weight').default(0).notNull(),
+    healthLevel: text('health_level', {
+      enum: ['treat', 'balanced', 'healthy'],
+    })
+      .default('balanced')
+      .notNull(),
     addedBy: uuid('added_by').references(() => participants.id),
     createdAt: createdAt(),
   },
@@ -50,6 +56,10 @@ export const places = pgTable(
     check(
       'place_name_nonempty',
       sql`length(btrim(${t.name})) between 1 and 100`,
+    ),
+    check(
+      'place_health_level',
+      sql`${t.healthLevel} in ('treat','balanced','healthy')`,
     ),
     check(
       'place_weight_finite',
@@ -83,6 +93,10 @@ export const settings = pgTable(
     newPlaceMultiplier: doublePrecision('new_place_multiplier')
       .default(1)
       .notNull(),
+    healthBonusEnabled: boolean('health_bonus_enabled').default(true).notNull(),
+    healthBonusMultiplier: doublePrecision('health_bonus_multiplier')
+      .default(1.25)
+      .notNull(),
     wheelSwitchTime: text('wheel_switch_time').default('15:00').notNull(),
     checkInPledge: text('check_in_pledge')
       .default('I pledge that I actually obeyed the wheel')
@@ -94,6 +108,10 @@ export const settings = pgTable(
       .notNull(),
   },
   (t) => [
+    check(
+      'settings_health_bonus_multiplier',
+      sql`${t.healthBonusMultiplier} > 1 and ${t.healthBonusMultiplier} <= 100`,
+    ),
     check('settings_singleton', sql`${t.id} = 1`),
     check(
       'settings_token_amounts',
@@ -139,6 +157,7 @@ export type DrawSnapshot = {
   name: string;
   logWeight: number;
   probability: number;
+  healthLevel?: HealthLevel;
 }[];
 export const draws = pgTable(
   'draws',
@@ -151,6 +170,7 @@ export const draws = pgTable(
       .references(() => places.id),
     placeName: text('place_name').notNull(),
     snapshot: jsonb().$type<DrawSnapshot>().notNull(),
+    healthBonus: jsonb('health_bonus').$type<HealthBonus>(),
     sample: doublePrecision().notNull(),
     drawnAt: timestamp('drawn_at', { withTimezone: true })
       .defaultNow()
@@ -294,6 +314,8 @@ export const tokenLedger = pgTable(
         'bet-stake',
         'bet-release',
         'bet-payout',
+        'transfer-sent',
+        'transfer-received',
       ],
     }).notNull(),
     idempotencyKey: text('idempotency_key').notNull(),
@@ -305,17 +327,24 @@ export const tokenLedger = pgTable(
     influenceMarketId: uuid('influence_market_id').references(
       () => bettingMarkets.id,
     ),
+    transferId: uuid('transfer_id'),
+    counterpartyId: uuid('counterparty_id').references(() => participants.id),
     reason: text(),
     createdAt: createdAt(),
   },
   (t) => [
     uniqueIndex('ledger_request_once').on(t.participantId, t.idempotencyKey),
+    uniqueIndex('ledger_transfer_direction').on(t.transferId, t.kind),
+    check(
+      'ledger_transfer_valid',
+      sql`(${t.kind} in ('transfer-sent','transfer-received') and ${t.transferId} is not null and ${t.counterpartyId} is not null and ${t.counterpartyId} <> ${t.participantId} and ((${t.kind} = 'transfer-sent' and ${t.delta} < 0) or (${t.kind} = 'transfer-received' and ${t.delta} > 0))) or (${t.kind} not in ('transfer-sent','transfer-received') and ${t.transferId} is null and ${t.counterpartyId} is null)`,
+    ),
     uniqueIndex('ledger_attendance_once').on(t.attendanceId),
     index('ledger_balance').on(t.participantId),
     check('ledger_nonzero', sql`${t.delta} <> 0`),
     check(
       'ledger_kind',
-      sql`${t.kind} in ('attendance','boost','reduce','boost-refund','reduce-refund','add-place','remove-place','correction','bet-stake','bet-release','bet-payout')`,
+      sql`${t.kind} in ('attendance','boost','reduce','boost-refund','reduce-refund','add-place','remove-place','correction','bet-stake','bet-release','bet-payout','transfer-sent','transfer-received')`,
     ),
     check(
       'correction_reason',
