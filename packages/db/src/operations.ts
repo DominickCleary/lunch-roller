@@ -49,11 +49,14 @@ import type {
   BettingWindow,
   CurrentBetsResponse,
   SetBetRequest,
+  TokenActivityEntry,
+  DailyActivityResponse,
 } from '@lunch/contracts';
 import {
   gamePreferences,
   economySettings,
   tokenBalanceSetRequest,
+  dailyActivityQuery,
   setRestaurantOddsRequest,
   setBetRequest,
   cancelBetRequest,
@@ -189,6 +192,76 @@ function betView(row: typeof bets.$inferSelect): BetView {
     updatedAt: row.updatedAt.toISOString(),
     settledAt: row.settledAt?.toISOString() ?? null,
   };
+}
+
+function tokenActivityView(row: {
+  id: string;
+  delta: number;
+  kind: string;
+  reason: string | null;
+  createdAt: Date;
+  placeId: string | null;
+  placeName: string | null;
+  betId: string | null;
+  betLocalDate: string | null;
+}): TokenActivityEntry {
+  return {
+    id: row.id,
+    delta: row.delta,
+    kind: row.kind,
+    reason: row.reason,
+    createdAt: row.createdAt.toISOString(),
+    placeId: row.placeId,
+    placeName: row.placeName,
+    betId: row.betId,
+    betLocalDate: row.betLocalDate,
+  };
+}
+
+async function walletBets(tx: Tx, participantId: string): Promise<BetView[]> {
+  const rows = await tx
+    .select()
+    .from(bets)
+    .where(eq(bets.participantId, participantId))
+    .orderBy(desc(bets.updatedAt), desc(bets.id));
+  return rows.map(betView);
+}
+
+async function tokenLedgerActivity(
+  tx: Tx,
+  participantId?: string,
+  localDate?: string,
+  timezone?: string,
+) {
+  const predicates = [];
+  if (participantId)
+    predicates.push(eq(tokenLedger.participantId, participantId));
+  if (localDate && timezone) {
+    predicates.push(
+      sql`(${tokenLedger.createdAt} at time zone ${timezone})::date = ${localDate}::date`,
+    );
+  }
+  return tx
+    .select({
+      id: tokenLedger.id,
+      delta: tokenLedger.delta,
+      kind: tokenLedger.kind,
+      reason: tokenLedger.reason,
+      createdAt: tokenLedger.createdAt,
+      placeId: tokenLedger.placeId,
+      placeName: places.name,
+      betId: tokenLedger.betId,
+      betLocalDate: bettingMarkets.localDate,
+      participantId: tokenLedger.participantId,
+      participantName: participants.name,
+    })
+    .from(tokenLedger)
+    .leftJoin(places, eq(tokenLedger.placeId, places.id))
+    .leftJoin(bets, eq(tokenLedger.betId, bets.id))
+    .leftJoin(bettingMarkets, eq(bets.marketId, bettingMarkets.id))
+    .innerJoin(participants, eq(tokenLedger.participantId, participants.id))
+    .where(predicates.length ? and(...predicates) : undefined)
+    .orderBy(desc(tokenLedger.createdAt), desc(tokenLedger.id));
 }
 
 function bettingWindowView(
@@ -1054,19 +1127,13 @@ export class GameService {
           fail(404, 'PARTICIPANT_NOT_FOUND', 'Participant was not found.');
         if (!person.active)
           fail(403, 'PARTICIPANT_INACTIVE', 'Participant is inactive.');
-        const ledger = await tx
+        const [balanceRow] = await tx
           .select({
-            id: tokenLedger.id,
-            delta: tokenLedger.delta,
-            kind: tokenLedger.kind,
-            reason: tokenLedger.reason,
-            createdAt: tokenLedger.createdAt,
-            balance: sql<number>`(select coalesce(sum(delta), 0)::float8 from token_ledger where participant_id = ${participantId})`,
+            balance: sql<number>`coalesce(sum(${tokenLedger.delta}), 0)::float8`,
           })
           .from(tokenLedger)
-          .where(eq(tokenLedger.participantId, participantId))
-          .orderBy(desc(tokenLedger.createdAt), desc(tokenLedger.id));
-        const currentBalance = ledger[0]?.balance ?? 0;
+          .where(eq(tokenLedger.participantId, participantId));
+        const currentBalance = balanceRow?.balance ?? 0;
         if (!Number.isSafeInteger(currentBalance))
           fail(
             409,
@@ -1075,13 +1142,79 @@ export class GameService {
           );
         return {
           balance: currentBalance,
-          ledger: ledger.map(({ id, delta, kind, reason, createdAt }) => ({
-            id,
-            delta,
-            kind,
-            reason,
-            createdAt: createdAt.toISOString(),
+          ledger: (await tokenLedgerActivity(tx, participantId)).map(
+            tokenActivityView,
+          ),
+          bets: await walletBets(tx, participantId),
+        };
+      },
+      { isolationLevel: 'repeatable read', accessMode: 'read only' },
+    );
+  }
+
+  async dailyActivity(
+    participantId: string,
+    date?: string,
+    now = new Date(),
+  ): Promise<DailyActivityResponse> {
+    const parsed = dailyActivityQuery.safeParse({ date });
+    if (!parsed.success)
+      fail(
+        400,
+        'INVALID_ACTIVITY_DATE',
+        'Provide a valid local calendar date.',
+      );
+    return this.database.db.transaction(
+      async (tx) => {
+        const typedTx = tx as Tx;
+        await requireSetupComplete(typedTx);
+        const [person] = await typedTx
+          .select({ id: participants.id, active: participants.active })
+          .from(participants)
+          .where(eq(participants.id, participantId));
+        if (!person)
+          fail(404, 'PARTICIPANT_NOT_FOUND', 'Participant was not found.');
+        if (!person.active)
+          fail(403, 'PARTICIPANT_INACTIVE', 'Participant is inactive.');
+        const [configuration] = await typedTx
+          .select({ timezone: settings.timezone })
+          .from(settings)
+          .where(eq(settings.id, 1));
+        if (!configuration)
+          fail(503, 'NOT_INITIALIZED', 'Game settings are not initialized.');
+        const localDate =
+          parsed.data.date ?? localClock(now, configuration.timezone).localDate;
+        const ledger = await tokenLedgerActivity(
+          typedTx,
+          undefined,
+          localDate,
+          configuration.timezone,
+        );
+        const dayBets = await typedTx
+          .select({
+            bet: bets,
+            participantId: participants.id,
+            participantName: participants.name,
+          })
+          .from(bets)
+          .innerJoin(participants, eq(bets.participantId, participants.id))
+          .where(eq(bets.localDate, localDate))
+          .orderBy(desc(bets.updatedAt), desc(bets.id));
+        return {
+          localDate,
+          timezone: configuration.timezone,
+          entries: ledger.map((row) => ({
+            ...tokenActivityView(row),
+            participantId: row.participantId,
+            participantName: row.participantName,
           })),
+          bets: dayBets.map(
+            ({ bet, participantId: ownerId, participantName }) => ({
+              ...betView(bet),
+              participantId: ownerId,
+              participantName,
+            }),
+          ),
         };
       },
       { isolationLevel: 'repeatable read', accessMode: 'read only' },
@@ -1827,31 +1960,26 @@ export class GameService {
           'INSUFFICIENT_TOKENS',
           'A correction cannot make the balance negative.',
         );
-      const history = await tx
-        .select()
-        .from(tokenLedger)
-        .where(eq(tokenLedger.participantId, input.participantId))
-        .orderBy(desc(tokenLedger.createdAt), desc(tokenLedger.id));
+      const history = await tokenLedgerActivity(tx, input.participantId);
       const id = randomUUID();
       const createdAt = new Date();
       const response: WalletResponse = {
         balance: current + input.delta,
         ledger: [
-          {
+          tokenActivityView({
             id,
             delta: input.delta,
             kind: 'correction',
             reason: body.reason,
-            createdAt: createdAt.toISOString(),
-          },
-          ...history.map((entry) => ({
-            id: entry.id,
-            delta: entry.delta,
-            kind: entry.kind,
-            reason: entry.reason,
-            createdAt: entry.createdAt.toISOString(),
-          })),
+            createdAt,
+            placeId: null,
+            placeName: null,
+            betId: null,
+            betLocalDate: null,
+          }),
+          ...history.map(tokenActivityView),
         ],
+        bets: await walletBets(tx, input.participantId),
       };
       await tx.insert(tokenLedger).values({
         id,

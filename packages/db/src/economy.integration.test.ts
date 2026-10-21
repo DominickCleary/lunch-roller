@@ -232,7 +232,7 @@ it('uses configured rewards and prices, replays original responses, and preserve
   });
 
   const wallet = await service.wallet(member.id);
-  expect(wallet.balance).toBe(100 - 3 - 4 - 7 + 13 - 9);
+  expect(wallet.balance).toBe(100 - 3 - 4 - 7 - 12 - 7 + 13 - 9);
   expect(
     wallet.ledger.filter((entry) => entry.kind === 'attendance'),
   ).toHaveLength(1);

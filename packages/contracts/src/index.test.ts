@@ -10,7 +10,51 @@ import {
   defaultGamePreferences,
   gamePreferences,
   setBetRequest,
+  walletResponse,
+  dailyActivityQuery,
+  dailyActivityResponse,
 } from './index';
+
+it('accepts enriched activity while supplying defaults for saved wallet receipts', () => {
+  const entry = {
+    id: 'ca982f50-f7c6-4eb3-8572-28fa01106ed7',
+    delta: -5,
+    kind: 'boost',
+    reason: null,
+    createdAt: '2026-10-21T10:00:00.000Z',
+  };
+  const legacy = walletResponse.parse({ balance: 5, ledger: [entry] });
+  expect(legacy.bets).toEqual([]);
+  expect(legacy.ledger[0]).toMatchObject({
+    placeId: null,
+    placeName: null,
+    betId: null,
+    betLocalDate: null,
+  });
+  expect(
+    dailyActivityResponse.parse({
+      localDate: '2026-10-21',
+      timezone: 'Europe/Dublin',
+      entries: [
+        {
+          ...entry,
+          participantId: entry.id,
+          participantName: 'Alex',
+          placeId: entry.id,
+          placeName: 'Sushi',
+        },
+      ],
+      bets: [],
+    }).entries[0]?.placeName,
+  ).toBe('Sushi');
+  expect(dailyActivityQuery.parse({})).toEqual({});
+  expect(dailyActivityQuery.safeParse({ date: '2026-02-30' }).success).toBe(
+    false,
+  );
+  expect(dailyActivityQuery.safeParse({ date: '2026-10-21' }).success).toBe(
+    true,
+  );
+});
 
 it('validates betting stake and configurable close minutes', () => {
   expect(defaultGamePreferences.bettingCloseMinutes).toBe(5);

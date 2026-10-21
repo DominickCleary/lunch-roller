@@ -44,6 +44,37 @@ test('views team balances and history without changing identity or wallets', asy
 }) => {
   const viewerBefore = await game.wallet(viewerId);
   const fundedBefore = await game.wallet(fundedId);
+  await page.route('**/api/v1/wallet', async (route) => {
+    if (route.request().headers()['x-participant-id'] !== fundedId)
+      return route.continue();
+    const response = await route.fetch();
+    const wallet = (await response.json()) as Record<string, unknown>;
+    const ledger = wallet.ledger as Array<Record<string, unknown>>;
+    // A UI fixture for a same-stake place-only edit: the wallet exposes the
+    // final selected restaurant, while no extra stake delta is created.
+    ledger[1] = {
+      ...ledger[1],
+      kind: 'boost',
+      reason: 'Boosted the wheel before lunch',
+      placeId: '00000000-0000-4000-8000-000000000011',
+      placeName: 'Cafe North',
+    };
+    wallet.bets = [
+      {
+        id: '00000000-0000-4000-8000-000000000099',
+        localDate: '2026-10-22',
+        placeId: '00000000-0000-4000-8000-000000000012',
+        placeName: 'Cafe South',
+        stake: 7,
+        status: 'open',
+        payout: null,
+        probability: 0.5,
+        updatedAt: new Date().toISOString(),
+        settledAt: null,
+      },
+    ];
+    await route.fulfill({ response, json: wallet });
+  });
   await page.goto('/');
   await page.getByLabel('Your name').selectOption({ label: viewerName });
   await page.getByRole('button', { name: 'Enter lunch wheel' }).click();
@@ -69,6 +100,17 @@ test('views team balances and history without changing identity or wallets', asy
   await expect(activity).toContainText('-2 tokens');
   await expect(activity).toContainText('Admin correction');
   await expect(activity).toContainText('Team fixture 0');
+  await expect(activity).toContainText('Boosted');
+  await expect(activity).toContainText('Cafe North');
+  await expect(
+    activity.getByRole('region', { name: 'Restaurant bets' }),
+  ).toContainText('Cafe South');
+  await expect(
+    activity.getByRole('region', { name: 'Restaurant bets' }),
+  ).toContainText('7 tokens staked');
+  await expect(
+    activity.getByRole('region', { name: 'Restaurant bets' }),
+  ).toContainText('Open');
   await expect(activity.locator('time').first()).toHaveAttribute(
     'datetime',
     /T.*Z$/,

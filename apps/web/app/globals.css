@@ -131,6 +131,35 @@ body {
   border: 0;
   box-shadow: none;
 }
+.workspace-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin: 0 auto 14px;
+}
+.workspace-tabs button {
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  padding: 9px 18px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.workspace-tabs button[aria-selected='true'] {
+  background: var(--text-strong);
+  color: var(--surface);
+}
+.workspace-tabs button:focus-visible,
+.wheel-card [role='tabpanel']:focus-visible {
+  outline: 2px solid var(--text-strong);
+  outline-offset: 3px;
+}
+.wheel-card [hidden] {
+  display: none;
+}
 .wheel-wrap {
   width: min(100%, calc(100vh - 230px));
   aspect-ratio: 1;

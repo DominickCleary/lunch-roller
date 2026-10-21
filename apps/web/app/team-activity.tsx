@@ -3,20 +3,13 @@
 import { useEffect, useState } from 'react';
 import { walletResponse } from '@lunch/contracts';
 import type { Participant, WalletResponse } from '@lunch/contracts';
+import { TokenEntryDescription, WalletBets } from './token-history';
 
 type Result = {
   participantId: string;
   wallet?: WalletResponse;
   error?: string;
 };
-const labels: Record<string, string> = {
-  attendance: 'Lunch check-in',
-  boost: 'Boosted a place',
-  reduce: 'Reduced a place',
-  'add-place': 'Added a place',
-  correction: 'Admin correction',
-};
-
 export function TeamActivity({
   participants,
   currentParticipantId,
@@ -153,15 +146,7 @@ export function TeamActivity({
                                     key={entry.id}
                                   >
                                     <div>
-                                      <span>
-                                        {labels[entry.kind] ??
-                                          entry.kind.replaceAll('-', ' ')}
-                                      </span>
-                                      {entry.reason && (
-                                        <span className="activity-reason">
-                                          {entry.reason}
-                                        </span>
-                                      )}
+                                      <TokenEntryDescription entry={entry} />
                                       <time dateTime={entry.createdAt}>
                                         {new Intl.DateTimeFormat('en-GB', {
                                           dateStyle: 'medium',
@@ -200,6 +185,7 @@ export function TeamActivity({
                         ) : (
                           <p className="empty-note">No token activity yet.</p>
                         )}
+                        <WalletBets bets={wallet.bets ?? []} />
                       </>
                     )
                   )}

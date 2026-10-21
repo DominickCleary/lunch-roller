@@ -20,6 +20,10 @@ Use the header's Dark mode / Light mode toggle to change the theme. The site fol
 
 Open Team token activity below your own token history to view another active roster member's balance, transactions, reasons and dates. Viewing activity leaves your selected name and game actions unchanged.
 
+Token history names the restaurant boosted, anti-boosted, added or removed, and identifies bet reservations, refunds and payouts. Personal and team wallets also show each person's bets, stakes, draw dates and outcomes, including changes that did not move tokens.
+
+Choose **Daily activity** above the wheel for a workplace-day overview: influence spending over time, boosts versus anti-boosts by restaurant, who supported or opposed each place, a filterable activity feed, and the bets for that draw date. Use the date selector to review another day or the next draw. Charts show recorded token spending, not historical odds. The scheduled label beneath the wheel shows the weekday, date without a year, and draw time.
+
 Under Admin tools → Tokens and odds, admins can change the participation reward, new-place cost, separate boost/reduce costs, and their relative-weight multipliers. Defaults remain 10, 20, 5, 5, ×1.25 and ×0.8. Changes apply to future actions; saved draw results and token history stay intact. Member labels show current prices.
 
 Admin tools show people in a table where you can add, disable/restore, rename, and set an exact token balance with a reason. Balance changes appear as correction entries in that person's history. In Restaurant odds, select a group to give each the wheel's average 1/N chance while the rest resize proportionally, set all restaurants equal, or adjust one restaurant with its slider or number field. Members can toggle between chance percentages and fair fractional odds. They can also reserve tokens on a restaurant for the next draw, change or cancel the bet until the admin-configured cutoff, and see estimated return and net gain; settlement uses the final draw snapshot.

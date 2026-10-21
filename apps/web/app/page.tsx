@@ -22,6 +22,9 @@ import type {
 import { Readiness } from './readiness';
 import { ThemeToggle } from './theme-toggle';
 import { TeamActivity } from './team-activity';
+import { DailyActivity } from './daily-activity';
+import { TokenEntryDescription, WalletBets } from './token-history';
+import { calendarDateLabel } from '../lib/date-label';
 
 type ApiError = { error?: { code?: string; message?: string } };
 type TokenBalanceRow = { participantId: string; balance: number };
@@ -358,6 +361,7 @@ function resultRotation(result: NonNullable<TodayResponse['result']>) {
 }
 
 export default function Home() {
+  const [mainView, setMainView] = useState<'wheel' | 'activity'>('wheel');
   const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
   const [entryStage, setEntryStage] = useState<
     'loading' | 'setup' | 'name' | 'game'
@@ -1306,10 +1310,7 @@ export default function Home() {
   );
   const wheelTargetDate = today?.wheel.localDate;
   const wheelTargetLabel = wheelTargetDate
-    ? new Intl.DateTimeFormat('en-GB', {
-        dateStyle: 'full',
-        timeZone: 'UTC',
-      }).format(new Date(`${wheelTargetDate}T00:00:00Z`))
+    ? calendarDateLabel(wheelTargetDate)
     : '';
 
   function closeCheckInDialog() {
@@ -1733,111 +1734,179 @@ export default function Home() {
         entryGate
       ) : (
         <>
-          <section className="hero" id="top" aria-label="Lunch wheel">
+          <section
+            className="hero"
+            id="top"
+            aria-label="Lunch wheel and activity"
+          >
             <div className="wheel-card">
               <div
-                className="wheel-wrap"
-                aria-label={
-                  activeReplay
-                    ? `Replaying today's saved result for ${today?.result?.localDate ?? ''}`
-                    : today?.wheel.mode === 'result'
-                      ? `Today's committed result is ${drawnPlace ?? 'saved'} for ${wheelTargetLabel}`
-                      : `Live odds for the next scheduled draw on ${wheelTargetLabel}`
-                }
+                className="workspace-tabs"
+                role="tablist"
+                aria-label="Lunch workspace"
               >
-                <div className="pointer" aria-hidden="true">
-                  ◀
-                </div>
-                <div
-                  className={`wheel ${spin ? 'wheel-spinning' : ''}`}
-                  data-testid="lunch-wheel"
-                  style={{
-                    background: gradient,
-                    transform: `rotate(${rotation}deg)`,
-                  }}
-                  role="img"
-                  aria-label={
-                    wheelOptions.length
-                      ? `Wheel with ${wheelOptions.length} lunch places, sized by ${activeReplay ? "today's saved result snapshot replay" : today?.wheel.mode === 'result' ? "today's committed draw snapshot" : 'live odds for the next scheduled draw'}`
-                      : 'Empty lunch wheel'
-                  }
-                >
-                  {wheelOptions.length
-                    ? wheelOptions
-                        .map((option, index) => ({ option, index }))
-                        .filter(({ option }) => option.probability >= 0.05)
-                        .map(({ option, index }) => (
-                          <span
-                            className="wheel-label"
-                            key={option.placeId}
-                            title={option.name}
-                            aria-label={option.name}
-                            style={{
-                              transform: `rotate(${(wheelOptions.slice(0, index).reduce((sum, item) => sum + item.probability, 0) + option.probability / 2) * 360}deg) translateY(-28cqw) rotate(-90deg)`,
-                            }}
-                          >
-                            {option.name.length > 14
-                              ? `${option.name.slice(0, 13)}…`
-                              : option.name}
-                          </span>
-                        ))
-                    : null}
-                </div>
-                <button
-                  type="button"
-                  className="wheel-hub"
-                  disabled={!today?.result || spin}
-                  onClick={replayResult}
-                  aria-label={
-                    today?.result
-                      ? 'Replay wheel animation'
-                      : 'Waiting for the scheduled draw'
-                  }
-                  title={
-                    today?.result
-                      ? 'Replay the saved result'
-                      : 'The next draw runs on the schedule'
-                  }
-                >
-                  <span aria-hidden="true">{today?.result ? '↻' : '◷'}</span>
-                </button>
-              </div>
-              <div className="wheel-footer">
-                <span className="wheel-state">
-                  {activeReplay
-                    ? "REPLAYING TODAY'S RESULT"
-                    : today?.wheel.mode === 'result'
-                      ? "TODAY'S RESULT"
-                      : 'LIVE ODDS FOR NEXT DRAW'}
-                </span>
-                <strong
-                  data-testid="wheel-target"
-                  data-target-date={
-                    activeReplay && today?.result
-                      ? today.result.localDate
-                      : wheelTargetDate
-                  }
-                >
-                  {activeReplay && today?.result
-                    ? `Saved pick · ${today.result.localDate}`
-                    : today?.wheel.mode === 'result'
-                      ? drawnPlace
-                        ? `${drawnPlace} · ${wheelTargetLabel}`
-                        : wheelTargetLabel
-                      : wheelTargetLabel
-                        ? `Scheduled for ${wheelTargetLabel}`
-                        : 'Loading schedule'}
-                </strong>
-                {today?.result && (
+                {(['wheel', 'activity'] as const).map((view) => (
                   <button
-                    className="replay-button"
+                    key={view}
+                    id={`${view}-tab`}
                     type="button"
-                    onClick={replayResult}
-                    disabled={spin}
-                    aria-label="Replay today's result"
+                    role="tab"
+                    aria-selected={mainView === view}
+                    aria-controls={`${view}-panel`}
+                    tabIndex={mainView === view ? 0 : -1}
+                    onClick={() => setMainView(view)}
+                    onKeyDown={(event) => {
+                      if (
+                        !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(
+                          event.key,
+                        )
+                      )
+                        return;
+                      event.preventDefault();
+                      const next =
+                        event.key === 'Home'
+                          ? 'wheel'
+                          : event.key === 'End'
+                            ? 'activity'
+                            : view === 'wheel'
+                              ? 'activity'
+                              : 'wheel';
+                      setMainView(next);
+                      document.getElementById(`${next}-tab`)?.focus();
+                    }}
                   >
-                    ↻ Replay today&apos;s result
+                    {view === 'wheel' ? 'The wheel' : 'Daily activity'}
                   </button>
+                ))}
+              </div>
+              <div
+                id="wheel-panel"
+                role="tabpanel"
+                aria-labelledby="wheel-tab"
+                hidden={mainView !== 'wheel'}
+                tabIndex={0}
+              >
+                <div
+                  className="wheel-wrap"
+                  aria-label={
+                    activeReplay
+                      ? `Replaying today's saved result for ${today?.result?.localDate ?? ''}`
+                      : today?.wheel.mode === 'result'
+                        ? `Today's committed result is ${drawnPlace ?? 'saved'} for ${wheelTargetLabel}`
+                        : `Live odds for the next scheduled draw on ${wheelTargetLabel}`
+                  }
+                >
+                  <div className="pointer" aria-hidden="true">
+                    ◀
+                  </div>
+                  <div
+                    className={`wheel ${spin ? 'wheel-spinning' : ''}`}
+                    data-testid="lunch-wheel"
+                    style={{
+                      background: gradient,
+                      transform: `rotate(${rotation}deg)`,
+                    }}
+                    role="img"
+                    aria-label={
+                      wheelOptions.length
+                        ? `Wheel with ${wheelOptions.length} lunch places, sized by ${activeReplay ? "today's saved result snapshot replay" : today?.wheel.mode === 'result' ? "today's committed draw snapshot" : 'live odds for the next scheduled draw'}`
+                        : 'Empty lunch wheel'
+                    }
+                  >
+                    {wheelOptions.length
+                      ? wheelOptions
+                          .map((option, index) => ({ option, index }))
+                          .filter(({ option }) => option.probability >= 0.05)
+                          .map(({ option, index }) => (
+                            <span
+                              className="wheel-label"
+                              key={option.placeId}
+                              title={option.name}
+                              aria-label={option.name}
+                              style={{
+                                transform: `rotate(${(wheelOptions.slice(0, index).reduce((sum, item) => sum + item.probability, 0) + option.probability / 2) * 360}deg) translateY(-28cqw) rotate(-90deg)`,
+                              }}
+                            >
+                              {option.name.length > 14
+                                ? `${option.name.slice(0, 13)}…`
+                                : option.name}
+                            </span>
+                          ))
+                      : null}
+                  </div>
+                  <button
+                    type="button"
+                    className="wheel-hub"
+                    disabled={!today?.result || spin}
+                    onClick={replayResult}
+                    aria-label={
+                      today?.result
+                        ? 'Replay wheel animation'
+                        : 'Waiting for the scheduled draw'
+                    }
+                    title={
+                      today?.result
+                        ? 'Replay the saved result'
+                        : 'The next draw runs on the schedule'
+                    }
+                  >
+                    <span aria-hidden="true">{today?.result ? '↻' : '◷'}</span>
+                  </button>
+                </div>
+                <div className="wheel-footer">
+                  <span className="wheel-state">
+                    {activeReplay
+                      ? "REPLAYING TODAY'S RESULT"
+                      : today?.wheel.mode === 'result'
+                        ? "TODAY'S RESULT"
+                        : 'LIVE ODDS FOR NEXT DRAW'}
+                  </span>
+                  <strong
+                    data-testid="wheel-target"
+                    data-target-date={
+                      activeReplay && today?.result
+                        ? today.result.localDate
+                        : wheelTargetDate
+                    }
+                  >
+                    {activeReplay && today?.result
+                      ? `Saved pick · ${today.result.localDate}`
+                      : today?.wheel.mode === 'result'
+                        ? drawnPlace
+                          ? `${drawnPlace} · ${wheelTargetLabel}`
+                          : wheelTargetLabel
+                        : wheelTargetLabel
+                          ? `Scheduled for ${wheelTargetLabel} at ${today?.schedule.time ?? ''}`
+                          : 'Loading schedule'}
+                  </strong>
+                  {today?.result && (
+                    <button
+                      className="replay-button"
+                      type="button"
+                      onClick={replayResult}
+                      disabled={spin}
+                      aria-label="Replay today's result"
+                    >
+                      ↻ Replay today&apos;s result
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div
+                id="activity-panel"
+                role="tabpanel"
+                aria-labelledby="activity-tab"
+                hidden={mainView !== 'activity'}
+                tabIndex={0}
+              >
+                {mainView === 'activity' && today && (
+                  <DailyActivity
+                    participantId={participantId}
+                    localDate={today.localDate}
+                    nextDrawDate={
+                      currentBets?.window.localDate ?? today.wheel.localDate
+                    }
+                  />
                 )}
               </div>
             </div>
@@ -1982,14 +2051,13 @@ export default function Home() {
                       .slice(0, showAllLedger ? undefined : 5)
                       .map((entry) => (
                         <div className="ledger-row" key={entry.id}>
-                          <span>
-                            {entry.reason ?? entry.kind.replaceAll('-', ' ')}
-                          </span>
+                          <TokenEntryDescription entry={entry} />
                           <span className="ledger-date">
                             <time dateTime={entry.createdAt}>
                               {new Intl.DateTimeFormat(undefined, {
                                 dateStyle: 'short',
                                 timeStyle: 'short',
+                                timeZone: today?.schedule.timezone ?? 'UTC',
                               }).format(new Date(entry.createdAt))}
                             </time>
                           </span>
@@ -2005,6 +2073,7 @@ export default function Home() {
                   </p>
                 )}
               </div>
+              <WalletBets bets={wallet?.bets ?? []} />
               <TeamActivity
                 participants={participants}
                 currentParticipantId={participantId}

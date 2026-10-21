@@ -26,6 +26,8 @@ import {
   cancelBetRequest,
   currentBetsResponse,
   betMutationResponse,
+  dailyActivityQuery,
+  dailyActivityResponse,
 } from '@lunch/contracts';
 import {
   createHash,
@@ -264,6 +266,16 @@ async function dispatch(request: NextRequest, context: Context) {
       return response(await game.today());
     if (route === '/wallet' && method === 'GET')
       return response(await game.wallet(participantId(request)));
+    if (route === '/activity' && method === 'GET') {
+      const query = parse(dailyActivityQuery, {
+        date: request.nextUrl.searchParams.get('date') ?? undefined,
+      });
+      return response(
+        dailyActivityResponse.parse(
+          await game.dailyActivity(participantId(request), query.date),
+        ),
+      );
+    }
     if (route === '/bets/current' && method === 'GET')
       return response(
         currentBetsResponse.parse(

@@ -127,17 +127,16 @@ export const todayResponse = z.object({
     z.object({ placeId: id, name, probability: z.number().min(0).max(1) }),
   ),
 });
-export const walletResponse = z.object({
-  balance: z.number().int().nonnegative(),
-  ledger: z.array(
-    z.object({
-      id,
-      delta: z.number().int(),
-      kind: z.string(),
-      reason: z.string().nullable(),
-      createdAt: z.iso.datetime(),
-    }),
-  ),
+export const tokenActivityEntry = z.object({
+  id,
+  delta: z.number().int(),
+  kind: z.string(),
+  reason: z.string().nullable(),
+  createdAt: z.iso.datetime(),
+  placeId: id.nullable().default(null),
+  placeName: name.nullable().default(null),
+  betId: id.nullable().default(null),
+  betLocalDate: z.iso.date().nullable().default(null),
 });
 export const attendanceResponse = z.object({
   drawId: id,
@@ -161,6 +160,32 @@ export const betView = z.object({
   updatedAt: z.iso.datetime(),
   settledAt: z.iso.datetime().nullable(),
 });
+export const walletResponse = z.object({
+  balance: z.number().int().nonnegative(),
+  ledger: z.array(tokenActivityEntry),
+  bets: z.array(betView).default([]),
+});
+export const dailyActivityQuery = z.object({
+  date: z.iso.date().optional(),
+});
+export const dailyActivityResponse = z.object({
+  localDate: z.iso.date(),
+  timezone: z.string(),
+  entries: z.array(
+    tokenActivityEntry.extend({
+      participantId: id,
+      participantName: name,
+    }),
+  ),
+  bets: z.array(
+    betView.extend({
+      participantId: id,
+      participantName: name,
+    }),
+  ),
+});
+export type TokenActivityEntry = z.infer<typeof tokenActivityEntry>;
+export type DailyActivityResponse = z.infer<typeof dailyActivityResponse>;
 export const bettingWindow = z.object({
   localDate: z.iso.date(),
   timezone: z.string(),
