@@ -53,10 +53,6 @@ export function TokenTransfer({
   return (
     <details className="token-transfer">
       <summary>Send tokens</summary>
-      <p>
-        Send available tokens to someone on the team. No fee. Transfers are
-        immediate and final.
-      </p>
       {sent && <p role="status">{sent}</p>}
       {review ? (
         <div className="transfer-review">

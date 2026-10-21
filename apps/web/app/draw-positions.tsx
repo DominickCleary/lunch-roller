@@ -138,8 +138,8 @@ export function DrawPositions({
       )}
       <p className="activity-chart-note">
         Staged positions resize the live wheel. They can be withdrawn until the
-        betting cutoff, then lock in. Adding or banning a restaurant is final; a
-        ban refunds its pending requests.
+        betting cutoff, then lock in. Adding or banishing a restaurant is final;
+        a banishment refunds its pending requests.
       </p>
     </section>
   );

@@ -34,6 +34,8 @@ import {
   healthRuleSettings,
   transferRequest,
   transferResponse,
+  refundInfluenceRequest,
+  setPlaceWeightRequest,
 } from '@lunch/contracts';
 import {
   createHash,
@@ -282,6 +284,16 @@ async function dispatch(request: NextRequest, context: Context) {
       );
     if (route === '/wallet' && method === 'GET')
       return response(await game.wallet(participantId(request)));
+    if (route === '/influence/refund' && method === 'POST')
+      return response(
+        influenceMutationResponse.parse(
+          await game.refundInfluence(
+            participantId(request),
+            parse(refundInfluenceRequest, await body(request)),
+            idempotencyKey(request),
+          ),
+        ),
+      );
     if (route === '/influence/current' && method === 'GET')
       return response(
         currentInfluenceResponse.parse(
@@ -444,6 +456,12 @@ async function dispatch(request: NextRequest, context: Context) {
       );
     if (route === '/admin/places' && method === 'GET')
       return response({ places: await game.listPlaces(true) });
+    if (route === '/admin/place-weights' && method === 'PUT')
+      return response(
+        await game.setPlaceWeight(
+          parse(setPlaceWeightRequest, await body(request)),
+        ),
+      );
     if (route === '/admin/restaurant-odds' && method === 'GET')
       return response(
         restaurantOddsResponse.parse(await game.listRestaurantOdds()),

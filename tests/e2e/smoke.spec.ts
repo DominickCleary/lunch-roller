@@ -9,6 +9,10 @@ test('landing page requires a saved name before showing the lunch wheel', async 
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(
     'Gambling about lunch',
   );
+  await expect(page).toHaveTitle('Gambling about lunch');
+  await expect(
+    page.getByRole('link', { name: 'Gambling about lunch home' }),
+  ).toBeVisible();
   await expect(page.getByText('Web + database ready')).toBeVisible();
   await expect(page.getByTestId('name-picker')).toBeVisible();
   await expect(page.getByLabel('Your name')).toBeVisible();
@@ -46,7 +50,11 @@ test('landing page requires a saved name before showing the lunch wheel', async 
   ).toBe(true);
   await expect(page.getByTestId('change-name')).toBeVisible();
   await expect(page.locator('.wheel-footer strong')).toBeVisible();
-  await expect(page.locator('.top-actions').getByText('Admin')).toBeVisible();
+  await expect(
+    page
+      .locator('.top-actions')
+      .getByRole('link', { name: 'Admin', exact: true }),
+  ).toBeVisible();
   await page.screenshot({ path: 'test-results/wheel-mobile.png' });
 
   const response = await request.get('/api/v1/health');

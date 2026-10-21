@@ -27,13 +27,17 @@ import type {
 } from '@lunch/contracts';
 import { Readiness } from './readiness';
 import { ThemeToggle } from './theme-toggle';
+import { RulesHelp } from './rules-help';
 import { TeamActivity } from './team-activity';
 import { DailyActivity } from './daily-activity';
 import { TokenEntryDescription, WalletBets } from './token-history';
 import { HealthBadge, HealthSelect, HealthBonusSummary } from './health-label';
 import { TokenTransfer } from './token-transfer';
 import { InfluenceControls } from './influence-controls';
+import { PlaceNameControl, PlaceActionControls } from './place-controls';
+import { approximateOdds, weightInput } from '../lib/odds';
 import { useWheelAnimation } from './use-wheel-animation';
+import { WinnerCelebration } from './winner-celebration';
 import {
   animationPlan,
   serverClockAnchor,
@@ -317,39 +321,6 @@ function uuid() {
 function moneyLabel(delta: number) {
   return `${delta > 0 ? '+' : ''}${delta} tokens`;
 }
-function greatestCommonDivisor(left: number, right: number): number {
-  let a = Math.abs(left);
-  let b = Math.abs(right);
-  while (b) [a, b] = [b, a % b];
-  return a || 1;
-}
-function fairFractionalOdds(probability: number) {
-  if (!Number.isFinite(probability) || probability <= 0) return '—';
-  const against = (1 - probability) / probability;
-  if (against <= 0) return '0/1';
-  if (!Number.isFinite(against) || against > Number.MAX_SAFE_INTEGER)
-    return `>${Number.MAX_SAFE_INTEGER}/1`;
-  if (against < 0.01) {
-    const denominator = Math.round(1 / against);
-    return denominator <= Number.MAX_SAFE_INTEGER
-      ? `1/${denominator}`
-      : `<1/${Number.MAX_SAFE_INTEGER}`;
-  }
-  let bestNumerator = 1;
-  let bestDenominator = 1;
-  let bestError = Number.POSITIVE_INFINITY;
-  for (let denominator = 1; denominator <= 100; denominator += 1) {
-    const numerator = Math.max(1, Math.round(against * denominator));
-    const error = Math.abs(numerator / denominator - against);
-    if (error < bestError) {
-      bestError = error;
-      bestNumerator = numerator;
-      bestDenominator = denominator;
-    }
-  }
-  const divisor = greatestCommonDivisor(bestNumerator, bestDenominator);
-  return `${bestNumerator / divisor}/${bestDenominator / divisor}`;
-}
 export default function Home() {
   const [mainView, setMainView] = useState<'wheel' | 'activity'>('wheel');
   const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
@@ -373,6 +344,7 @@ export default function Home() {
   );
   const [showFairOdds, setShowFairOdds] = useState(false);
   const [places, setPlaces] = useState<Place[]>([]);
+  const [weightDrafts, setWeightDrafts] = useState<Record<string, string>>({});
   const [today, setToday] = useState<TodayResponse | null>(null);
   const wheelDisplayKey = today
     ? `${today.wheel.mode}:${today.wheel.localDate}`
@@ -480,6 +452,8 @@ export default function Home() {
     live: liveReveal,
     snapshot: animationSnapshot,
     replay: replayResult,
+    celebration,
+    closeCelebration,
   } = useWheelAnimation({
     result: savedResult,
     mode: wheelMode,
@@ -596,6 +570,14 @@ export default function Home() {
       ),
     );
     setPlaces(locations.places);
+    setWeightDrafts(
+      Object.fromEntries(
+        locations.places.map((place) => [
+          place.id,
+          weightInput(place.logWeight),
+        ]),
+      ),
+    );
     setHealthRule(savedHealthRule);
     setRestaurantOdds(savedOdds.places);
     setSelectedOddsPlaceIds([]);
@@ -603,7 +585,7 @@ export default function Home() {
       Object.fromEntries(
         savedOdds.places.map(({ placeId, percent }) => [
           placeId,
-          String(percent),
+          String(Number(percent.toPrecision(8))),
         ]),
       ),
     );
@@ -877,7 +859,15 @@ export default function Home() {
           change,
         },
         change === 1
-          ? `${action === 'boost' ? 'Boost' : 'Reduction'} staged for the next draw.`
+          ? (
+              action === 'boost'
+                ? (market.places.find((place) => place.placeId === placeId)
+                    ?.yourReductions ?? 0) > 0
+                : (market.places.find((place) => place.placeId === placeId)
+                    ?.yourBoosts ?? 0) > 0
+            )
+            ? 'Position moved toward zero and original tokens refunded.'
+            : `${action === 'boost' ? 'Boost' : 'Reduction'} staged for the next draw.`
           : `${action === 'boost' ? 'Boost' : 'Reduction'} withdrawn and tokens returned.`,
       );
       // Refresh after failures too: the cutoff or another tab may have changed.
@@ -916,6 +906,27 @@ export default function Home() {
         latestAttendanceRequest.current += 1;
     };
   }, [entryStage, participantId, today]);
+
+  async function refundSpot(placeId: string) {
+    if (
+      !participantId ||
+      !currentInfluence?.window.open ||
+      busy ||
+      influenceBusy ||
+      influenceError
+    )
+      return;
+    setInfluenceBusy(true);
+    try {
+      await mutate(
+        '/influence/refund',
+        { localDate: currentInfluence.window.localDate, placeId },
+        'Staged boosts and reductions refunded.',
+      );
+    } finally {
+      setInfluenceBusy(false);
+    }
+  }
 
   function changeName() {
     latestAttendanceRequest.current += 1;
@@ -1073,7 +1084,7 @@ export default function Home() {
           ? route === '/places'
             ? `Restaurant added or restored for ${result.spentTokens} tokens.`
             : (payload as { action?: string }).action === 'remove'
-              ? `Restaurant removed for ${result.spentTokens} tokens.`
+              ? `Restaurant banished for ${result.spentTokens} tokens.`
               : message
           : message,
       );
@@ -1439,7 +1450,7 @@ export default function Home() {
           data-testid="setup-loading"
           aria-live="polite"
         >
-          <p className="eyebrow">WELCOME TO LUNCH ROLLER</p>
+          <p className="eyebrow">WELCOME TO GAMBLING ABOUT LUNCH</p>
           <h2>Checking lunch setup…</h2>
           {pollingError && (
             <>
@@ -1494,7 +1505,7 @@ export default function Home() {
           className={`setup-card${admin ? ' setup-card-wide' : ''}`}
           data-testid="setup-admin-login"
         >
-          <p className="eyebrow">WELCOME TO LUNCH ROLLER</p>
+          <p className="eyebrow">WELCOME TO GAMBLING ABOUT LUNCH</p>
           <h2>Set up your lunch wheel</h2>
           <p className="muted">
             An administrator needs to add the team and lunch places before
@@ -1588,12 +1599,6 @@ export default function Home() {
                         ).then(() => setSetupPlaceName(''));
                     }}
                   >
-                    <HealthSelect
-                      label="New place health level"
-                      value={setupHealthLevel}
-                      onChange={setSetupHealthLevel}
-                      disabled={busy}
-                    />
                     <label htmlFor="setup-place">New lunch place</label>
                     <input
                       id="setup-place"
@@ -1605,12 +1610,20 @@ export default function Home() {
                       maxLength={100}
                       required
                     />
-                    <button
-                      className="button button-light"
-                      disabled={busy || !setupPlaceName.trim()}
-                    >
-                      Add place
-                    </button>
+                    <div className="place-create-actions">
+                      <button
+                        className="button button-light"
+                        disabled={busy || !setupPlaceName.trim()}
+                      >
+                        Add place
+                      </button>
+                      <HealthSelect
+                        label="New place health level"
+                        value={setupHealthLevel}
+                        onChange={setSetupHealthLevel}
+                        disabled={busy}
+                      />
+                    </div>
                   </form>
                   <ul className="setup-roster">
                     {places
@@ -1721,12 +1734,17 @@ export default function Home() {
       className={`site-shell${entryStage === 'game' ? '' : ' setup-shell'}`}
     >
       <header className="topbar">
-        <a className="brand" href="#top" aria-label="Lunch Roller home">
+        <a className="brand" href="#top" aria-label="Gambling about lunch home">
           <span className="brand-mark">✳</span>{' '}
           <h1 className="brand-title">Gambling about lunch</h1>
         </a>
         <div className="top-actions">
           <ThemeToggle />
+          <RulesHelp
+            today={today}
+            window={currentBets?.window ?? null}
+            onRefresh={loadToday}
+          />
           <span className="date-chip">
             {entryStage === 'setup'
               ? 'FIRST-RUN SETUP'
@@ -1804,6 +1822,13 @@ export default function Home() {
                   </button>
                 ))}
               </div>
+              {celebration && (
+                <WinnerCelebration
+                  key={celebration.id}
+                  winner={celebration.placeName}
+                  onClose={closeCelebration}
+                />
+              )}
               <div
                 id="wheel-panel"
                 role="tabpanel"
@@ -1873,7 +1898,7 @@ export default function Home() {
                   <button
                     type="button"
                     className="wheel-hub"
-                    disabled={!today?.result || spin}
+                    disabled={!today?.result || spin || Boolean(celebration)}
                     onClick={replayResult}
                     aria-label={
                       today?.result
@@ -1926,7 +1951,7 @@ export default function Home() {
                       className="replay-button"
                       type="button"
                       onClick={replayResult}
-                      disabled={spin}
+                      disabled={spin || Boolean(celebration)}
                       aria-label="Replay today's result"
                     >
                       ↻ Replay today&apos;s result
@@ -2171,13 +2196,13 @@ export default function Home() {
                   aria-pressed={showFairOdds}
                   onClick={() => setShowFairOdds(true)}
                 >
-                  Fair fractional odds
+                  Odds
                 </button>
               </div>
               <div className="odds-list">
                 {odds.map((option, index) => {
                   const placeId = 'placeId' in option ? option.placeId : '';
-                  const fairOdds = fairFractionalOdds(option.probability);
+                  const fairOdds = approximateOdds(option.probability);
                   const influencePosition = currentInfluence?.places.find(
                     (position) => position.placeId === placeId,
                   );
@@ -2199,6 +2224,7 @@ export default function Home() {
                         busy={busy || influenceBusy || Boolean(influenceError)}
                         identityReady={Boolean(participantId)}
                         onChange={changeInfluence}
+                        onRefund={refundSpot}
                       />
                       <span className="odds-bar">
                         <span
@@ -2209,11 +2235,12 @@ export default function Home() {
                         />
                       </span>
                       <strong
+                        title={`${(option.probability * 100).toPrecision(6)}% chance. Odds show approximate net winnings per token staked; payouts use the exact final chance.`}
                         aria-label={`${option.name}: ${
                           showFairOdds
                             ? fairOdds === '—'
-                              ? 'unavailable fair odds'
-                              : `${fairOdds} fair fractional odds`
+                              ? 'unavailable odds'
+                              : `${fairOdds} approximate odds`
                             : `${(option.probability * 100).toFixed(1)} percent chance`
                         }`}
                       >
@@ -2224,19 +2251,19 @@ export default function Home() {
                       <div className="influence-buttons">
                         <button
                           className="remove-place-control"
-                          aria-label={`Remove ${option.name} from the wheel for ${currentEconomy.removePlaceCost} tokens`}
-                          title={`Remove place (${currentEconomy.removePlaceCost} tokens)`}
+                          aria-label={`Banish ${option.name} from the wheel for ${currentEconomy.removePlaceCost} tokens`}
+                          title={`Banish ${option.name} for ${currentEconomy.removePlaceCost} tokens`}
                           disabled={busy || !participantId}
                           onClick={() => {
                             if (
                               window.confirm(
-                                `Remove ${option.name} from the wheel for ${currentEconomy.removePlaceCost} tokens? This is final for this restaurant; pending boosts, reductions, and bets will be refunded. You can restore it later by adding the same name.`,
+                                `Banish ${option.name} from the wheel for ${currentEconomy.removePlaceCost} tokens? This is final for this restaurant; pending boosts, reductions, and bets will be refunded. You can restore it later by adding the same name.`,
                               )
                             )
                               void mutate(
                                 '/purchases',
                                 { placeId, action: 'remove' },
-                                'Restaurant removed.',
+                                'Restaurant banished.',
                               );
                           }}
                         >
@@ -2252,13 +2279,6 @@ export default function Home() {
                   </p>
                 )}
               </div>
-              {today?.healthRule?.enabled && (
-                <p className="health-rule-note">
-                  After a Treat place wins, Healthy places receive ×
-                  {today.healthRule.multiplier} weight. Balanced places are
-                  unchanged. The winner’s weight is always halved.
-                </p>
-              )}
               <form
                 className="add-place"
                 onSubmit={(event) => {
@@ -2281,10 +2301,6 @@ export default function Home() {
                     });
                 }}
               >
-                <HealthSelect
-                  label="New spot health level"
-                  disabled={!participantId || busy}
-                />
                 <label htmlFor="place-name">Have a new spot in mind?</label>
                 <div className="inline-form">
                   <input
@@ -2301,6 +2317,10 @@ export default function Home() {
                   >
                     Add place
                   </button>
+                  <HealthSelect
+                    label="New spot health level"
+                    disabled={!participantId || busy}
+                  />
                 </div>
               </form>
               {!liveReveal && today?.result?.healthBonus && (
@@ -2323,7 +2343,7 @@ export default function Home() {
                         new Date(`${today.result.localDate}T00:00:00Z`),
                       )}
                     </time>
-                    . The winner&apos;s weight is halved for next time.
+                    .
                   </p>
                 </div>
               )}
@@ -2426,11 +2446,11 @@ export default function Home() {
                         return (
                           <div className="bet-estimate" aria-live="polite">
                             <div>
-                              <span>Fair fractional odds</span>
+                              <span>Odds</span>
                               <strong>
                                 {probability === undefined
                                   ? '—'
-                                  : fairFractionalOdds(probability)}
+                                  : approximateOdds(probability)}
                               </strong>
                             </div>
                             <div>
@@ -2449,11 +2469,6 @@ export default function Home() {
                                   : `${(gross - stake).toLocaleString()} tokens`}
                               </strong>
                             </div>
-                            <p>
-                              Estimate uses current odds. Final payout uses the
-                              odds saved when the wheel is drawn; a win returns
-                              your stake plus winnings.
-                            </p>
                           </div>
                         );
                       })()}
@@ -2780,10 +2795,13 @@ export default function Home() {
                     </table>
                   </div>
                 </div>
-                <div className="admin-tool-card">
-                  <h3>Places</h3>
+                <div
+                  className="admin-tool-card admin-wide-card"
+                  data-testid="admin-restaurant-odds"
+                >
+                  <h3>Places and odds</h3>
                   <form
-                    className="inline-form"
+                    className="inline-form place-create-form"
                     onSubmit={(event) => {
                       event.preventDefault();
                       const name = new FormData(event.currentTarget)
@@ -2804,10 +2822,6 @@ export default function Home() {
                         );
                     }}
                   >
-                    <HealthSelect
-                      label="New admin place health level"
-                      disabled={busy}
-                    />
                     <input
                       name="admin-place"
                       aria-label="New lunch place"
@@ -2817,97 +2831,19 @@ export default function Home() {
                     <button className="button button-light" disabled={busy}>
                       Add
                     </button>
+                    <HealthSelect
+                      label="New admin place health level"
+                      disabled={busy}
+                    />
                   </form>
-                  {places.map((place) => (
-                    <div className="admin-row" key={place.id}>
-                      {editingPlaceId === place.id ? (
-                        <form
-                          className="inline-form"
-                          onSubmit={(event) => {
-                            event.preventDefault();
-                            void adminSave(
-                              `/admin/places/${place.id}`,
-                              'PATCH',
-                              { name: editingPlaceName },
-                              'Name updated.',
-                            ).then(() => setEditingPlaceId(''));
-                          }}
-                        >
-                          <input
-                            aria-label={`Rename ${place.name}`}
-                            value={editingPlaceName}
-                            onChange={(event) =>
-                              setEditingPlaceName(event.target.value)
-                            }
-                            maxLength={100}
-                          />
-                          <button
-                            className="button button-light"
-                            disabled={busy || !editingPlaceName.trim()}
-                          >
-                            Save
-                          </button>
-                        </form>
-                      ) : (
-                        <span>
-                          {place.name}{' '}
-                          <small>
-                            {place.active
-                              ? `${Math.exp(place.logWeight).toFixed(2)}× weight`
-                              : 'archived'}
-                          </small>
-                        </span>
-                      )}
-                      <HealthSelect
-                        label={`Health level for ${place.name}`}
-                        value={place.healthLevel}
-                        disabled={busy}
-                        onChange={(healthLevel) => {
-                          void adminSave(
-                            `/admin/places/${place.id}`,
-                            'PATCH',
-                            { healthLevel },
-                            'Health level updated.',
-                          );
-                        }}
-                      />
-                      <button
-                        disabled={busy}
-                        onClick={() => {
-                          setEditingPlaceId(place.id);
-                          setEditingPlaceName(place.name);
-                        }}
-                      >
-                        Rename
-                      </button>
-                      <button
-                        disabled={busy}
-                        onClick={() =>
-                          void adminSave(
-                            `/admin/places/${place.id}`,
-                            'PATCH',
-                            { active: !place.active },
-                            place.active
-                              ? 'Place archived.'
-                              : 'Place restored.',
-                          )
-                        }
-                      >
-                        {place.active ? 'Archive' : 'Restore'}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <div
-                  className="admin-tool-card admin-wide-card"
-                  data-testid="admin-restaurant-odds"
-                >
-                  <h3>Restaurant odds</h3>
                   <p className="muted">
                     Adjust one restaurant&apos;s share with its slider or
                     percentage field. The remaining shares resize proportionally
                     and stay positive, keeping the total at 100%. Saving changes
                     future draws and keeps completed results as they were.
+                    Saving percentages or a direct weight refunds pending
+                    influence first. Weights are relative: doubling a weight
+                    doubles its share relative to unchanged weights.
                   </p>
                   {restaurantOdds.length ? (
                     <>
@@ -2961,10 +2897,15 @@ export default function Home() {
                               <th scope="col">Select</th>
                               <th scope="col">Restaurant</th>
                               <th scope="col">Current wheel share</th>
+                              <th scope="col">Weight</th>
+                              <th scope="col">Place settings</th>
                             </tr>
                           </thead>
                           <tbody>
                             {restaurantOdds.map((place) => {
+                              const detail = places.find(
+                                (item) => item.id === place.placeId,
+                              );
                               const minimumPercent =
                                 restaurantOdds.length === 1
                                   ? 100
@@ -2989,7 +2930,10 @@ export default function Home() {
                                 ),
                               );
                               return (
-                                <tr key={place.placeId}>
+                                <tr
+                                  key={place.placeId}
+                                  className="restaurant-row"
+                                >
                                   <td className="odds-select-cell">
                                     <input
                                       type="checkbox"
@@ -3010,7 +2954,27 @@ export default function Home() {
                                       }
                                     />
                                   </td>
-                                  <th scope="row">{place.name}</th>
+                                  <th scope="row">
+                                    {detail ? (
+                                      <PlaceNameControl
+                                        place={detail}
+                                        editing={editingPlaceId === detail.id}
+                                        name={editingPlaceName}
+                                        busy={busy}
+                                        onChange={setEditingPlaceName}
+                                        onSave={() =>
+                                          adminSave(
+                                            `/admin/places/${detail.id}`,
+                                            'PATCH',
+                                            { name: editingPlaceName },
+                                            'Name updated.',
+                                          ).then(() => setEditingPlaceId(''))
+                                        }
+                                      />
+                                    ) : (
+                                      place.name
+                                    )}
+                                  </th>
                                   <td>
                                     <div className="odds-editor">
                                       <input
@@ -3055,6 +3019,85 @@ export default function Home() {
                                       </label>
                                     </div>
                                   </td>
+                                  <td>
+                                    <form
+                                      className="weight-editor"
+                                      onSubmit={(event) => {
+                                        event.preventDefault();
+                                        void adminSave(
+                                          '/admin/place-weights',
+                                          'PUT',
+                                          {
+                                            placeId: place.placeId,
+                                            weight: Number(
+                                              weightDrafts[place.placeId],
+                                            ),
+                                          },
+                                          'Restaurant weight saved.',
+                                        );
+                                      }}
+                                    >
+                                      <input
+                                        className="table-input"
+                                        type="number"
+                                        step="any"
+                                        min="5e-324"
+                                        required
+                                        aria-label={`${place.name} weight`}
+                                        value={
+                                          weightDrafts[place.placeId] ?? ''
+                                        }
+                                        placeholder="Outside display range"
+                                        title={
+                                          detail
+                                            ? `Stored log weight: ${detail.logWeight}. Enter a positive weight; other weights retain their values after pending refunds.`
+                                            : ''
+                                        }
+                                        onChange={(event) =>
+                                          setWeightDrafts({
+                                            ...weightDrafts,
+                                            [place.placeId]: event.target.value,
+                                          })
+                                        }
+                                      />
+                                      <button
+                                        className="button button-light"
+                                        disabled={
+                                          busy ||
+                                          (detail !== undefined &&
+                                            weightDrafts[place.placeId] ===
+                                              weightInput(detail.logWeight)) ||
+                                          !Number.isFinite(
+                                            Number(weightDrafts[place.placeId]),
+                                          ) ||
+                                          Number(weightDrafts[place.placeId]) <=
+                                            0
+                                        }
+                                      >
+                                        Save weight
+                                      </button>
+                                    </form>
+                                  </td>
+                                  <td>
+                                    {detail && (
+                                      <PlaceActionControls
+                                        place={detail}
+                                        busy={busy}
+                                        onRename={() => {
+                                          setEditingPlaceId(detail.id);
+                                          setEditingPlaceName(detail.name);
+                                        }}
+                                        onUpdate={(body, notice) =>
+                                          adminSave(
+                                            `/admin/places/${detail.id}`,
+                                            'PATCH',
+                                            body,
+                                            notice,
+                                          )
+                                        }
+                                      />
+                                    )}
+                                  </td>
                                 </tr>
                               );
                             })}
@@ -3094,6 +3137,55 @@ export default function Home() {
                     <p className="muted">
                       Add an active restaurant to set wheel percentages.
                     </p>
+                  )}
+                  {places.some((place) => !place.active) && (
+                    <details className="archived-places">
+                      <summary>
+                        Archived places (
+                        {places.filter((place) => !place.active).length})
+                      </summary>
+                      {places
+                        .filter((place) => !place.active)
+                        .map((place) => (
+                          <div className="admin-row" key={place.id}>
+                            {
+                              <PlaceNameControl
+                                place={place}
+                                editing={editingPlaceId === place.id}
+                                name={editingPlaceName}
+                                busy={busy}
+                                onChange={setEditingPlaceName}
+                                onSave={() =>
+                                  adminSave(
+                                    `/admin/places/${place.id}`,
+                                    'PATCH',
+                                    { name: editingPlaceName },
+                                    'Name updated.',
+                                  ).then(() => setEditingPlaceId(''))
+                                }
+                              />
+                            }
+                            {
+                              <PlaceActionControls
+                                place={place}
+                                busy={busy}
+                                onRename={() => {
+                                  setEditingPlaceId(place.id);
+                                  setEditingPlaceName(place.name);
+                                }}
+                                onUpdate={(body, notice) =>
+                                  adminSave(
+                                    `/admin/places/${place.id}`,
+                                    'PATCH',
+                                    body,
+                                    notice,
+                                  )
+                                }
+                              />
+                            }
+                          </div>
+                        ))}
+                    </details>
                   )}
                 </div>
                 <div className="admin-tool-card">
@@ -3180,6 +3272,27 @@ export default function Home() {
                       );
                     }}
                   >
+                    <label>
+                      Wheel spin duration (seconds)
+                      <input
+                        type="number"
+                        min={5}
+                        max={60}
+                        step={1}
+                        required
+                        value={preferences.wheelSpinSeconds}
+                        onChange={(event) =>
+                          setPreferences({
+                            ...preferences,
+                            wheelSpinSeconds: Number(event.target.value),
+                          })
+                        }
+                      />
+                    </label>
+                    <p className="muted">
+                      5–60 seconds. Applies to future draws; saved results keep
+                      their original spin.
+                    </p>
                     <label>
                       Wheel switch time
                       <input
@@ -3345,7 +3458,7 @@ export default function Home() {
                       />
                     </label>
                     <label>
-                      Remove place cost (tokens)
+                      Banish place cost (tokens)
                       <input
                         type="number"
                         required
@@ -3381,7 +3494,7 @@ export default function Home() {
                     <p className="muted economy-help">
                       The multiplier sets a new restaurant&apos;s starting
                       weight relative to the current average. Re-adding a
-                      removed name uses this setting.
+                      banished name uses this setting.
                     </p>
                     <label>
                       Boost cost (tokens)
@@ -3474,7 +3587,7 @@ export default function Home() {
 
       <footer className="footer">
         <span className="brand">
-          <span className="brand-mark">✳</span> LUNCH ROLLER
+          <span className="brand-mark">✳</span> GAMBLING ABOUT LUNCH
         </span>
         <Link href="/api/v1/health">Service health ↗</Link>
       </footer>

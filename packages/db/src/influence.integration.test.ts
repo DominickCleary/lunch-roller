@@ -192,7 +192,7 @@ it('keeps influence editable and refundable per person, place, and original purc
     owner.id,
     {
       localDate: window.window.localDate,
-      placeId: target.id,
+      placeId: unaffected.id,
       action: 'reduce',
       change: 1,
     },
@@ -212,7 +212,7 @@ it('keeps influence editable and refundable per person, place, and original purc
     owner.id,
     {
       localDate: window.window.localDate,
-      placeId: target.id,
+      placeId: unaffected.id,
       action: 'reduce',
       change: -1,
     },
@@ -220,7 +220,7 @@ it('keeps influence editable and refundable per person, place, and original purc
     beforeCutoff,
   );
   expect(undoneReduction.balance).toBe(95);
-  expect(undoneReduction.place.logWeight).toBeCloseTo(afterFirstBoost);
+  expect(undoneReduction.place.logWeight).toBeCloseTo(0);
   const secondBoost = await service.changeInfluence(
     owner.id,
     {
@@ -241,7 +241,7 @@ it('keeps influence editable and refundable per person, place, and original purc
     owner.id,
     {
       localDate: window.window.localDate,
-      placeId: target.id,
+      placeId: unaffected.id,
       action: 'reduce',
       change: 1,
     },
@@ -249,9 +249,7 @@ it('keeps influence editable and refundable per person, place, and original purc
     beforeCutoff,
   );
   expect(reduction.balance).toBe(78);
-  expect(reduction.place.logWeight).toBeCloseTo(
-    secondBoost.place.logWeight + Math.log(0.5),
-  );
+  expect(reduction.place.logWeight).toBeCloseTo(Math.log(0.5));
   const teammateBoost = await service.changeInfluence(
     teammate.id,
     {
@@ -270,9 +268,9 @@ it('keeps influence editable and refundable per person, place, and original purc
     withPositions.places.find((position) => position.placeId === target.id),
   ).toMatchObject({
     boosts: 3,
-    reductions: 1,
+    reductions: 0,
     yourBoosts: 2,
-    yourReductions: 1,
+    yourReductions: 0,
   });
   await expect(
     service.changeInfluence(
@@ -280,7 +278,7 @@ it('keeps influence editable and refundable per person, place, and original purc
       {
         localDate: window.window.localDate,
         placeId: unaffected.id,
-        action: 'reduce',
+        action: 'boost',
         change: -1,
       },
       crypto.randomUUID(),
@@ -345,7 +343,8 @@ it('keeps influence editable and refundable per person, place, and original purc
   expect(
     staged.positions?.find(
       (position) =>
-        position.participantId === owner.id && position.placeId === target.id,
+        position.participantId === owner.id &&
+        position.placeId === unaffected.id,
     ),
   ).toMatchObject({ boosts: 0, reductions: 1, status: 'staged' });
   expect((await service.currentInfluence(owner.id, onCutoff)).window.open).toBe(
@@ -450,9 +449,9 @@ it('keeps influence editable and refundable per person, place, and original purc
     beforeDraw.places.find((position) => position.placeId === target.id),
   ).toMatchObject({
     boosts: 1,
-    reductions: 1,
+    reductions: 0,
     yourBoosts: 0,
-    yourReductions: 1,
+    yourReductions: 0,
   });
 
   await expect(

@@ -13,7 +13,7 @@ const entryLabels: Record<string, string> = {
   'boost-refund': 'Boost refunded',
   'reduce-refund': 'Reduction refunded',
   'add-place': 'Added a restaurant',
-  'remove-place': 'Removed a restaurant',
+  'remove-place': 'Banished a restaurant',
   correction: 'Admin correction',
   'bet-stake': 'Reserved bet stake',
   'bet-release': 'Released bet stake',

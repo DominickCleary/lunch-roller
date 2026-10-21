@@ -112,9 +112,11 @@ test('admin economy is guarded, persists, and updates participant prices', async
     memberId,
   );
   await page.reload();
-  await expect(page.getByTitle('Boost place (6 tokens)').first()).toBeVisible();
   await expect(
-    page.getByTitle('Reduce place (7 tokens)').first(),
+    page.getByTitle(/^Boost .+ for 6 tokens$/).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByTitle(/^Reduce .+ for 7 tokens$/).first(),
   ).toBeVisible();
   await expect(
     page.getByPlaceholder('Add a lunch place · 22 tokens'),

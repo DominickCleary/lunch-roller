@@ -132,6 +132,14 @@ test('shares the live phase across skewed clocks, late entry and reload, then re
         'settled',
       );
       expect(await angle(page)).toBeCloseTo(plan.rotation, 4);
+      const celebration = page.getByRole('dialog', {
+        name: 'The Wheel has spoken',
+      });
+      await expect(celebration).toBeVisible();
+      await expect(celebration).toContainText('Border winner');
+      await celebration
+        .getByRole('button', { name: 'Praise the Wheel' })
+        .click();
       await expect(page.getByTestId('wheel-target')).toContainText(
         'Border winner',
       );
@@ -148,6 +156,9 @@ test('shares the live phase across skewed clocks, late entry and reload, then re
       expect(await angle(page)).toBeLessThan(100);
       await page.clock.fastForward(25000);
       expect(await angle(page)).toBeCloseTo(plan.rotation, 4);
+      await expect(celebration).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(celebration).toHaveCount(0);
     }
     const walletAfter = await (
       await request.get('/api/v1/wallet', {
@@ -178,6 +189,12 @@ test('reduced motion skips rotation and finishes on the same saved point', async
     'settled',
   );
   expect(await angle(page)).toBeCloseTo(plan.rotation, 4);
+  const celebration = page.getByRole('dialog', {
+    name: 'The Wheel has spoken',
+  });
+  await expect(celebration).toBeVisible();
+  await expect(page.locator('.winner-confetti')).toBeHidden();
+  await celebration.getByRole('button', { name: 'Praise the Wheel' }).click();
   await page.getByRole('button', { name: "Replay today's result" }).click();
   await page.clock.runFor(100);
   expect(await angle(page)).toBeCloseTo(plan.rotation, 4);

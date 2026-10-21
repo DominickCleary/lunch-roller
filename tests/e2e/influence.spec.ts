@@ -93,10 +93,20 @@ test('edits persisted influence from the odds list without changing selected ide
 
   const row = page.locator('.odds-row').filter({ hasText: placeName });
   await expect(row).toBeVisible();
-  await row.getByRole('button', { name: `Boost ${placeName}` }).click();
-  await expect(row).toContainText('You ↑1 ↓0');
   await expect(
-    row.getByRole('button', { name: `Undo boost on ${placeName}` }),
+    row.getByRole('button', { name: `Boost ${placeName}` }),
+  ).toHaveAttribute('title', `Boost ${placeName} for 5 tokens`);
+  await expect(row.getByRole('tooltip')).toHaveCount(0);
+  await row.getByRole('button', { name: `Boost ${placeName}` }).click();
+  await expect(row.locator('.influence-net-value')).toHaveText('+1');
+  await expect(
+    row.getByRole('button', { name: `Reduce ${placeName}` }),
+  ).toHaveAttribute('title', `Refund boost on ${placeName}`);
+  await expect(
+    row.getByRole('button', { name: `Refund tokens for ${placeName}` }),
+  ).toHaveAttribute('title', 'Refund tokens');
+  await expect(
+    row.getByRole('button', { name: `Refund tokens for ${placeName}` }),
   ).toBeVisible();
   await expect(page.locator('.balance')).toContainText('95');
 
@@ -106,8 +116,10 @@ test('edits persisted influence from the odds list without changing selected ide
   expect(walletAfterBoost.status()).toBe(200);
   expect(await walletAfterBoost.json()).toMatchObject({ balance: 95 });
 
-  await row.getByRole('button', { name: `Undo boost on ${placeName}` }).click();
-  await expect(row).toContainText('You ↑0 ↓0');
+  await row
+    .getByRole('button', { name: `Refund tokens for ${placeName}` })
+    .click();
+  await expect(row.locator('.influence-net-value')).toHaveText('0');
   await expect(page.locator('.balance')).toContainText('100');
   const walletAfterUndo = await request.get('/api/v1/wallet', {
     headers: { 'X-Participant-Id': memberId },
@@ -115,16 +127,22 @@ test('edits persisted influence from the odds list without changing selected ide
   expect(walletAfterUndo.status()).toBe(200);
   expect(await walletAfterUndo.json()).toMatchObject({ balance: 100 });
   await row.getByRole('button', { name: `Reduce ${placeName}` }).click();
-  await expect(row).toContainText('You ↑0 ↓1');
+  await expect(row.locator('.influence-net-value')).toHaveText('−1');
+  await row.getByRole('button', { name: `Reduce ${placeName}` }).click();
+  await expect(row.locator('.influence-net-value')).toHaveText('−2');
+  await expect(page.locator('.balance')).toContainText('90');
+  await row.getByRole('button', { name: `Boost ${placeName}` }).click();
+  await expect(row.locator('.influence-net-value')).toHaveText('−1');
+
   await expect(page.locator('.balance')).toContainText('95');
   await row
-    .getByRole('button', { name: `Undo reduction on ${placeName}` })
+    .getByRole('button', { name: `Refund tokens for ${placeName}` })
     .click();
-  await expect(row).toContainText('You ↑0 ↓0');
+  await expect(row.locator('.influence-net-value')).toHaveText('0');
   await expect(page.locator('.balance')).toContainText('100');
 
   await row.getByRole('button', { name: `Boost ${placeName}` }).click();
-  await expect(row).toContainText('You ↑1 ↓0');
+  await expect(row.locator('.influence-net-value')).toHaveText('+1');
   await expect(page.locator('.balance')).toContainText('95');
   await page.route('**/api/v1/influence/current', async (route) => {
     const response = await route.fetch();
@@ -162,7 +180,9 @@ test('edits persisted influence from the odds list without changing selected ide
   await page.reload();
   await expect(page.locator('.member-status')).toContainText(memberName);
   const lockedRow = page.locator('.odds-row').filter({ hasText: placeName });
-  await expect(lockedRow).toContainText('Locked for draw');
+  await expect(
+    lockedRow.getByRole('group', { name: `Your position on ${placeName}` }),
+  ).toHaveAttribute('title', 'Locked');
   await expect(
     lockedRow.getByRole('button', { name: `Boost ${placeName}` }),
   ).toBeDisabled();
@@ -170,13 +190,13 @@ test('edits persisted influence from the odds list without changing selected ide
     lockedRow.getByRole('button', { name: `Reduce ${placeName}` }),
   ).toBeDisabled();
   await expect(
-    lockedRow.getByRole('button', { name: `Undo boost on ${placeName}` }),
+    lockedRow.getByRole('button', { name: `Refund tokens for ${placeName}` }),
   ).toBeDisabled();
   await expect(
-    lockedRow.getByRole('button', { name: new RegExp(`Remove ${placeName}`) }),
+    lockedRow.getByRole('button', { name: new RegExp(`Banish ${placeName}`) }),
   ).toBeEnabled();
   await expect(page.getByRole('button', { name: 'Add place' })).toBeEnabled();
-  await expect(lockedRow).toContainText('You ↑1 ↓0');
+  await expect(lockedRow.locator('.influence-net-value')).toHaveText('+1');
   await expect(page.locator('.balance')).toContainText('95');
   await expect(page.getByText(/^Betting for .* is closed\.$/)).toBeVisible();
 

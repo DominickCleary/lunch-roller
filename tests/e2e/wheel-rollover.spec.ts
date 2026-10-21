@@ -250,7 +250,9 @@ test('rolls the displayed wheel, keeps current odds live, and replays the saved 
   const fixtureOddsRow = page
     .locator('.odds-row')
     .filter({ hasText: fixturePlace.name });
-  await fixtureOddsRow.getByTitle('Boost place (5 tokens)').click();
+  await fixtureOddsRow
+    .getByRole('button', { name: `Boost ${fixturePlace.name}` })
+    .click();
   await expect(page.getByText('Boost staged for the next draw.')).toBeVisible();
   await expect
     .poll(async () => {
@@ -272,6 +274,44 @@ test('rolls the displayed wheel, keeps current odds live, and replays the saved 
   await replay.click();
   await expect.poll(() => wheelGradient(page)).toBe(snapshotGradient);
   await page.clock.fastForward(25_000);
+  const celebration = page.getByRole('dialog', {
+    name: 'The Wheel has spoken',
+  });
+  await expect(celebration).toBeVisible();
+  await expect(celebration).toContainText(fixtureDraw.placeName);
+  await expect(celebration).toHaveAccessibleDescription(
+    `${fixtureDraw.placeName} has been chosen.`,
+  );
+  expect(await wheelGradient(page)).toBe(snapshotGradient);
+  await expect(replay).toBeDisabled();
+  await expect(
+    celebration.getByRole('button', { name: 'Praise the Wheel' }),
+  ).toBeFocused();
+  const desktopModal = (await celebration.boundingBox())!;
+  expect(Math.abs(desktopModal.x + desktopModal.width / 2 - 720)).toBeLessThan(
+    2,
+  );
+  expect(Math.abs(desktopModal.y + desktopModal.height / 2 - 500)).toBeLessThan(
+    2,
+  );
+  await expect(page.locator('.winner-confetti i')).toHaveCount(60);
+  await expect(page.locator('.winner-confetti i').first()).toHaveCSS(
+    'animation-name',
+    'winner-confetti-fall',
+  );
+  await page.clock.runFor(700);
+  await page.screenshot({ path: '/tmp/lunch-winner-desktop.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileModal = (await celebration.boundingBox())!;
+  expect(Math.abs(mobileModal.x + mobileModal.width / 2 - 195)).toBeLessThan(2);
+  expect(Math.abs(mobileModal.y + mobileModal.height / 2 - 422)).toBeLessThan(
+    2,
+  );
+  await page.screenshot({ path: '/tmp/lunch-winner-mobile.png' });
+  // Polling and elapsed time must not restore the upcoming wheel behind the modal.
+  await page.clock.fastForward(30_000);
+  expect(await wheelGradient(page)).toBe(snapshotGradient);
+  await celebration.getByRole('button', { name: 'Praise the Wheel' }).click();
   await expect(replay).toBeEnabled({ timeout: 8000 });
   await expect(page.getByTestId('wheel-target')).toHaveAttribute(
     'data-target-date',
@@ -286,6 +326,9 @@ test('rolls the displayed wheel, keeps current odds live, and replays the saved 
   await replay.click();
   await expect.poll(() => wheelGradient(page)).toBe(snapshotGradient);
   await page.clock.fastForward(1_500);
+  await expect(celebration).toBeVisible();
+  expect(await wheelGradient(page)).toBe(snapshotGradient);
+  await page.keyboard.press('Escape');
   await expect(replay).toBeEnabled();
   await expect(page.getByTestId('wheel-target')).toHaveAttribute(
     'data-target-date',

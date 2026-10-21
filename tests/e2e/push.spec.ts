@@ -253,7 +253,10 @@ test('permission is requested only on opt-in and core member actions remain avai
     ),
   ).toBe(1);
 
-  await page.getByTitle('Boost place (5 tokens)').first().click();
+  await page
+    .getByRole('button', { name: /^Boost / })
+    .first()
+    .click();
   await expect(page.getByText('Boost staged for the next draw.')).toBeVisible();
   await page
     .getByLabel('Have a new spot in mind?')

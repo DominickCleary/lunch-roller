@@ -1,36 +1,50 @@
+/* Keep each market as a compact row, with odds and actions in fixed columns. */
 .influence-controls {
-  grid-column: 2 / -1;
+  display: contents;
+}
+.odds-row {
+  position: relative;
+  grid-template-columns: 9px minmax(0, 1fr) auto auto auto;
+  gap: 5px;
+  min-height: 39px;
+  padding: 4px 0;
+  align-items: center;
+}
+.odds-row .odds-color {
+  grid-column: 1;
   grid-row: 1;
-  min-width: 0;
-  padding: 5px 0 6px;
 }
 .influence-place-heading {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 4px 8px;
-  min-width: 0;
-  padding-right: 45px;
-}
-.influence-place-heading .odds-name {
-  flex: 1 1 100px;
-}
-.influence-market-counts {
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  align-items: center;
+  gap: 3px 5px;
+  min-width: 0;
+}
+.influence-controls .influence-place-title {
+  display: contents;
+}
+.influence-controls .influence-place-heading .odds-name {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.influence-place-heading .health-badge {
+  padding: 1px 4px;
+  font-size: 8px;
+  line-height: 1.2;
+}
+.influence-market-counts {
+  display: inline-flex;
   font-variant-numeric: tabular-nums;
 }
 .market-count {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  min-height: 20px;
-  padding: 2px 6px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  color: var(--text-secondary);
-  font-size: 9px;
-  font-weight: 700;
+  color: var(--text-muted);
+  font-size: 8px;
   white-space: nowrap;
 }
 .market-count span:first-child {
@@ -39,40 +53,35 @@
 .market-count span:last-child {
   color: var(--danger);
 }
-.your-count {
-  border-color: color-mix(in srgb, var(--primary-text) 30%, var(--line));
-  background: var(--primary-bg);
-  color: var(--primary-text);
+.odds-row > strong {
+  grid-column: 3;
+  grid-row: 1;
+  min-width: 35px;
 }
-.your-count span:first-child {
-  color: #99e8ba;
-}
-.your-count span:last-child {
-  color: #ffb6af;
-}
-:root[data-theme='dark'] .your-count span:first-child {
-  color: #136235;
-}
-:root[data-theme='dark'] .your-count span:last-child {
-  color: #92251f;
+.influence-stepper {
+  grid-column: 4;
+  grid-row: 1;
 }
 .influence-position-buttons {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 5px;
+  align-items: center;
+  gap: 3px;
 }
 .influence-position-control {
-  min-height: 25px;
-  padding: 3px 7px;
+  display: inline-grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  padding: 3px;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: 4px;
   background: var(--surface);
   color: var(--text-secondary);
-  font: inherit;
-  font-size: 9px;
-  font-weight: 650;
   cursor: pointer;
+}
+.influence-position-control svg {
+  width: 13px;
+  height: 13px;
 }
 .influence-position-control.boost {
   color: var(--success);
@@ -80,43 +89,26 @@
 .influence-position-control.reduce {
   color: var(--danger);
 }
-.influence-position-control.undo {
-  color: var(--text-muted);
-}
 .influence-position-control:disabled {
   opacity: 0.48;
   cursor: not-allowed;
 }
-.influence-market-state {
-  margin: 4px 0 0;
-  color: var(--text-muted);
-  font-size: 9px;
-  line-height: 1.35;
-  padding-right: 26px;
+.influence-net {
+  min-width: 20px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
-.influence-market-state.locked {
+.influence-net-value {
+  font-size: 11px;
+  line-height: 1;
+}
+.influence-stepper.positive .influence-net-value {
+  color: var(--success);
+}
+.influence-stepper.negative .influence-net-value {
   color: var(--danger);
-  font-weight: 700;
 }
-.odds-row {
-  position: relative;
-  grid-template-columns: 9px minmax(0, 1fr);
-  align-items: start;
-  padding: 5px 0;
-}
-.odds-row .odds-color {
-  grid-column: 1;
+.odds-row > .influence-buttons {
+  grid-column: 5;
   grid-row: 1;
-  margin-top: 7px;
-}
-.odds-row > strong {
-  position: absolute;
-  top: 5px;
-  right: 0;
-  padding-top: 6px;
-}
-.influence-buttons {
-  position: absolute;
-  right: 0;
-  bottom: 8px;
 }

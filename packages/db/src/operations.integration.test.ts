@@ -333,7 +333,8 @@ it('charges concurrent replays once and returns the original response', async ()
     service.purchase(other.id, request, key, influenceAt),
   ]);
   expect(results[0]).toEqual(results[1]);
-  expect((await service.wallet(other.id)).balance).toBe(9);
+  expect(results[0]).toMatchObject({ spentTokens: 0, refundedTokens: 5 });
+  expect((await service.wallet(other.id)).balance).toBe(19);
 });
 
 it('replays only the same normalized operation and rejects cross-route key reuse', async () => {

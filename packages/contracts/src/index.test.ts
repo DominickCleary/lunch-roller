@@ -2,6 +2,8 @@ import { expect, it } from 'vitest';
 import {
   createPlace,
   wheelAnimation,
+  refundInfluenceRequest,
+  setPlaceWeightRequest,
   updatePlace,
   healthRuleSettings,
   transferRequest,
@@ -267,4 +269,29 @@ it('validates a versioned, bounded wheel animation plan', () => {
     { startsAt: 'invalid' },
   ])
     expect(wheelAnimation.safeParse({ ...plan, ...patch }).success).toBe(false);
+});
+
+it('validates configurable spin time and direct weight/refund requests', () => {
+  for (const wheelSpinSeconds of [5, 20, 60])
+    expect(
+      gamePreferences.safeParse({ ...defaultGamePreferences, wheelSpinSeconds })
+        .success,
+    ).toBe(true);
+  for (const wheelSpinSeconds of [4, 61, 7.5])
+    expect(
+      gamePreferences.safeParse({ ...defaultGamePreferences, wheelSpinSeconds })
+        .success,
+    ).toBe(false);
+  const placeId = crypto.randomUUID();
+  expect(
+    refundInfluenceRequest.safeParse({ placeId, localDate: '2026-10-21' })
+      .success,
+  ).toBe(true);
+  expect(
+    setPlaceWeightRequest.safeParse({ placeId, weight: 0.1 }).success,
+  ).toBe(true);
+  for (const weight of [0, -1, NaN, Infinity])
+    expect(setPlaceWeightRequest.safeParse({ placeId, weight }).success).toBe(
+      false,
+    );
 });

@@ -77,6 +77,7 @@ it('persists validated preferences and reports authoritative check-in status per
     bettingCloseMinutes: 5,
   });
   expect(configured).toEqual({
+    wheelSpinSeconds: 20,
     wheelSwitchTime: '23:59',
     checkInPledge: 'I followed the wheel today.',
     bettingCloseMinutes: 5,

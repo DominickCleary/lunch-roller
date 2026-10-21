@@ -1,6 +1,6 @@
 # Local operation and HTTPS rollout
 
-Lunch Roller requires an always-on web server, worker, PostgreSQL and a one-shot migration step. Hosting is not provisioned. Keep PostgreSQL private. Use Node 24 and pinned pnpm, or the supplied Compose services.
+Gambling about lunch requires an always-on web server, worker, PostgreSQL and a one-shot migration step. Hosting is not provisioned. Keep PostgreSQL private. Use Node 24 and pinned pnpm, or the supplied Compose services.
 
 ## Configuration
 

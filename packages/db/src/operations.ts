@@ -41,6 +41,7 @@ import type {
   PushSubscriptionInput,
   Schedule,
   GamePreferences,
+  GamePreferencesInput,
   EconomySettings,
   SetupStatus,
   TodayResponse,
@@ -73,6 +74,8 @@ import {
   healthLevel,
   healthRuleSettings,
   transferRequest,
+  refundInfluenceRequest,
+  setPlaceWeightRequest,
 } from '@lunch/contracts';
 import type { createDatabase } from './index';
 import {
@@ -198,8 +201,11 @@ function drawView(row: DrawRow): DrawResponse {
     animation: {
       version: 1,
       rotation: wheelLandingRotation(row.snapshot, row.placeId, row.sample),
-      turns: 9 + (seed % 4),
-      durationMs: 18000 + (seed % 4) * 1000,
+      turns:
+        row.spinDurationMs === null
+          ? 9 + (seed % 4)
+          : Math.max(3, Math.round(row.spinDurationMs / 2000)) + (seed % 2),
+      durationMs: row.spinDurationMs ?? 18000 + (seed % 4) * 1000,
       startsAt: new Date(row.drawnAt.getTime() + 3000).toISOString(),
     },
   };
@@ -353,6 +359,7 @@ function preferencesFromRow(
 ): GamePreferences {
   return {
     wheelSwitchTime: row.wheelSwitchTime,
+    wheelSpinSeconds: row.wheelSpinSeconds,
     checkInPledge: row.checkInPledge,
     bettingCloseMinutes: row.bettingCloseMinutes,
   };
@@ -1544,6 +1551,42 @@ export class GameService {
     );
   }
 
+  private async netPendingInfluence(
+    tx: Tx,
+    participantId: string,
+    placeId: string,
+    marketId: string,
+    now: Date,
+  ): Promise<number> {
+    const lots = await tx
+      .select()
+      .from(influenceLots)
+      .where(
+        and(
+          eq(influenceLots.participantId, participantId),
+          eq(influenceLots.placeId, placeId),
+          eq(influenceLots.marketId, marketId),
+          isNull(influenceLots.withdrawnAt),
+        ),
+      )
+      .orderBy(desc(influenceLots.createdAt), desc(influenceLots.id));
+    const boosts = lots.filter((lot) => lot.action === 'boost');
+    const reductions = lots.filter((lot) => lot.action === 'reduce');
+    let refunded = 0;
+    while (boosts.length && reductions.length) {
+      for (const lot of [boosts.pop()!, reductions.pop()!]) {
+        await withdrawInfluenceLot(
+          tx,
+          lot,
+          now,
+          'Opposing staged units netted before adjusting this position',
+        );
+        refunded += lot.tokenCost;
+      }
+    }
+    return refunded;
+  }
+
   private async buyInfluenceUnit<T>(
     tx: Tx,
     participantId: string,
@@ -1555,6 +1598,58 @@ export class GameService {
     now: Date,
     responseFor: (place: Place, cost: number, balance: number) => T,
   ): Promise<T> {
+    const nettedRefund = await this.netPendingInfluence(
+      tx,
+      participantId,
+      place.id,
+      marketId,
+      now,
+    );
+    if (nettedRefund) {
+      const [refreshed] = await tx
+        .select()
+        .from(places)
+        .where(eq(places.id, place.id));
+      place = refreshed!;
+    }
+    const [opposite] = await tx
+      .select()
+      .from(influenceLots)
+      .where(
+        and(
+          eq(influenceLots.marketId, marketId),
+          eq(influenceLots.participantId, participantId),
+          eq(influenceLots.placeId, place.id),
+          eq(influenceLots.action, action === 'boost' ? 'reduce' : 'boost'),
+          isNull(influenceLots.withdrawnAt),
+        ),
+      )
+      .orderBy(desc(influenceLots.createdAt), desc(influenceLots.id))
+      .limit(1);
+    if (opposite) {
+      const nextBalance =
+        (await balance(tx, participantId)) + opposite.tokenCost;
+      const logWeight = place.logWeight - opposite.logMultiplier;
+      if (!Number.isSafeInteger(nextBalance) || !Number.isFinite(logWeight))
+        fail(
+          409,
+          'BALANCE_OVERFLOW',
+          'This position cannot be adjusted safely.',
+        );
+      const response = responseFor(
+        placeView({ ...place, logWeight }),
+        -(nettedRefund + opposite.tokenCost),
+        nextBalance,
+      );
+      await withdrawInfluenceLot(
+        tx,
+        opposite,
+        now,
+        `Moved toward zero: refunded a ${opposite.action} on ${place.name}`,
+        { key, hash, response },
+      );
+      return response;
+    }
     const economy = await currentEconomy(tx);
     const cost = action === 'boost' ? economy.boostCost : economy.reduceCost;
     const currentBalance = await balance(tx, participantId);
@@ -1581,7 +1676,11 @@ export class GameService {
       .returning();
     const currentPlace = placeView(changed!);
     const nextBalance = currentBalance - cost;
-    const response = responseFor(currentPlace, cost, nextBalance);
+    const response = responseFor(
+      currentPlace,
+      cost - nettedRefund,
+      nextBalance,
+    );
     const [ledger] = await tx
       .insert(tokenLedger)
       .values({
@@ -1670,6 +1769,116 @@ export class GameService {
           ...totals.get(id)!,
         })),
       };
+    });
+  }
+
+  async refundInfluence(
+    participantId: string,
+    input: { localDate: string; placeId: string },
+    key: string,
+    now?: Date,
+  ): Promise<InfluenceMutationResponse> {
+    const parsed = refundInfluenceRequest.safeParse(input);
+    if (!parsed.success)
+      fail(400, 'INVALID_INFLUENCE', 'Provide a restaurant and draw date.');
+    const body = parsed.data;
+    const hash = requestHash('POST', '/api/v1/influence/refund', body);
+    return transaction(this.database, async (tx) => {
+      await requireSetupComplete(tx);
+      await activeParticipant(tx, participantId);
+      const prior = await existingKey(tx, participantId, key, hash);
+      if (prior) return replay<InfluenceMutationResponse>(prior);
+      const instant = now ?? new Date();
+      const market = await this.currentBettingMarket(tx, instant);
+      if (
+        market.localDate !== body.localDate ||
+        !bettingWindowView(market, instant).open
+      )
+        fail(
+          409,
+          'INFLUENCE_CLOSED',
+          'Influence changes are closed for that draw.',
+        );
+      const [place] = await tx
+        .select()
+        .from(places)
+        .where(and(eq(places.id, body.placeId), eq(places.active, true)));
+      if (!place)
+        fail(404, 'PLACE_NOT_FOUND', 'That restaurant is not on the wheel.');
+      const lots = await tx
+        .select()
+        .from(influenceLots)
+        .where(
+          and(
+            eq(influenceLots.marketId, market.id),
+            eq(influenceLots.participantId, participantId),
+            eq(influenceLots.placeId, place.id),
+            isNull(influenceLots.withdrawnAt),
+          ),
+        )
+        .orderBy(desc(influenceLots.createdAt), desc(influenceLots.id));
+      if (!lots.length)
+        fail(
+          409,
+          'INFLUENCE_NOT_FOUND',
+          'You have no staged tokens on this restaurant.',
+        );
+      const tokenDelta = lots.reduce((sum, lot) => sum + lot.tokenCost, 0);
+      const nextBalance = (await balance(tx, participantId)) + tokenDelta;
+      const logWeight = lots.reduce(
+        (weight, lot) => weight - lot.logMultiplier,
+        place.logWeight,
+      );
+      if (!Number.isSafeInteger(nextBalance) || !Number.isFinite(logWeight))
+        fail(
+          409,
+          'BALANCE_OVERFLOW',
+          'These positions cannot be refunded safely.',
+        );
+      const response = {
+        place: placeView({ ...place, logWeight }),
+        balance: nextBalance,
+        tokenDelta,
+      };
+      for (let index = 0; index < lots.length; index++)
+        await withdrawInfluenceLot(
+          tx,
+          lots[index]!,
+          instant,
+          `Refunded your staged influence on ${place.name}`,
+          index === 0 ? { key, hash, response } : undefined,
+        );
+      return response;
+    });
+  }
+
+  async setPlaceWeight(input: {
+    placeId: string;
+    weight: number;
+  }): Promise<Place> {
+    const parsed = setPlaceWeightRequest.safeParse(input);
+    if (!parsed.success)
+      fail(400, 'INVALID_WEIGHT', 'Provide a finite positive weight.');
+    return transaction(this.database, async (tx) => {
+      const [place] = await tx
+        .select()
+        .from(places)
+        .where(
+          and(eq(places.id, parsed.data.placeId), eq(places.active, true)),
+        );
+      if (!place)
+        fail(404, 'PLACE_NOT_FOUND', 'That restaurant is not on the wheel.');
+      await this.refundAllOpenInfluence(
+        tx,
+        new Date(),
+        'Influence refunded before an admin weight override',
+      );
+      const [updated] = await tx
+        .update(places)
+        .set({ logWeight: Math.log(parsed.data.weight) })
+        .where(eq(places.id, place.id))
+        .returning();
+      return placeView(updated!);
     });
   }
 
@@ -2152,7 +2361,7 @@ export class GameService {
     });
   }
 
-  async setPreferences(input: GamePreferences): Promise<GamePreferences> {
+  async setPreferences(input: GamePreferencesInput): Promise<GamePreferences> {
     const parsed = gamePreferences.safeParse(input);
     if (!parsed.success)
       fail(
@@ -2347,6 +2556,7 @@ export class GameService {
           placeId: winner.id,
           placeName: winner.name,
           snapshot,
+          spinDurationMs: rule!.wheelSpinSeconds * 1000,
           healthBonus,
           sample,
           drawnAt: instant,
@@ -2523,7 +2733,8 @@ export class GameService {
           instant,
           (updatedPlace, cost, nextBalance) => ({
             place: updatedPlace,
-            spentTokens: cost,
+            spentTokens: Math.max(0, cost),
+            ...(cost < 0 ? { refundedTokens: -cost } : {}),
             balance: nextBalance,
           }),
         );

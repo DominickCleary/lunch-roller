@@ -97,6 +97,7 @@ export const settings = pgTable(
     healthBonusMultiplier: doublePrecision('health_bonus_multiplier')
       .default(1.25)
       .notNull(),
+    wheelSpinSeconds: integer('wheel_spin_seconds').default(20).notNull(),
     wheelSwitchTime: text('wheel_switch_time').default('15:00').notNull(),
     checkInPledge: text('check_in_pledge')
       .default('I pledge that I actually obeyed the wheel')
@@ -111,6 +112,10 @@ export const settings = pgTable(
     check(
       'settings_health_bonus_multiplier',
       sql`${t.healthBonusMultiplier} > 1 and ${t.healthBonusMultiplier} <= 100`,
+    ),
+    check(
+      'settings_wheel_spin_seconds',
+      sql`${t.wheelSpinSeconds} between 5 and 60`,
     ),
     check('settings_singleton', sql`${t.id} = 1`),
     check(
@@ -171,12 +176,17 @@ export const draws = pgTable(
     placeName: text('place_name').notNull(),
     snapshot: jsonb().$type<DrawSnapshot>().notNull(),
     healthBonus: jsonb('health_bonus').$type<HealthBonus>(),
+    spinDurationMs: integer('spin_duration_ms'),
     sample: doublePrecision().notNull(),
     drawnAt: timestamp('drawn_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
   (t) => [
+    check(
+      'draw_spin_duration',
+      sql`${t.spinDurationMs} is null or ${t.spinDurationMs} between 5000 and 60000`,
+    ),
     check('draw_sample_range', sql`${t.sample} >= 0 and ${t.sample} < 1`),
   ],
 );

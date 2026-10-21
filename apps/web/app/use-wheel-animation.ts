@@ -28,7 +28,9 @@ export function useWheelAnimation({
   const timerRef = useRef<number | null>(null);
   const listenerRef = useRef<(() => void) | null>(null);
   const runRef = useRef<{ id: string; kind: Kind } | null>(null);
-  const viewRef = useRef({ mode, resultId: result?.id });
+  const viewRef = useRef({ mode, result });
+  const celebrationRef = useRef<Draw | null>(null);
+  const [celebration, setCelebration] = useState<Draw | null>(null);
   const observedKey = useRef('');
   const [kind, setKind] = useState<Kind>(null);
   const [presentedId, setPresentedId] = useState<string | null | undefined>(
@@ -63,12 +65,9 @@ export function useWheelAnimation({
         if (runRef.current !== run) return;
         stop();
         setKind(null);
-        setSnapshot(null);
-        const angle =
-          viewRef.current.mode === 'result' &&
-          viewRef.current.resultId === draw.id
-            ? plan.rotation
-            : 0;
+        celebrationRef.current = draw;
+        setCelebration(draw);
+        const angle = plan.rotation;
         setRotation(angle);
         if (wheelRef.current)
           wheelRef.current.style.transform = `rotate(${angle}deg)`;
@@ -107,8 +106,9 @@ export function useWheelAnimation({
   );
 
   useEffect(() => {
-    viewRef.current = { mode, resultId: result?.id };
-    if (!mode) return;
+    viewRef.current = { mode, result };
+    if (!mode || celebrationRef.current || runRef.current?.kind === 'replay')
+      return;
     const key = `${displayKey}:${result?.id ?? ''}`;
     if (observedKey.current === key) return;
     if (runRef.current?.id === result?.id && runRef.current?.kind === 'live') {
@@ -139,8 +139,31 @@ export function useWheelAnimation({
     spin: kind !== null || joining,
     live: kind === 'live' || joining,
     snapshot: snapshot ?? (joining ? (result?.snapshot ?? null) : null),
+    celebration,
+    closeCelebration: () => {
+      celebrationRef.current = null;
+      setCelebration(null);
+      const current = viewRef.current;
+      if (
+        current.result &&
+        spinIsLive(animationPlan(current.result), getServerNow()) &&
+        current.result.id !== celebration?.id
+      ) {
+        start(current.result, 'live');
+        return;
+      }
+      setSnapshot(null);
+      const angle =
+        current.mode === 'result' && current.result
+          ? animationPlan(current.result).rotation
+          : 0;
+      setRotation(angle);
+      if (wheelRef.current)
+        wheelRef.current.style.transform = `rotate(${angle}deg)`;
+    },
     replay: () => {
-      if (result && !runRef.current) start(result, 'replay');
+      if (result && !runRef.current && !celebrationRef.current)
+        start(result, 'replay');
     },
   };
 }

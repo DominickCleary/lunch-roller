@@ -127,12 +127,12 @@ async function exerciseAdminUiAndGame(
 
   const placesCard = page
     .locator('.admin-tool-card')
-    .filter({ has: page.getByRole('heading', { name: 'Places' }) });
+    .filter({ has: page.getByRole('heading', { name: 'Places and odds' }) });
   await placesCard.getByLabel('New lunch place').fill(placeName);
   await placesCard.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(placesCard.getByText(placeName, { exact: false })).toBeVisible();
   await placesCard
-    .locator('.admin-row')
+    .getByRole('row')
     .filter({ hasText: placeName })
     .getByRole('button', { name: 'Rename' })
     .click();
@@ -145,9 +145,13 @@ async function exerciseAdminUiAndGame(
   placeName = `${placeName} Edited`;
   await expect(placesCard.getByText(placeName, { exact: false })).toBeVisible();
   await placesCard
-    .locator('.admin-row')
+    .getByRole('row')
     .filter({ hasText: placeName })
     .getByRole('button', { name: 'Archive', exact: true })
+    .click();
+  await placesCard
+    .locator('.archived-places')
+    .getByText(/Archived places/)
     .click();
   await expect(
     placesCard
@@ -181,6 +185,14 @@ async function exerciseAdminUiAndGame(
     result: { placeId: string; placeName: string } | null;
   };
   expect(initialToday.result?.placeId).toBe(result.placeId);
+  await expect(page.getByTestId('today-result')).toContainText(
+    result.placeName,
+  );
+  const liveWinner = page.getByRole('dialog', {
+    name: 'The Wheel has spoken',
+  });
+  if (await liveWinner.isVisible())
+    await liveWinner.getByRole('button', { name: 'Praise the Wheel' }).click();
   const replay = page.getByRole('button', {
     name: "Replay today's result",
   });
@@ -234,6 +246,10 @@ async function exerciseAdminUiAndGame(
     await replay.click();
     await expect(page.getByTestId('wheel-target')).toContainText('Saved pick');
     actualAngle = await readSettledAngle();
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Praise the Wheel' })
+      .click();
     await expect(replay).toBeEnabled({ timeout: 8000 });
     await expect(page.locator('.wheel-state')).not.toContainText(
       'REPLAYING TODAY',
@@ -271,6 +287,10 @@ async function exerciseAdminUiAndGame(
   page.on('request', recordDrawRequest);
   await replay.click();
   await expect(page.getByTestId('wheel-target')).toContainText('Saved pick');
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Praise the Wheel' })
+    .click();
   await expect(replay).toBeEnabled({ timeout: 8000 });
   await expect(page.locator('.wheel-state')).not.toContainText(
     'REPLAYING TODAY',
@@ -316,7 +336,10 @@ async function exerciseAdminUiAndGame(
   await expect(
     page.getByText('Check-in complete — 10 tokens added.'),
   ).toBeVisible();
-  await page.getByTitle('Boost place (5 tokens)').first().click();
+  await page
+    .getByRole('button', { name: /^Boost / })
+    .first()
+    .click();
   await expect(page.getByText('Boost staged for the next draw.')).toBeVisible();
   await page.getByLabel('Have a new spot in mind?').fill(addPlaceName);
   await page.getByRole('button', { name: 'Add place' }).click();

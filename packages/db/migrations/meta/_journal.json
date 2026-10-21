@@ -64,6 +64,13 @@
       "when": 1792587094273,
       "tag": "0008_condemned_madripoor",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792590384304,
+      "tag": "0009_square_sharon_ventura",
+      "breakpoints": true
     }
   ]
 }

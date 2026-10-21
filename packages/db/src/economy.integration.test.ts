@@ -127,7 +127,18 @@ it('uses configured rewards and prices, replays original responses, and preserve
     placeBefore.logWeight + Math.log(economy.boostMultiplier),
   );
 
-  const reducedBefore = boosted.place.logWeight;
+  const cancelled = await service.purchase(
+    member.id,
+    { placeId: seedPlace.id, action: 'reduce' },
+    crypto.randomUUID(),
+    influenceAt,
+  );
+  expect(cancelled).toMatchObject({
+    spentTokens: 0,
+    refundedTokens: economy.boostCost,
+  });
+  expect(cancelled.place.logWeight).toBeCloseTo(placeBefore.logWeight);
+  const reducedBefore = placeBefore.logWeight;
   const reduced = await service.purchase(
     member.id,
     { placeId: seedPlace.id, action: 'reduce' },
@@ -244,7 +255,7 @@ it('uses configured rewards and prices, replays original responses, and preserve
   });
 
   const wallet = await service.wallet(member.id);
-  expect(wallet.balance).toBe(100 - 3 - 4 - 7 - 12 - 7 + 13 - 9);
+  expect(wallet.balance).toBe(100 - 4 - 7 - 12 - 7 + 13 - 9);
   expect(
     wallet.ledger.filter((entry) => entry.kind === 'attendance'),
   ).toHaveLength(1);

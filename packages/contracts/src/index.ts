@@ -16,12 +16,15 @@ export const setupStatus = z.object({
 });
 export type SetupStatus = z.infer<typeof setupStatus>;
 export const gamePreferences = z.object({
+  wheelSpinSeconds: z.number().int().min(5).max(60).default(20),
   wheelSwitchTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   checkInPledge: z.string().trim().min(1).max(500),
   bettingCloseMinutes: z.number().int().min(0).max(1440),
 });
 export type GamePreferences = z.infer<typeof gamePreferences>;
+export type GamePreferencesInput = z.input<typeof gamePreferences>;
 export const defaultGamePreferences: GamePreferences = {
+  wheelSpinSeconds: 20,
   wheelSwitchTime: '15:00',
   checkInPledge: 'I pledge that I actually obeyed the wheel',
   bettingCloseMinutes: 5,
@@ -140,8 +143,8 @@ export const defaultSchedule = {
 export const wheelAnimation = z.object({
   version: z.literal(1),
   rotation: z.number().finite().min(0).lt(360),
-  turns: z.number().int().min(1).max(20),
-  durationMs: z.number().int().min(1000).max(30000),
+  turns: z.number().int().min(1).max(40),
+  durationMs: z.number().int().min(1000).max(60000),
   startsAt: z.iso.datetime(),
 });
 export type WheelAnimation = z.infer<typeof wheelAnimation>;
@@ -207,7 +210,8 @@ export const attendanceResponse = z.object({
 });
 export const purchaseResponse = z.object({
   place,
-  spentTokens: z.number().int().positive(),
+  spentTokens: z.number().int().nonnegative(),
+  refundedTokens: z.number().int().positive().optional(),
   balance: z.number().int().nonnegative(),
 });
 export const betView = z.object({
@@ -292,6 +296,14 @@ export const currentInfluenceResponse = z.object({
   window: bettingWindow,
   places: z.array(influencePosition),
 });
+export const refundInfluenceRequest = z.object({
+  localDate: z.iso.date(),
+  placeId: id,
+});
+export const setPlaceWeightRequest = z.object({
+  placeId: id,
+  weight: z.number().finite().positive(),
+});
 export const changeInfluenceRequest = z.object({
   localDate: z.iso.date(),
   placeId: id,
@@ -355,7 +367,7 @@ export type TokenBalanceSetResponse = z.infer<typeof tokenBalanceSetResponse>;
 export const restaurantOdds = z.object({
   placeId: id,
   name,
-  percent: z.number().finite().positive().max(100),
+  percent: z.number().finite().nonnegative().max(100),
 });
 export const restaurantOddsResponse = z.object({
   places: z.array(restaurantOdds),

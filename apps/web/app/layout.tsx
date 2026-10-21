@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 export const metadata: Metadata = {
-  title: 'Gambling About Lunch',
+  title: 'Gambling about lunch',
   description: 'Let the wheel decide lunch. A shared workplace lunch game.',
 };
 export default function Layout({

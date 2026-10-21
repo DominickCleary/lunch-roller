@@ -6,7 +6,6 @@ import type {
   InfluencePosition,
   HealthLevel,
 } from '@lunch/contracts';
-import { calendarDateLabel } from '../lib/date-label';
 import './influence-controls.css';
 import { HealthBadge } from './health-label';
 
@@ -23,6 +22,7 @@ type Props = {
   busy: boolean;
   identityReady: boolean;
   onChange: (placeId: string, action: InfluenceAction, change: 1 | -1) => void;
+  onRefund: (placeId: string) => void;
 };
 
 function localMinute(now: Date, timezone: string): string {
@@ -52,6 +52,7 @@ export function InfluenceControls({
   busy,
   identityReady,
   onChange,
+  onRefund,
 }: Props) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -72,44 +73,25 @@ export function InfluenceControls({
   const reductions = position?.reductions ?? 0;
   const yourBoosts = position?.yourBoosts ?? 0;
   const yourReductions = position?.yourReductions ?? 0;
-  const cutoffLabel = window
-    ? `${calendarDateLabel(window.cutoffLocalDate)} at ${window.cutoffLocalTime} (${window.timezone})`
-    : 'the betting cutoff';
-
-  function control(action: InfluenceAction, change: 1 | -1) {
-    const label = action === 'boost' ? 'boost' : 'reduction';
-    const count = action === 'boost' ? yourBoosts : yourReductions;
+  const net = yourBoosts - yourReductions;
+  function control(action: InfluenceAction) {
     const cost = action === 'boost' ? boostCost : reduceCost;
-    const adding = change === 1;
+    const towardZero = action === 'boost' ? net < 0 : net > 0;
+    const title = closed
+      ? 'Locked'
+      : towardZero
+        ? `Refund ${action === 'boost' ? 'reduction' : 'boost'} on ${placeName}`
+        : `${action === 'boost' ? 'Boost' : 'Reduce'} ${placeName} for ${cost} tokens`;
     return (
-      <button
-        key={`${action}-${change}`}
-        type="button"
-        className={`influence-position-control ${action}${adding ? '' : ' undo'}`}
-        aria-label={
-          adding
-            ? `${action === 'boost' ? 'Boost' : 'Reduce'} ${placeName}`
-            : `Undo ${label} on ${placeName}`
-        }
-        title={
-          adding
-            ? `${action === 'boost' ? 'Boost place' : 'Reduce place'} (${cost} tokens)`
-            : `Undo ${label} on ${placeName}`
-        }
+      <IconAction
+        kind={action}
+        label={`${action === 'boost' ? 'Boost' : 'Reduce'} ${placeName}`}
+        title={title}
         disabled={
-          !identityReady ||
-          busy ||
-          closed ||
-          (adding ? balance < cost : count < 1)
+          !identityReady || busy || closed || (!towardZero && balance < cost)
         }
-        onClick={() => onChange(placeId, action, change)}
-      >
-        {adding
-          ? action === 'boost'
-            ? '+ Boost'
-            : '+ Reduce'
-          : `Undo ${action === 'boost' ? 'boost' : 'reduce'}`}
-      </button>
+        onClick={() => onChange(placeId, action, 1)}
+      />
     );
   }
 
@@ -120,38 +102,105 @@ export function InfluenceControls({
     >
       <div className="influence-place-heading">
         <div className="influence-place-title">
-          <span className="odds-name">{placeName}</span>
+          <span className="odds-name" title={placeName}>
+            {placeName}
+          </span>
           <HealthBadge level={healthLevel} />
         </div>
         <div className="influence-market-counts" aria-label="Market positions">
-          <span className="market-count team-count">
-            Team <span aria-label={`${boosts} boosts`}>↑{boosts}</span>{' '}
+          <span
+            className="market-count team-count"
+            title="Team boosts and reductions"
+          >
+            <span aria-label={`${boosts} boosts`}>↑{boosts}</span>{' '}
             <span aria-label={`${reductions} reductions`}>↓{reductions}</span>
-          </span>
-          <span className="market-count your-count">
-            You{' '}
-            <span aria-label={`${yourBoosts} of your boosts`}>
-              ↑{yourBoosts}
-            </span>{' '}
-            <span aria-label={`${yourReductions} of your reductions`}>
-              ↓{yourReductions}
-            </span>
           </span>
         </div>
       </div>
-      <div className="influence-position-buttons">
-        {control('boost', 1)}
-        {control('boost', -1)}
-        {control('reduce', 1)}
-        {control('reduce', -1)}
+      <div
+        className={`influence-stepper ${net > 0 ? 'positive' : net < 0 ? 'negative' : 'neutral'}`}
+        role="group"
+        aria-label={`Your position on ${placeName}`}
+        title={closed ? 'Locked' : `Your position: ${net > 0 ? '+' : ''}${net}`}
+      >
+        <div className="influence-position-buttons">
+          {control('reduce')}
+          <span
+            className="influence-net"
+            aria-live="polite"
+            aria-label={`Your position: ${net > 0 ? '+' : ''}${net}`}
+          >
+            <strong className="influence-net-value">
+              {net > 0 ? `+${net}` : net < 0 ? `−${Math.abs(net)}` : '0'}
+            </strong>
+          </span>
+          {control('boost')}
+          <IconAction
+            kind="refund"
+            label={`Refund tokens for ${placeName}`}
+            title="Refund tokens"
+            disabled={
+              !identityReady ||
+              busy ||
+              closed ||
+              yourBoosts + yourReductions === 0
+            }
+            onClick={() => onRefund(placeId)}
+          />
+        </div>
       </div>
-      <p className={`influence-market-state${closed ? ' locked' : ''}`}>
-        {!window
-          ? 'Loading positions…'
-          : closed
-            ? `Locked for draw · cutoff ${window.cutoffLocalTime}`
-            : `Staged · editable until ${cutoffLabel}`}
-      </p>
     </div>
+  );
+}
+
+function IconAction({
+  kind,
+  label,
+  title,
+  disabled,
+  onClick,
+}: {
+  kind: 'boost' | 'reduce' | 'refund';
+  label: string;
+  title: string;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`influence-position-control icon-control ${kind}`}
+      aria-label={label}
+      title={title}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <svg
+        width="17"
+        height="17"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        {kind === 'refund' ? (
+          <>
+            <path d="M3 10a9 9 0 1 1 1 8" />
+            <path d="M3 4v6h6" />
+          </>
+        ) : kind === 'boost' ? (
+          <>
+            <path d="m6 11 6-6 6 6M12 5v14" />
+          </>
+        ) : (
+          <>
+            <path d="m6 13 6 6 6-6M12 19V5" />
+          </>
+        )}
+      </svg>
+    </button>
   );
 }

@@ -29,7 +29,7 @@ const actionLabel: Record<string, string> = {
   'boost-refund': 'Withdrew a boost',
   'reduce-refund': 'Withdrew a reduction',
   'add-place': 'Added a restaurant',
-  'remove-place': 'Removed a restaurant',
+  'remove-place': 'Banished a restaurant',
   correction: 'Balance correction',
   'bet-stake': 'Reserved a bet',
   'bet-release': 'Bet stake returned',
