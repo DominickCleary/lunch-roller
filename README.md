@@ -20,6 +20,8 @@ Beside each lunch spot, the influence controls show the team's boost/reduction c
 
 The navbar **Help** icon opens the current rules, including configured token prices, weight multipliers, health bonuses, schedule, cutoff, betting and transfers. It refreshes public settings when opened; the member controls keep live status and action values without repeating the rule explanations.
 
+The interface uses an iron-and-brass ritual theme, with a parchment-and-brass light variant. Compact member controls, activity charts, admin panels and dialogs share the same palette. The site uses a typographic wordmark while the spinning-wheel/ouroboros logo artwork is supplied separately.
+
 Use the header's Dark mode / Light mode toggle to change the theme. The site follows your system theme until you choose one, then remembers that choice in your browser and synchronizes it across tabs.
 
 Open Team token activity below your own token history to view another active roster member's balance, transactions, reasons and dates. Viewing activity leaves your selected name and game actions unchanged.

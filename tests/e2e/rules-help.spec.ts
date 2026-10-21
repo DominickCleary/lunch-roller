@@ -87,7 +87,7 @@ test('navbar Help explains current rules, refreshes changed settings, and works 
   await expect(
     modal.getByRole('region', { name: 'Health balance' }),
   ).toContainText('health bonus is currently disabled');
-  await expect(modal).toHaveCSS('background-color', 'rgb(32, 37, 46)');
+  await expect(modal).toHaveCSS('background-color', 'rgb(27, 34, 37)');
   const bounds = (await modal.boundingBox())!;
   expect(bounds.x).toBeGreaterThanOrEqual(0);
   expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);

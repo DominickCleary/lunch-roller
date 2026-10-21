@@ -170,7 +170,10 @@ test('admin preferences persist and participants see the pledge and completed ch
     .click();
   await expect(page.getByTestId('check-in-confirmation')).toBeVisible();
   await expect(checkIn).toBeDisabled();
-  await expect(checkIn).toHaveCSS('background-color', 'rgb(224, 226, 229)');
+  await expect(checkIn).toHaveCSS('background-color', 'rgb(222, 216, 200)');
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect(checkIn).toHaveCSS('background-color', 'rgb(48, 56, 57)');
+  await page.emulateMedia({ colorScheme: 'light' });
   await page.reload();
   await expect(page.getByTestId('check-in-confirmation')).toBeVisible();
   await expect(page.getByTestId('check-in')).toBeDisabled();

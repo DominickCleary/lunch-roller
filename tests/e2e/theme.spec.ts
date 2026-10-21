@@ -16,10 +16,26 @@ test('follows system theme until a choice is saved, persists it and syncs tabs',
   ).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('html')).toHaveCSS(
     'background-color',
-    'rgb(20, 23, 29)',
+    'rgb(17, 23, 25)',
   );
   await page.emulateMedia({ colorScheme: 'light' });
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(page.locator('html')).toHaveCSS(
+    'background-color',
+    'rgb(231, 223, 205)',
+  );
+  await expect(page.locator('.setup-card')).toHaveCSS(
+    'background-color',
+    'rgb(246, 240, 226)',
+  );
+  await expect(page.locator('.brand-title')).toHaveCSS(
+    'font-family',
+    /Georgia/,
+  );
+  await expect(page.locator('body')).toHaveCSS(
+    'font-family',
+    /Arial|sans-serif/,
+  );
   await page.getByRole('button', { name: 'Switch to dark mode' }).click();
   expect(
     await page.evaluate((key) => localStorage.getItem(key), themeKey),
@@ -27,6 +43,15 @@ test('follows system theme until a choice is saved, persists it and syncs tabs',
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.emulateMedia({ colorScheme: 'dark' });
+  await expect(page.locator('html')).toHaveCSS(
+    'background-color',
+    'rgb(17, 23, 25)',
+  );
+  await expect(page.locator('html')).toHaveCSS('color', 'rgb(217, 217, 202)');
+  await expect(page.locator('.brand-title')).toHaveCSS(
+    'color',
+    'rgb(239, 231, 211)',
+  );
   await page.emulateMedia({ colorScheme: 'light' });
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
@@ -49,7 +74,7 @@ test('dark mode covers the name picker, wheel, admin forms and removal dialog on
   await expect(page.getByTestId('name-picker')).toBeVisible();
   await expect(page.locator('.setup-card')).toHaveCSS(
     'background-color',
-    'rgb(32, 37, 46)',
+    'rgb(27, 34, 37)',
   );
   await page.getByLabel('Your name').selectOption({ label: 'Alex' });
   await page.getByRole('button', { name: 'Enter lunch wheel' }).click();
@@ -64,7 +89,7 @@ test('dark mode covers the name picker, wheel, admin forms and removal dialog on
   await page.getByRole('button', { name: 'Unlock', exact: true }).click();
   await expect(page.getByTestId('admin-preferences')).toHaveCSS(
     'background-color',
-    'rgb(32, 37, 46)',
+    'rgb(27, 34, 37)',
   );
   await expect(page.getByLabel('Wheel switch time')).toHaveCSS(
     'color-scheme',
@@ -87,7 +112,7 @@ test('dark mode covers the name picker, wheel, admin forms and removal dialog on
   await page.getByRole('button', { name: 'Remove Alex', exact: true }).click();
   await expect(page.getByRole('alertdialog')).toHaveCSS(
     'background-color',
-    'rgb(32, 37, 46)',
+    'rgb(27, 34, 37)',
   );
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
 });

@@ -1,0 +1,18 @@
+# Task: Extend the Wheel's ritual visual theme throughout the app
+
+- Owner / branch / worktree: coordinator on main; agents on separate codex worktrees in /tmp.
+- Goal and current behavior: extend the winner modal's iron/brass/ritual theme to the full app while retaining compact controls, readable charts and current interactions. Theme around the user's future spinning-wheel/ouroboros logo without creating logo artwork.
+- Owned files or directories: coordinator owns globals.css, page.tsx presentation, README and this brief; activity agent owns daily-activity.css, draw-positions.css, token-history.css; controls agent owns influence-controls.css, rules-help.css, winner-celebration.css; verification agent owns tests/e2e/theme.spec.ts, rules-help.spec.ts, ui-controls.spec.ts, preferences.spec.ts. Coordinator integrates only assigned files and runs checks.
+- Dependencies and frozen contracts: no API/rule/schema/dependency changes. Existing theme preference/system behavior retained. Light palette is parchment/brass; dark is iron/brass. Shared variables: --accent, --accent-bright, --accent-soft, --font-display, --panel-shadow plus existing surface/text/line/success/danger. Final coordinator contrast review darkens light accent to #785a28 (bright #715221) and muted text to #606154. Light page/surface #e7dfcd/#f6f0e2, success/danger #2d6a4f/#9e3e35; dark page/surface #111719/#1b2225, success/danger #8ac7a1/#e99483. Compact rows remain at most 48px in normal fixtures. Native dialogs remain viewport-centered and accessible, reduced motion retained.
+- Explicit exclusions: no logo/ouroboros illustration, image asset, new font/dependency, new motion, transaction, schedule, draw, odds, storage, cookie or migration changes; no commits/pushes/deployment.
+- Acceptance criteria: coherent typography, brass controls and restrained borders across setup/member/admin/wheel/history/activity/Help/modal surfaces; legible semantic green/red health and positions; both themes work; wheel mappings/probabilities unchanged; compact desktop/mobile layout, keyboard focus and reduced motion work.
+- Checks and required fixtures: format/lint/typecheck/unit/build; full browser suite with disposable PostgreSQL; desktop/mobile light/dark screenshots and visual review. Agents report owned file diffs and unrun checks; coordinator verifies integration.
+- Migration/environment effects: none.
+
+## Handoff
+
+- Result and behavior changed: completed. Iron/brass dark surfaces and parchment/brass light surfaces now cover the wheel, setup, member/admin controls, activity charts, token history, Help and winner dialog. Serif headings, compact framed controls, readable semantic colors and a muted wheel palette carry the ritual theme. The wordmark leaves room for the user's future logo; no logo artwork was created.
+- Files touched / commit if available: assigned above, no commits.
+- Checks executed and outcomes: pnpm format:check, pnpm lint, pnpm typecheck, pnpm test (55 passed), pnpm build and full pnpm test:e2e (29 passed). After the final scrolling-background adjustment, build and focused theme/Help browser checks passed again (4 tests). git diff --check passed. Coordinator and agents reviewed desktop/mobile screenshots in both themes; no material layout or readability issues found. Browser checks used a disposable PostgreSQL container.
+- Known issues or blockers: none.
+- Integration order and follow-up work: integrated the three agents' assigned surface and verification files after establishing shared palette variables, then reviewed and verified the combined result. No migration or environment changes required. Future logo artwork remains with the user.

@@ -1,24 +1,30 @@
 @import 'tailwindcss';
 
 :root {
-  --page-bg: #f4f5f6;
-  --surface: #fff;
-  --surface-soft: #f9fafb;
-  --surface-muted: #f1f3e9;
-  --text: #202328;
-  --text-strong: #24272b;
-  --text-secondary: #4d5259;
-  --text-muted: #646b75;
-  --line: #d9dce0;
-  --line-strong: #c8cbd0;
-  --success: #26834d;
-  --danger: #a22b25;
-  --disabled-bg: #e0e2e5;
-  --disabled-text: #72777d;
-  --primary-bg: #30343a;
-  --primary-text: #fff;
-  --toast-bg: #282c31;
-  --toast-text: #fff;
+  --page-bg: #e7dfcd;
+  --surface: #f6f0e2;
+  --surface-soft: #eee5d2;
+  --surface-muted: #e5d9bf;
+  --text: #343630;
+  --text-strong: #222823;
+  --text-secondary: #4f5349;
+  --text-muted: #606154;
+  --line: #cbbd9c;
+  --line-strong: #a89975;
+  --success: #2d6a4f;
+  --danger: #9e3e35;
+  --disabled-bg: #ded8c8;
+  --disabled-text: #747266;
+  --primary-bg: #6c5425;
+  --primary-text: #fff6dc;
+  --toast-bg: #222823;
+  --toast-text: #f6f0e2;
+  --accent: #785a28;
+  --accent-bright: #715221;
+  --accent-soft: #ece1c8;
+  --focus: #785a28;
+  --font-display: Georgia, 'Times New Roman', serif;
+  --panel-shadow: 0 8px 30px #161b1810;
   color-scheme: light;
   background: var(--page-bg);
   color: var(--text);
@@ -28,24 +34,29 @@
 }
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --page-bg: #14171d;
-  --surface: #20252e;
-  --surface-soft: #282e38;
-  --surface-muted: #2b333e;
-  --text: #e2e7ef;
-  --text-strong: #f0f3f8;
-  --text-secondary: #c1c9d5;
-  --text-muted: #aab4c3;
-  --line: #363e4b;
-  --line-strong: #505c6f;
-  --success: #72d99b;
-  --danger: #ff9d95;
-  --disabled-bg: #343c49;
-  --disabled-text: #aab4c3;
-  --primary-bg: #dce3ee;
-  --primary-text: #161a22;
-  --toast-bg: #e2e7ef;
-  --toast-text: #202328;
+  --page-bg: #111719;
+  --surface: #1b2225;
+  --surface-soft: #232b2d;
+  --surface-muted: #293134;
+  --text: #d9d9ca;
+  --text-strong: #efe7d3;
+  --text-secondary: #c2c5b7;
+  --text-muted: #a1a99b;
+  --line: #3f463d;
+  --line-strong: #6f7055;
+  --success: #8ac7a1;
+  --danger: #e99483;
+  --disabled-bg: #303839;
+  --disabled-text: #a3a89b;
+  --primary-bg: #d5ba77;
+  --primary-text: #171b1d;
+  --toast-bg: #ded7c2;
+  --toast-text: #1b2225;
+  --accent: #d5ba77;
+  --accent-bright: #e7ce8c;
+  --accent-soft: #2e3026;
+  --focus: #e7ce8c;
+  --panel-shadow: 0 10px 30px #0002;
 }
 
 * {
@@ -56,6 +67,22 @@ html {
 }
 body {
   margin: 0;
+  background-image: radial-gradient(
+    ellipse at 30% 0%,
+    color-mix(in srgb, var(--accent) 3%, transparent),
+    transparent 55%
+  );
+}
+button,
+input,
+select,
+textarea {
+  accent-color: var(--accent);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 0.85;
 }
 .site-shell {
   width: min(100%, 1900px);
@@ -85,15 +112,16 @@ body {
   font-weight: 700;
 }
 .brand-mark {
-  color: #ed493e;
+  color: var(--accent);
   font-size: 22px;
 }
 .brand-title {
   font-size: 15px;
-  letter-spacing: -0.02em;
+  letter-spacing: 0.01em;
 }
 .topbar .brand-title {
   margin: 0;
+  font-family: var(--font-display);
   color: var(--text-strong);
   font-size: 16px;
   font-weight: 700;
@@ -149,12 +177,13 @@ body {
   cursor: pointer;
 }
 .workspace-tabs button[aria-selected='true'] {
-  background: var(--text-strong);
-  color: var(--surface);
+  border-color: var(--accent);
+  background: var(--primary-bg);
+  color: var(--primary-text);
 }
 .workspace-tabs button:focus-visible,
 .wheel-card [role='tabpanel']:focus-visible {
-  outline: 2px solid var(--text-strong);
+  outline: 2px solid var(--focus);
   outline-offset: 3px;
 }
 .wheel-card [hidden] {
@@ -185,11 +214,13 @@ body {
   position: relative;
   container-type: size;
   overflow: hidden;
-  border: 9px solid var(--surface);
+  border: 9px solid var(--accent);
   border-radius: 50%;
   box-shadow:
-    0 1px 2px #15171a55,
-    0 0 0 1px var(--line-strong);
+    0 12px 36px #0003,
+    0 0 0 1px var(--line-strong),
+    0 0 0 5px var(--page-bg),
+    0 0 0 6px var(--line-strong);
   transition: none;
   will-change: transform;
 }
@@ -202,12 +233,12 @@ body {
   left: 32%;
   top: calc(50% - 0.575em);
   width: 36%;
-  color: #0b0e12;
+  color: #171b1d;
   text-align: center;
   font-size: clamp(13px, 4cqw, 34px);
   line-height: 1.15;
   font-weight: 800;
-  text-shadow: 0 1px 0 #ffffff70;
+  text-shadow: 0 1px 0 #ffffff35;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -219,7 +250,7 @@ body {
   inset: calc(50% - clamp(24px, 3.5vw, 43px));
   display: grid;
   place-items: center;
-  border: 6px solid var(--surface);
+  border: 5px solid var(--accent);
   border-radius: 50%;
   background: var(--surface-soft);
   color: var(--text-strong);
@@ -314,7 +345,7 @@ body {
   place-items: center;
   border: 1px solid var(--line);
   border-radius: 50%;
-  color: #dfb400;
+  color: var(--accent);
   font-size: 15px;
 }
 .bet-form {
@@ -505,12 +536,14 @@ button:disabled {
   cursor: not-allowed;
 }
 .button-dark {
+  border-color: var(--accent);
   background: var(--primary-bg);
   color: var(--primary-text);
 }
 .button-yellow {
-  background: #ffd326;
-  color: #292c31;
+  border-color: var(--accent);
+  background: var(--primary-bg);
+  color: var(--primary-text);
 }
 .button-yellow:disabled {
   background: var(--disabled-bg);
@@ -520,7 +553,7 @@ button:disabled {
 .button-yellow span {
   margin-left: 5px;
   padding-left: 6px;
-  border-left: 1px solid #292c3144;
+  border-left: 1px solid color-mix(in srgb, currentColor 35%, transparent);
 }
 .button-light {
   border-color: var(--line-strong);
@@ -559,7 +592,7 @@ button:disabled {
   font-size: 15px;
 }
 .balance strong span {
-  color: #dfb400;
+  color: var(--accent);
 }
 .button-row {
   display: flex;
@@ -750,7 +783,7 @@ button:disabled {
   line-height: 1.4;
 }
 .result-note span {
-  color: #e2b600;
+  color: var(--accent);
   font-size: 16px;
 }
 .result-note p {
@@ -809,6 +842,8 @@ button:disabled {
   gap: 10px;
 }
 .admin-tool-card {
+  box-shadow: var(--panel-shadow);
+  border-color: var(--line-strong);
   min-width: 0;
   padding: 12px;
   border: 1px solid var(--line);
@@ -1087,12 +1122,16 @@ button:disabled {
   display: grid;
   place-items: center;
   padding: 18px;
-  background: #171a1e66;
+  background: #070c18a6;
+  backdrop-filter: blur(3px);
 }
 .confirm-dialog {
+  border: 1px solid var(--accent);
+  box-shadow: var(--panel-shadow);
+  border-color: var(--line-strong);
   width: min(100%, 420px);
   padding: 20px;
-  border-radius: 8px;
+  border-radius: 5px;
   background: var(--surface);
   box-shadow: 0 12px 42px #1118;
 }
@@ -1125,11 +1164,11 @@ button:disabled {
   border: 0;
 }
 ::selection {
-  background: #ffe05b;
-  color: #24272b;
+  background: var(--primary-bg);
+  color: var(--primary-text);
 }
 :focus-visible {
-  outline: 3px solid #326fdb;
+  outline: 3px solid var(--focus);
   outline-offset: 3px;
 }
 
@@ -1267,11 +1306,13 @@ button:disabled {
   width: 100%;
 }
 .setup-card {
+  box-shadow: var(--panel-shadow);
+  border-color: var(--line-strong);
   width: min(100% - 36px, 560px);
   margin: clamp(32px, 8vh, 88px) auto;
   padding: clamp(24px, 5vw, 48px);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 5px;
   background: var(--surface);
 }
 .setup-card-wide {
@@ -1302,7 +1343,7 @@ button:disabled {
   min-height: 46px;
   padding: 10px 12px;
   border: 1px solid var(--line-strong);
-  border-radius: 10px;
+  border-radius: 5px;
   background: var(--surface);
   color: inherit;
   font: inherit;
@@ -1320,15 +1361,17 @@ button:disabled {
 }
 .setup-counts span {
   padding: 12px 14px;
-  border-radius: 10px;
+  border-radius: 5px;
   background: var(--surface-muted);
   font-weight: 700;
 }
 .setup-step {
+  box-shadow: var(--panel-shadow);
+  border-color: var(--line-strong);
   margin-top: 16px;
   padding: 18px;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 6px;
   background: var(--surface);
 }
 .setup-step h4 {
@@ -1346,7 +1389,7 @@ button:disabled {
 }
 .setup-roster li {
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: 5px;
   background: var(--surface-soft);
 }
 .setup-schedule-fields {
@@ -1391,6 +1434,8 @@ button:disabled {
     grid-template-columns: 1fr;
   }
   .setup-card {
+    box-shadow: var(--panel-shadow);
+    border-color: var(--line-strong);
     margin-top: 28px;
   }
 }
@@ -1485,7 +1530,7 @@ button:disabled {
   color: var(--danger);
 }
 :root[data-theme='dark'] :focus-visible {
-  outline-color: #88b4ff;
+  outline-color: var(--focus);
 }
 
 .health-badge {
@@ -1530,7 +1575,7 @@ button:disabled {
   background: var(--surface-soft);
   border: 1px solid var(--line);
   border-left: 3px solid var(--success);
-  border-radius: 10px;
+  border-radius: 5px;
   font-size: 13px;
 }
 .health-bonus-summary h3 {
@@ -1555,7 +1600,7 @@ button:disabled {
   margin: 16px 0;
   padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 5px;
   font-size: 13px;
 }
 .token-transfer summary {
@@ -1715,5 +1760,126 @@ button:disabled {
   }
   .add-place .health-select {
     justify-self: end;
+  }
+}
+
+/* Brass framing echoes the Wheel without supplying the future logo artwork. */
+.topbar {
+  border-bottom-color: var(--line-strong);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.brand {
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+}
+.date-chip,
+.wheel-state,
+.status-label,
+.odds-total {
+  color: var(--accent);
+}
+.workspace-tabs button {
+  border-radius: 4px;
+  letter-spacing: 0.025em;
+}
+.section-heading h2,
+.admin-intro h2,
+.admin-tool-card h3,
+.setup-card h2,
+.setup-admin-content h3,
+.setup-step h4,
+.confirm-dialog h2,
+.health-bonus-summary h3,
+.token-bets-heading h4 {
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+  font-weight: 700;
+}
+.section-heading h2 {
+  font-size: 17px;
+}
+.admin-tool-card h3 {
+  font-size: 15px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.setup-card {
+  border-top: 3px solid var(--accent);
+}
+.setup-card > .eyebrow {
+  color: var(--accent);
+  letter-spacing: 0.12em;
+}
+.button,
+.theme-toggle,
+.replay-button,
+.bet-form select,
+.bet-stake-field input,
+.inline-form input,
+.inline-form select,
+.admin-tool-card input,
+.admin-tool-card select {
+  border-radius: 4px;
+}
+.button-light:hover:not(:disabled),
+.theme-toggle:hover,
+.replay-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text-strong);
+}
+.odds-format-toggle button[aria-pressed='true'] {
+  background: var(--primary-bg);
+  color: var(--primary-text);
+}
+.odds-format-toggle {
+  border-radius: 4px;
+  border-color: var(--line-strong);
+}
+.member-status {
+  border-top: 2px solid var(--accent);
+}
+.balance strong {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.bet-estimate,
+.token-transfer,
+.health-bonus-summary {
+  background: var(--surface-soft);
+}
+.token-transfer {
+  border-color: var(--line-strong);
+  border-radius: 5px;
+}
+.token-transfer summary,
+.team-activity > summary,
+.admin-disclosure > summary {
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+.admin-data-table thead th {
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+}
+.admin-data-table tbody tr:hover {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+.status-active,
+.status-inactive,
+.health-badge {
+  border-radius: 4px;
+}
+.footer {
+  border-top-color: var(--line-strong);
+}
+.footer .brand {
+  color: var(--accent);
+  letter-spacing: 0.025em;
+}
+@media (max-width: 620px) {
+  .topbar .brand-title {
+    font-size: 15px;
+    line-height: 1.1;
   }
 }

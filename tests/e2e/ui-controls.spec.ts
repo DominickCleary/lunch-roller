@@ -45,7 +45,7 @@ test('unifies place management, odds and direct weights; persists spin duration 
   const spot = page.locator('.odds-row').filter({ hasText: placeName });
   await expect(spot.locator('.health-badge')).toHaveCSS(
     'color',
-    'rgb(38, 131, 77)',
+    'rgb(45, 106, 79)',
   );
   await expect(spot.locator('.influence-position-buttons button')).toHaveCount(
     3,
@@ -104,7 +104,7 @@ test('unifies place management, odds and direct weights; persists spin duration 
     .selectOption('treat');
   await expect(spot.locator('.health-badge')).toHaveCSS(
     'color',
-    'rgb(162, 43, 37)',
+    'rgb(158, 62, 53)',
   );
   const preferences = page.getByTestId('admin-preferences');
   await preferences.getByLabel('Wheel spin duration (seconds)').fill('7');
@@ -149,4 +149,9 @@ test('unifies place management, odds and direct weights; persists spin duration 
     .boundingBox();
   const health = await page.getByLabel('New spot health level').boundingBox();
   expect(Math.abs(add!.y - health!.y)).toBeLessThan(5);
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect(spot.locator('.health-badge')).toHaveCSS(
+    'color',
+    'rgb(233, 148, 131)',
+  );
 });

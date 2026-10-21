@@ -1,6 +1,6 @@
 .draw-position-bars {
   display: grid;
-  gap: 14px;
+  gap: 11px;
 }
 .draw-position-row {
   display: grid;
@@ -18,7 +18,8 @@
 }
 .draw-position-track {
   display: flex;
-  height: 11px;
+  height: 12px;
+  border: 1px solid var(--line);
   border-radius: 3px;
   overflow: hidden;
   background: var(--surface-soft);
@@ -38,35 +39,43 @@
 }
 .position-state {
   flex: 0 0 auto;
-  padding: 5px 8px;
+  padding: 4px 7px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 4px;
   color: var(--text-secondary);
   font-size: 10px;
   font-weight: 700;
 }
 .position-state-staged {
-  border-color: var(--success);
-  color: var(--success);
+  border-color: var(--accent);
+  background: var(--accent-soft, var(--surface-soft));
+  color: var(--accent-bright, var(--accent));
 }
 .draw-position-people {
-  margin: 18px 0 10px;
+  margin: 14px 0 8px;
   color: var(--text-secondary);
   font-size: 12px;
 }
 .draw-position-people summary {
   cursor: pointer;
-  padding: 6px 0;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface-soft);
+  color: var(--text-strong);
+  font-weight: 650;
 }
-:root[data-theme='dark'] .position-boost-count {
-  color: var(--success);
+.draw-position-people[open] summary {
+  margin-bottom: 8px;
+  border-color: var(--accent);
 }
-:root[data-theme='dark'] .position-reduce-count {
-  color: var(--danger);
+.draw-position-people summary:focus-visible {
+  outline: 2px solid var(--accent-bright, var(--accent));
+  outline-offset: 2px;
 }
 @media (max-width: 560px) {
   .draw-position-row {
-    grid-template-columns: minmax(80px, 0.8fr) minmax(90px, 1fr);
+    grid-template-columns: minmax(74px, 0.8fr) minmax(72px, 1fr);
     gap: 7px;
   }
   .draw-position-row > span {

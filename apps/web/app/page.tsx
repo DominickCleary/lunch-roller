@@ -276,7 +276,14 @@ type Pending = {
 };
 const storageKey = 'lunch-roller.participant-id';
 const pendingKey = 'lunch-roller.pending-action';
-const colors = ['#ed3d34', '#ffd326', '#24bc68', '#3478e5'];
+const colors = [
+  '#ba7868',
+  '#cbb36f',
+  '#7fa487',
+  '#819dba',
+  '#b49bba',
+  '#a5a384',
+];
 
 class ApiRequestError extends Error {
   constructor(
@@ -1735,7 +1742,6 @@ export default function Home() {
     >
       <header className="topbar">
         <a className="brand" href="#top" aria-label="Gambling about lunch home">
-          <span className="brand-mark">✳</span>{' '}
           <h1 className="brand-title">Gambling about lunch</h1>
         </a>
         <div className="top-actions">
@@ -3586,9 +3592,7 @@ export default function Home() {
       )}
 
       <footer className="footer">
-        <span className="brand">
-          <span className="brand-mark">✳</span> GAMBLING ABOUT LUNCH
-        </span>
+        <span className="brand">Gambling about lunch</span>
         <Link href="/api/v1/health">Service health ↗</Link>
       </footer>
       {checkInConfirmOpen && (
