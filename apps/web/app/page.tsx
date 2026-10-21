@@ -1984,8 +1984,7 @@ export default function Home() {
                 <span className="odds-total">{odds.length} PLACES</span>
               </div>
               <p className="muted">
-                Current chances for the next draw. Fair fractional odds show the
-                theoretical return ratio, not a payout.
+                Current chances for the next draw.
               </p>
               <div
                 className="odds-format-toggle"
