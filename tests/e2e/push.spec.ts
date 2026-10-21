@@ -229,7 +229,7 @@ test('permission is requested only on opt-in and core member actions remain avai
     browserParticipantName,
   );
   await expect(
-    page.getByRole('button', { name: 'Get lunch alerts' }),
+    page.getByRole('button', { name: 'Get lunch and token alerts' }),
   ).toBeEnabled();
   expect(
     await page.evaluate(
@@ -239,7 +239,9 @@ test('permission is requested only on opt-in and core member actions remain avai
     ),
   ).toBe(0);
 
-  await page.getByRole('button', { name: 'Get lunch alerts' }).click();
+  await page
+    .getByRole('button', { name: 'Get lunch and token alerts' })
+    .click();
   await expect(
     page.getByText(
       'Notifications were not enabled. You can still play without them.',

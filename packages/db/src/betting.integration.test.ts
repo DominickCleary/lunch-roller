@@ -11,6 +11,7 @@ import {
   notificationOutbox,
   participants,
   places,
+  pushSubscriptions,
   settings,
   tokenLedger,
 } from './schema';
@@ -28,6 +29,7 @@ const restaurant = await service.savePlace({ name: `bet-place-${suffix}` });
 const betIds: string[] = [];
 const marketIds: string[] = [];
 const drawIds: string[] = [];
+const subscriptionIds: string[] = [];
 
 afterAll(async () => {
   try {
@@ -47,6 +49,14 @@ afterAll(async () => {
       await database.db
         .delete(notificationOutbox)
         .where(inArray(notificationOutbox.drawId, drawIds));
+    if (subscriptionIds.length) {
+      await database.db
+        .delete(notificationOutbox)
+        .where(inArray(notificationOutbox.subscriptionId, subscriptionIds));
+      await database.db
+        .delete(pushSubscriptions)
+        .where(inArray(pushSubscriptions.id, subscriptionIds));
+    }
     if (drawIds.length)
       await database.db.delete(draws).where(inArray(draws.id, drawIds));
     await database.db.delete(places).where(eq(places.id, restaurant.id));
@@ -162,6 +172,11 @@ it('reserves, edits, cancels and settles a bet atomically at its saved cutoff an
     beforeCutoff,
   );
   expect(replacement.balance).toBe(88);
+  const subscription = await service.subscribe(person.id, {
+    endpoint: `https://fcm.googleapis.com/fcm/send/bet-win-${suffix}`,
+    keys: { p256dh: 'E'.repeat(87), auth: 'F'.repeat(22) },
+  });
+  subscriptionIds.push(subscription.id);
 
   await expect(
     service.setBet(
@@ -182,6 +197,22 @@ it('reserves, edits, cancels and settles a bet atomically at its saved cutoff an
     status: 'won',
     payout: 12,
     probability: 1,
+  });
+  const payoutNotifications = await database.db
+    .select()
+    .from(notificationOutbox)
+    .where(
+      eq(notificationOutbox.eventKey, `bet-payout:${replacement.bet!.id}`),
+    );
+  expect(payoutNotifications).toHaveLength(1);
+  expect(payoutNotifications[0]).toMatchObject({
+    subscriptionId: subscription.id,
+    drawId: draw!.id,
+    payload: {
+      title: 'Your lunch bet won',
+      body: `Your bet on ${restaurant.name} paid 12 tokens.`,
+      tag: `lunch-bet-${replacement.bet!.id}`,
+    },
   });
   expect((await service.wallet(person.id)).balance).toBe(100);
 });

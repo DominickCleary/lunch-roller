@@ -77,6 +77,17 @@ const angle = (page: Page) =>
   page
     .getByTestId('lunch-wheel')
     .evaluate((element) => Number.parseFloat(element.style.transform.slice(7)));
+const palette = ['#ba7868', '#cbb36f'];
+async function expectPointerColor(page: Page, rotation: number) {
+  const sourceAngle = (((90 - (rotation % 360)) % 360) + 360) % 360;
+  const expected = palette[sourceAngle < 180 ? 0 : 1];
+  const rgb = expected
+    .slice(1)
+    .match(/.{2}/g)!
+    .map((part) => Number.parseInt(part, 16))
+    .join(', ');
+  await expect(page.locator('.pointer')).toHaveCSS('color', `rgb(${rgb})`);
+}
 
 test('shares the live phase across skewed clocks, late entry and reload, then replays the same near-border finish', async ({
   browser,
@@ -120,6 +131,7 @@ test('shares the live phase across skewed clocks, late entry and reload, then re
       6,
     );
     expect(await angle(first)).toBeGreaterThan(2000);
+    await expectPointerColor(first, await angle(first));
     await second.reload();
     await expect(second.getByTestId('lunch-wheel')).toBeVisible();
     await second.clock.runFor(100);
@@ -136,6 +148,7 @@ test('shares the live phase across skewed clocks, late entry and reload, then re
         'settled',
       );
       expect(await angle(page)).toBeCloseTo(plan.rotation, 4);
+      await expectPointerColor(page, plan.rotation);
       const celebration = page.getByRole('dialog', {
         name: 'The Wheel has spoken',
       });
@@ -158,8 +171,10 @@ test('shares the live phase across skewed clocks, late entry and reload, then re
       );
       // Canonical replay starts from zero, not from this browser's previous orientation.
       expect(await angle(page)).toBeLessThan(100);
+      await expectPointerColor(page, await angle(page));
       await page.clock.fastForward(25000);
       expect(await angle(page)).toBeCloseTo(plan.rotation, 4);
+      await expectPointerColor(page, plan.rotation);
       await expect(celebration).toBeVisible();
       await page.keyboard.press('Escape');
       await expect(celebration).toHaveCount(0);
@@ -193,6 +208,7 @@ test('reduced motion skips rotation and finishes on the same saved point', async
     'settled',
   );
   expect(await angle(page)).toBeCloseTo(plan.rotation, 4);
+  await expectPointerColor(page, plan.rotation);
   const celebration = page.getByRole('dialog', {
     name: 'The Wheel has spoken',
   });
@@ -202,6 +218,7 @@ test('reduced motion skips rotation and finishes on the same saved point', async
   await page.getByRole('button', { name: "Replay today's result" }).click();
   await page.clock.runFor(100);
   expect(await angle(page)).toBeCloseTo(plan.rotation, 4);
+  await expectPointerColor(page, plan.rotation);
   await page.clock.fastForward(1500);
   await expect(page.getByTestId('lunch-wheel')).toHaveAttribute(
     'data-spin-phase',

@@ -104,7 +104,7 @@ test('desktop sidebar scroll stays separate from the wheel and page footer', asy
   await page.screenshot({ path: 'test-results/sticky-sidebar-desktop.png' });
 });
 
-test('desktop activity scrolls on its own and admin can open before using sidebar odds', async ({
+test('desktop activity and admin scroll independently without moving the wheel or sidebar', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 760 });
@@ -145,17 +145,48 @@ test('desktop activity scrolls on its own and admin can open before using sideba
     .poll(() => page.evaluate(() => window.scrollY))
     .toBe(pageScrollBeforeActivity);
 
-  await page.getByRole('link', { name: 'Admin', exact: true }).click();
+  await page.getByRole('tab', { name: 'Wheel' }).click();
+  const sidebar = page.locator('.play-grid');
+  await sidebar.evaluate((element) => {
+    element.scrollTop = Math.min(
+      120,
+      element.scrollHeight - element.clientHeight,
+    );
+  });
+  const sidebarScrollBeforeAdmin = await sidebar.evaluate(
+    (element) => element.scrollTop,
+  );
+  const pageScrollBeforeAdmin = await page.evaluate(() => window.scrollY);
+  const wheelBeforeAdmin = await page.locator('.wheel-wrap').boundingBox();
+  await page.getByRole('button', { name: 'Admin', exact: true }).click();
   await expect(page.locator('.admin-disclosure')).toHaveAttribute('open', '');
   await expect(page.getByLabel('Administrator password')).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => window.scrollY))
+    .toBe(pageScrollBeforeAdmin);
+  await expect
+    .poll(() => sidebar.evaluate((element) => element.scrollTop))
+    .toBe(sidebarScrollBeforeAdmin);
+  await expect(page.locator('.wheel-wrap')).toBeVisible();
   await expect(page.locator('.topbar')).toHaveCSS('position', 'static');
+  const admin = page.locator('.admin-disclosure');
   await expect
     .poll(() =>
-      page
-        .locator('.topbar')
-        .evaluate((element) => element.getBoundingClientRect().y),
+      admin.evaluate((element) => element.scrollHeight > element.clientHeight),
     )
-    .toBeLessThan(0);
+    .toBe(true);
+  await admin.hover();
+  await page.mouse.wheel(0, 900);
+  await expect
+    .poll(() => admin.evaluate((element) => element.scrollTop))
+    .toBeGreaterThan(0);
+  expect(await page.evaluate(() => window.scrollY)).toBe(pageScrollBeforeAdmin);
+  expect(await sidebar.evaluate((element) => element.scrollTop)).toBe(
+    sidebarScrollBeforeAdmin,
+  );
+  expect((await page.locator('.wheel-wrap').boundingBox())!.y).toBeLessThan(
+    wheelBeforeAdmin!.y + wheelBeforeAdmin!.height,
+  );
 
   const oddsToggle = page.locator('.odds-format-toggle');
   await oddsToggle.getByRole('button', { name: 'Odds', exact: true }).click();
@@ -204,6 +235,26 @@ test('mobile scrolls the document with a compact sticky wheel and accessible con
   ).toHaveAttribute('aria-pressed', 'true');
   await page.getByText('Team token activity', { exact: true }).click();
   await expect(page.getByLabel('View activity for')).toBeVisible();
+
+  await page.getByRole('tab', { name: 'Wheel' }).click();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const pageScrollBeforeAdmin = await page.evaluate(() => window.scrollY);
+  await page.getByRole('button', { name: 'Admin', exact: true }).click();
+  await expect(page.locator('.admin-disclosure')).toHaveAttribute('open', '');
+  expect(await page.evaluate(() => window.scrollY)).toBe(pageScrollBeforeAdmin);
+  await expect(wheel).toBeVisible();
+  const admin = page.locator('.admin-disclosure');
+  await expect
+    .poll(() =>
+      admin.evaluate((element) => element.scrollHeight > element.clientHeight),
+    )
+    .toBe(true);
+  await admin.hover();
+  await page.mouse.wheel(0, 700);
+  await expect
+    .poll(() => admin.evaluate((element) => element.scrollTop))
+    .toBeGreaterThan(0);
+  expect(await page.evaluate(() => window.scrollY)).toBe(pageScrollBeforeAdmin);
 
   await page.getByRole('tab', { name: 'Daily activity' }).click();
   await expect(

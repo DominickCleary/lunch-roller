@@ -39,6 +39,6 @@ A fresh workplace starts without people or places. An administrator must add at 
 
 ## Notifications
 
-Ask for Web Push permission only after a user clicks an opt-in control. Store subscriptions per browser/participant. Production needs HTTPS and VAPID configuration; support and delivery depend on the browser/device. Missing permission does not prevent play. Deliver the committed result; push failure never rerolls or reverses decay. Browser animation presents the committed winner.
+Ask for Web Push permission only after a user clicks an opt-in control. Store subscriptions per browser/participant. Production needs HTTPS and VAPID configuration; support and delivery depend on the browser/device. Missing permission does not prevent play. Alerts deliver committed draw results and notify recipients of token transfers and winning bet payouts. Check-in rewards do not trigger alerts. Push failure never rerolls or reverses game state. Browser animation presents the committed winner.
 
 Admin weight overrides accept a finite positive relative weight and store its logarithm. Like percentage overrides, they first refund pending influence; other base weights and historical draw snapshots stay intact. Spin duration is saved on each new draw, so later preference edits cannot alter its shared animation. Legacy draws retain their original deterministic 18–21 second plan.

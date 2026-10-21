@@ -71,6 +71,13 @@
       "when": 1792590384304,
       "tag": "0009_square_sharon_ventura",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792603319689,
+      "tag": "0010_robust_magik",
+      "breakpoints": true
     }
   ]
 }

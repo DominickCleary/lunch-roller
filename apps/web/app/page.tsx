@@ -37,6 +37,7 @@ import { InfluenceControls } from './influence-controls';
 import { PlaceNameControl, PlaceActionControls } from './place-controls';
 import { approximateOdds, weightInput } from '../lib/odds';
 import { useWheelAnimation } from './use-wheel-animation';
+import { wheelColors, wheelSliceColor } from '../lib/wheel-colors';
 import { WinnerCelebration } from './winner-celebration';
 import {
   animationPlan,
@@ -276,15 +277,6 @@ type Pending = {
 };
 const storageKey = 'lunch-roller.participant-id';
 const pendingKey = 'lunch-roller.pending-action';
-const colors = [
-  '#ba7868',
-  '#cbb36f',
-  '#7fa487',
-  '#819dba',
-  '#b49bba',
-  '#a5a384',
-];
-
 class ApiRequestError extends Error {
   constructor(
     message: string,
@@ -455,6 +447,7 @@ export default function Home() {
   const {
     wheelRef,
     rotation,
+    pointerColor: animationPointerColor,
     spin,
     live: liveReveal,
     snapshot: animationSnapshot,
@@ -471,6 +464,7 @@ export default function Home() {
       today?.serverTime &&
       spinIsLive(savedResult.animation, Date.parse(today.serverTime)),
     ),
+    colors: wheelColors,
   });
 
   const refresh = useCallback(
@@ -970,10 +964,14 @@ export default function Home() {
     const stops = wheelOptions.map((option, index) => {
       const start = at;
       at += option.probability * 360;
-      return `${colors[index % colors.length]} ${start}deg ${at}deg`;
+      return `${wheelColors[index % wheelColors.length]} ${start}deg ${at}deg`;
     });
     return `conic-gradient(${stops.join(',')})`;
   }, [wheelOptions]);
+  const pointerColor =
+    spin || activeReplay
+      ? animationPointerColor
+      : wheelSliceColor(wheelOptions, rotation, wheelColors);
 
   async function selectParticipant(event: FormEvent) {
     event.preventDefault();
@@ -1284,7 +1282,7 @@ export default function Home() {
       localStorage.setItem('lunch-roller.push-subscription', result.id);
       localStorage.setItem('lunch-roller.push-participant-id', participantId);
       setPushOn(true);
-      setNotice('Lunch notifications enabled for this browser.');
+      setNotice('Lunch and token alerts enabled for this browser.');
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -1768,13 +1766,13 @@ export default function Home() {
             </button>
           )}
           {(entryStage === 'name' || entryStage === 'game') && (
-            <a
-              href="#admin"
+            <button
+              type="button"
               className="quiet-link"
               onClick={() => adminDisclosure.current?.setAttribute('open', '')}
             >
               Admin
-            </a>
+            </button>
           )}
         </div>
       </header>
@@ -1854,7 +1852,11 @@ export default function Home() {
                           : `Live odds for the next scheduled draw on ${wheelTargetLabel}`
                   }
                 >
-                  <div className="pointer" aria-hidden="true">
+                  <div
+                    className="pointer"
+                    aria-hidden="true"
+                    style={{ color: pointerColor }}
+                  >
                     ◀
                   </div>
                   <div
@@ -2094,12 +2096,12 @@ export default function Home() {
                     ? 'Updating alerts…'
                     : pushOn
                       ? 'Turn alerts off'
-                      : 'Get lunch alerts'}
+                      : 'Get lunch and token alerts'}
                 </button>
               </div>
               {pushConfigLoaded && !pushPublicKey && !pushOn && (
                 <p className="check-in-pledge">
-                  Lunch alerts are not configured yet.
+                  Lunch and token alerts are not configured yet.
                 </p>
               )}
               <TokenTransfer
@@ -2346,7 +2348,9 @@ export default function Home() {
                     <div className="odds-row" key={placeId}>
                       <span
                         className="odds-color"
-                        style={{ background: colors[index % colors.length] }}
+                        style={{
+                          background: wheelColors[index % wheelColors.length],
+                        }}
                       />
                       <InfluenceControls
                         placeId={placeId}
@@ -2366,7 +2370,7 @@ export default function Home() {
                         <span
                           style={{
                             width: `${Math.max(option.probability * 100, option.probability > 0 ? 0.5 : 0)}%`,
-                            background: colors[index % colors.length],
+                            background: wheelColors[index % wheelColors.length],
                           }}
                         />
                       </span>

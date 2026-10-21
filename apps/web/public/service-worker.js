@@ -3,6 +3,7 @@ self.addEventListener('push', (event) => {
     title: 'Lunch is decided',
     body: 'The lunch wheel has a result.',
     drawId: '',
+    tag: '',
   };
   try {
     payload = { ...payload, ...(event.data?.json() ?? {}) };
@@ -12,7 +13,9 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(payload.title, {
       body: payload.body,
-      tag: payload.drawId ? `lunch-draw-${payload.drawId}` : 'lunch-roller',
+      tag:
+        payload.tag ||
+        (payload.drawId ? `lunch-draw-${payload.drawId}` : 'lunch-roller'),
       icon: '/icon.svg',
       data: { url: '/' },
     }),

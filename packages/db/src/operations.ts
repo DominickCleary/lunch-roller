@@ -124,8 +124,52 @@ export type NotificationJob = {
   leaseToken: string;
   attempts: number;
   subscription: { endpoint: string; keys: { p256dh: string; auth: string } };
-  payload: { title: string; body: string; drawId: string };
+  payload: { title: string; body: string; tag?: string; drawId?: string };
 };
+
+type NotificationPayload = {
+  title: string;
+  body: string;
+  tag: string;
+  drawId?: string;
+};
+
+async function enqueueNotifications(
+  tx: Tx,
+  eventKey: string,
+  payload: NotificationPayload,
+  options: { participantIds?: string[]; drawId?: string } = {},
+) {
+  if (options.participantIds?.length === 0) return;
+  const predicates = [
+    eq(pushSubscriptions.active, true),
+    eq(participants.active, true),
+  ];
+  if (options.participantIds)
+    predicates.push(
+      inArray(pushSubscriptions.participantId, options.participantIds),
+    );
+  const subscriptions = await tx
+    .select({ id: pushSubscriptions.id })
+    .from(pushSubscriptions)
+    .innerJoin(
+      participants,
+      eq(pushSubscriptions.participantId, participants.id),
+    )
+    .where(and(...predicates));
+  if (!subscriptions.length) return;
+  await tx
+    .insert(notificationOutbox)
+    .values(
+      subscriptions.map((subscription) => ({
+        eventKey,
+        drawId: options.drawId,
+        subscriptionId: subscription.id,
+        payload,
+      })),
+    )
+    .onConflictDoNothing();
+}
 
 function fail(status: number, code: string, message: string): never {
   throw new GameError(status, code, message);
@@ -1235,7 +1279,7 @@ export class GameService {
         won && probability > 0
           ? Math.min(2147483647, Math.floor(bet.stake / probability))
           : 0;
-      if (payout > 0)
+      if (payout > 0) {
         await tx.insert(tokenLedger).values({
           participantId: bet.participantId,
           delta: payout,
@@ -1247,6 +1291,20 @@ export class GameService {
           reason: 'Winning lunch bet payout',
           createdAt: now,
         });
+        const placeName =
+          draw.snapshot.find((place) => place.placeId === bet.placeId)?.name ??
+          'your restaurant';
+        await enqueueNotifications(
+          tx,
+          `bet-payout:${bet.id}`,
+          {
+            title: 'Your lunch bet won',
+            body: `Your bet on ${placeName} paid ${payout} tokens.`,
+            tag: `lunch-bet-${bet.id}`,
+          },
+          { participantIds: [bet.participantId], drawId: draw.id },
+        );
+      }
       await tx
         .update(bets)
         .set({
@@ -2356,6 +2414,16 @@ export class GameService {
           createdAt,
         },
       ]);
+      await enqueueNotifications(
+        tx,
+        `transfer:${transferId}`,
+        {
+          title: 'Tokens received',
+          body: `${sender.name} sent you ${body.amount} token${body.amount === 1 ? '' : 's'}.`,
+          tag: `lunch-transfer-${transferId}`,
+        },
+        { participantIds: [recipient.id] },
+      );
       return response;
     });
   }
@@ -2612,34 +2680,17 @@ export class GameService {
             .set({ logWeight: place.logWeight })
             .where(eq(places.id, place.id));
       }
-      const subs = await tx
-        .select()
-        .from(pushSubscriptions)
-        .innerJoin(
-          participants,
-          eq(pushSubscriptions.participantId, participants.id),
-        )
-        .where(
-          and(
-            eq(pushSubscriptions.active, true),
-            eq(participants.active, true),
-          ),
-        );
-      if (subs.length)
-        await tx
-          .insert(notificationOutbox)
-          .values(
-            subs.map(({ push_subscriptions: sub }) => ({
-              drawId: row!.id,
-              subscriptionId: sub.id,
-              payload: {
-                title: 'Lunch is decided',
-                body: `${winner.name} won today's lunch draw.`,
-                drawId: row!.id,
-              },
-            })),
-          )
-          .onConflictDoNothing();
+      await enqueueNotifications(
+        tx,
+        `draw:${row!.id}`,
+        {
+          title: 'Lunch is decided',
+          body: `${winner.name} won today's lunch draw.`,
+          tag: `lunch-draw-${row!.id}`,
+          drawId: row!.id,
+        },
+        { drawId: row!.id },
+      );
       return drawView(row!);
     });
   }

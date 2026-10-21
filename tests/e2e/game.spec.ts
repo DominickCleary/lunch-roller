@@ -403,7 +403,9 @@ async function exerciseAdminUiAndGame(
       false,
     );
     await expect(
-      secondPage.getByRole('button', { name: /Get lunch alerts/ }),
+      secondPage.getByRole('button', {
+        name: /Get lunch and token alerts/,
+      }),
     ).toHaveCount(0);
     await secondPage
       .getByLabel('Your name')

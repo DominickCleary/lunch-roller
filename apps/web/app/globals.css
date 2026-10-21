@@ -105,22 +105,7 @@ textarea::placeholder {
   overflow: hidden;
 }
 .site-shell:has(.admin-disclosure[open]) {
-  height: auto;
-  min-height: 100vh;
-  min-height: 100dvh;
-  grid-template-rows: var(--header-height) auto auto auto;
-  overflow: visible;
-}
-.site-shell:has(.admin-disclosure[open]) .hero,
-.site-shell:has(.admin-disclosure[open]) .play-grid {
-  height: auto;
-  max-height: none;
-  overflow: visible;
-  scrollbar-gutter: auto;
-  padding-right: 0;
-}
-.site-shell:has(.admin-disclosure[open]) .hero {
-  container-type: normal;
+  grid-template-rows: var(--header-height) minmax(0, 1fr) minmax(0, 38dvh) auto;
 }
 .topbar {
   position: static;
@@ -170,6 +155,13 @@ textarea::placeholder {
   font-size: 12px;
   font-weight: 600;
   text-underline-offset: 3px;
+}
+button.quiet-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
 }
 .hero {
   grid-column: 1;
@@ -843,6 +835,13 @@ button:disabled {
   grid-row: 3;
   margin: 12px 0;
   border-top: 1px solid var(--line);
+  min-height: 0;
+  overflow: hidden;
+}
+.admin-disclosure[open] {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 .admin-disclosure > summary {
   width: max-content;
@@ -1344,6 +1343,14 @@ button:disabled {
   .admin-disclosure {
     order: 3;
     margin-top: 10px;
+    max-height: 60dvh;
+  }
+  .site-shell:has(.admin-disclosure[open]) {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    grid-template-rows: none;
+    overflow: visible;
   }
   .admin-tools {
     grid-template-columns: 1fr;
@@ -1684,17 +1691,28 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 5px;
   font-size: 13px;
+  min-width: 0;
 }
 .token-transfer summary {
   cursor: pointer;
   font-weight: 700;
+  padding: 4px 0;
 }
 .token-transfer p {
   line-height: 1.5;
 }
+.transfer-feedback {
+  margin: 12px 0 0;
+  padding: 10px;
+  border-inline-start: 3px solid var(--success);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text-secondary);
+}
 .token-transfer form {
   display: grid;
   gap: 12px;
+  margin-top: 12px;
 }
 .token-transfer label {
   display: grid;
@@ -1709,6 +1727,30 @@ button:disabled {
   border-radius: 6px;
   background: var(--surface);
   color: var(--text);
+}
+.token-transfer :is(select, input, button):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.token-transfer button {
+  min-height: 40px;
+}
+.transfer-review {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.transfer-review p:first-child {
+  margin-top: 0;
+  color: var(--text-strong);
+  font-size: 14px;
+}
+.transfer-review .inline-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
 }
 .transfer-review .inline-form {
   flex-wrap: wrap;

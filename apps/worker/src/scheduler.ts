@@ -3,7 +3,7 @@ export type NotificationJob = {
   leaseToken: string;
   attempts: number;
   subscription: { endpoint: string; keys: { p256dh: string; auth: string } };
-  payload: { title: string; body: string; drawId: string };
+  payload: { title: string; body: string; tag?: string; drawId?: string };
 };
 
 export type WorkerGameOperations = {
@@ -86,7 +86,11 @@ export async function runTick(options: {
       let outcome: 'sent' | 'retry' | 'gone' = 'sent';
       const payload: PushPayload = {
         ...job.payload,
-        tag: `lunch-draw-${job.payload.drawId}`,
+        tag:
+          job.payload.tag ??
+          (job.payload.drawId
+            ? `lunch-draw-${job.payload.drawId}`
+            : `lunch-notification-${job.id}`),
       };
       try {
         await options.sendNotification(

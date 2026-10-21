@@ -416,14 +416,13 @@ export const notificationOutbox = pgTable(
   'notification_outbox',
   {
     id: uuid().defaultRandom().primaryKey(),
-    drawId: uuid('draw_id')
-      .notNull()
-      .references(() => draws.id),
+    eventKey: text('event_key').notNull(),
+    drawId: uuid('draw_id').references(() => draws.id),
     subscriptionId: uuid('subscription_id')
       .notNull()
       .references(() => pushSubscriptions.id),
     payload: jsonb()
-      .$type<{ title: string; body: string; drawId: string }>()
+      .$type<{ title: string; body: string; tag?: string; drawId?: string }>()
       .notNull(),
     attempts: integer().default(0).notNull(),
     availableAt: timestamp('available_at', { withTimezone: true })
@@ -436,7 +435,7 @@ export const notificationOutbox = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
-    uniqueIndex('notification_once').on(t.drawId, t.subscriptionId),
+    uniqueIndex('notification_once').on(t.eventKey, t.subscriptionId),
     index('notification_due')
       .on(t.availableAt)
       .where(sql`${t.sentAt} is null`),

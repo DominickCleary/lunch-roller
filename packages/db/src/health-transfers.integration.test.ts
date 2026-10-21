@@ -8,6 +8,7 @@ import {
   notificationOutbox,
   participants,
   places,
+  pushSubscriptions,
   settings,
   tokenLedger,
 } from './schema';
@@ -24,6 +25,7 @@ await game.saveParticipant({ active: false }, inactive.id);
 const people = [sender.id, recipient.id, inactive.id];
 const createdPlaces: string[] = [];
 const drawIds: string[] = [];
+const subscriptionIds: string[] = [];
 
 async function fund(amount: number) {
   for (const [participantId, target] of [
@@ -43,6 +45,14 @@ async function fund(amount: number) {
 }
 
 afterAll(async () => {
+  if (subscriptionIds.length) {
+    await database.db
+      .delete(notificationOutbox)
+      .where(inArray(notificationOutbox.subscriptionId, subscriptionIds));
+    await database.db
+      .delete(pushSubscriptions)
+      .where(inArray(pushSubscriptions.id, subscriptionIds));
+  }
   if (drawIds.length) {
     await database.db
       .delete(notificationOutbox)
@@ -75,6 +85,15 @@ afterAll(async () => {
 
 it('atomically transfers tokens once, preserving totals and both wallet histories', async () => {
   await fund(100);
+  const senderSubscription = await game.subscribe(sender.id, {
+    endpoint: `https://fcm.googleapis.com/fcm/send/${suffix}-sender`,
+    keys: { p256dh: 'B'.repeat(87), auth: 'A'.repeat(22) },
+  });
+  const recipientSubscription = await game.subscribe(recipient.id, {
+    endpoint: `https://fcm.googleapis.com/fcm/send/${suffix}-recipient`,
+    keys: { p256dh: 'C'.repeat(87), auth: 'D'.repeat(22) },
+  });
+  subscriptionIds.push(senderSubscription.id, recipientSubscription.id);
   const key = crypto.randomUUID();
   const body = { recipientId: recipient.id, amount: 30 };
   const results = await Promise.all(
@@ -107,6 +126,25 @@ it('atomically transfers tokens once, preserving totals and both wallet historie
     counterpartyId: sender.id,
     reason: `Received from ${sender.name}`,
   });
+  const transferNotifications = await database.db
+    .select()
+    .from(notificationOutbox)
+    .where(
+      eq(notificationOutbox.eventKey, `transfer:${results[0]!.transferId}`),
+    );
+  expect(transferNotifications).toHaveLength(1);
+  expect(transferNotifications[0]).toMatchObject({
+    subscriptionId: recipientSubscription.id,
+    drawId: null,
+    payload: {
+      title: 'Tokens received',
+      body: `${sender.name} sent you 30 tokens.`,
+      tag: `lunch-transfer-${results[0]!.transferId}`,
+    },
+  });
+  expect(transferNotifications[0]?.subscriptionId).not.toBe(
+    senderSubscription.id,
+  );
   await expect(
     game.transferTokens(sender.id, { ...body, amount: 31 }, key),
   ).rejects.toMatchObject({ code: 'IDEMPOTENCY_MISMATCH' });
@@ -226,6 +264,39 @@ it('rejects self transfers, invalid amounts, inactive and missing recipients wit
     (await game.wallet(sender.id)).balance,
     (await game.wallet(recipient.id)).balance,
   ]).toEqual([10, 0]);
+});
+
+it('does not enqueue a token notification for a check-in reward', async () => {
+  const subscription = await game.subscribe(recipient.id, {
+    endpoint: `https://fcm.googleapis.com/fcm/send/${suffix}-checkin`,
+    keys: { p256dh: 'G'.repeat(87), auth: 'H'.repeat(22) },
+  });
+  subscriptionIds.push(subscription.id);
+  const place = await game.savePlace({ name: `checkin-${suffix}` });
+  createdPlaces.push(place.id);
+  const now = new Date('2299-02-03T12:00:00.000Z');
+  await game.setSchedule({
+    timezone: 'UTC',
+    time: '11:30',
+    weekdays: [1, 2, 3, 4, 5, 6, 7],
+  });
+  const draw = (await game.drawIfDue(now))!;
+  drawIds.push(draw.id);
+  const before = await database.db
+    .select({ id: notificationOutbox.id })
+    .from(notificationOutbox)
+    .where(eq(notificationOutbox.subscriptionId, subscription.id));
+  await game.attend(
+    recipient.id,
+    { drawId: draw.id },
+    crypto.randomUUID(),
+    new Date(now.getTime() + 60_000),
+  );
+  const after = await database.db
+    .select({ id: notificationOutbox.id })
+    .from(notificationOutbox)
+    .where(eq(notificationOutbox.subscriptionId, subscription.id));
+  expect(after.map((row) => row.id)).toEqual(before.map((row) => row.id));
 });
 
 it('snapshots health ratings and applies the permanent health bonus once, after draw selection', async () => {

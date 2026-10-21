@@ -136,6 +136,6 @@ test('requests push permission synchronously from the opt-in click', async ({
     ).__resolvePushWorker(),
   );
   await expect(
-    page.getByText('Lunch notifications enabled for this browser.'),
+    page.getByText('Lunch and token alerts enabled for this browser.'),
   ).toBeVisible();
 });

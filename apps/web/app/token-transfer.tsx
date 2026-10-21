@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Participant, TransferRequest } from '@lunch/contracts';
 
 export function TokenTransfer({
@@ -22,6 +22,9 @@ export function TokenTransfer({
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState('');
   const submitting = useRef(false);
+  const recipientField = useRef<HTMLSelectElement | null>(null);
+  const confirmButton = useRef<HTMLButtonElement | null>(null);
+  const wasReview = useRef(false);
   const recipients = participants.filter(
     (person) => person.active && person.id !== participantId,
   );
@@ -33,6 +36,12 @@ export function TokenTransfer({
     Number.isInteger(Number(amount)) &&
     Number(amount) > 0 &&
     Number(amount) <= Math.min(balance, 2147483647);
+  useEffect(() => {
+    if (review) confirmButton.current?.focus();
+    else if (wasReview.current)
+      recipientField.current?.focus({ preventScroll: true });
+    wasReview.current = Boolean(review);
+  }, [review, sent]);
   async function send() {
     if (!review || !recipient || submitting.current) return;
     submitting.current = true;
@@ -53,9 +62,13 @@ export function TokenTransfer({
   return (
     <details className="token-transfer">
       <summary>Send tokens</summary>
-      {sent && <p role="status">{sent}</p>}
+      {sent && (
+        <p className="transfer-feedback" role="status" aria-live="polite">
+          {sent}
+        </p>
+      )}
       {review ? (
-        <div className="transfer-review">
+        <div className="transfer-review" aria-live="polite">
           <p>
             Send <strong>{review.amount} tokens</strong> to{' '}
             <strong>{recipient?.name ?? 'this person'}</strong>?
@@ -63,6 +76,7 @@ export function TokenTransfer({
           <p>Your balance after sending: {balance - review.amount} tokens.</p>
           <div className="inline-form">
             <button
+              ref={confirmButton}
               type="button"
               className="button button-primary"
               disabled={
@@ -94,6 +108,7 @@ export function TokenTransfer({
           <label>
             Recipient
             <select
+              ref={recipientField}
               aria-label="Recipient"
               value={recipientId}
               required
@@ -113,6 +128,8 @@ export function TokenTransfer({
             <input
               aria-label="Tokens to send"
               type="number"
+              inputMode="numeric"
+              autoComplete="off"
               min={1}
               max={Math.min(balance, 2147483647)}
               step={1}

@@ -133,6 +133,37 @@ test('reviews and sends tokens, persists both wallets and rejects invalid API se
   await expect(page.locator('.activity-timeline')).toContainText(
     `Sent to ${recipientName}`,
   );
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileTransfer = page.locator('.token-transfer');
+  await mobileTransfer.getByText('Send tokens', { exact: true }).click();
+  await mobileTransfer
+    .getByLabel('Recipient', { exact: true })
+    .selectOption(recipientId);
+  await mobileTransfer.getByLabel('Tokens to send').fill('3');
+  await mobileTransfer.getByRole('button', { name: 'Review transfer' }).focus();
+  await page.keyboard.press('Enter');
+  const confirm = mobileTransfer.getByRole('button', {
+    name: 'Confirm transfer',
+  });
+  await expect(confirm).toBeFocused();
+  await mobileTransfer
+    .getByRole('button', { name: 'Back', exact: true })
+    .click();
+  await expect(
+    mobileTransfer.getByLabel('Recipient', { exact: true }),
+  ).toBeFocused();
+  await mobileTransfer.getByRole('button', { name: 'Review transfer' }).click();
+  await mobileTransfer
+    .getByRole('button', { name: 'Confirm transfer' })
+    .click();
+  await expect(mobileTransfer.getByRole('status')).toContainText(
+    `Sent 3 tokens to ${recipientName}.`,
+  );
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
 });
 
 test('creates rated places, edits ratings as admin and persists the health rule', async ({

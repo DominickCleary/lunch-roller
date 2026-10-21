@@ -196,6 +196,7 @@ it('preserves history and retires subscriptions and pending notification leases'
   const [job] = await database.db
     .insert(notificationOutbox)
     .values({
+      eventKey: `fixture:${draw.id}`,
       drawId: draw.id,
       subscriptionId: subscription.id,
       payload: { title: 'fixture', body: 'fixture', drawId: draw.id },

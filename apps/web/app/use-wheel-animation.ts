@@ -7,6 +7,7 @@ import {
   spinIsLive,
   spinRotation,
 } from '../lib/wheel-animation';
+import { wheelSliceColor } from '../lib/wheel-colors';
 
 type Mode = 'result' | 'upcoming' | undefined;
 type Kind = 'live' | 'replay' | null;
@@ -16,12 +17,14 @@ export function useWheelAnimation({
   displayKey,
   getServerNow,
   revealPending,
+  colors,
 }: {
   result: Draw | null | undefined;
   mode: Mode;
   displayKey: string;
   getServerNow: () => number;
   revealPending: boolean;
+  colors: readonly string[];
 }) {
   const wheelRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<number | null>(null);
@@ -37,6 +40,9 @@ export function useWheelAnimation({
     undefined,
   );
   const [rotation, setRotation] = useState(0);
+  const [pointerColor, setPointerColor] = useState<string>(
+    colors[0] ?? '#d9ddd1',
+  );
   const [snapshot, setSnapshot] = useState<Draw['snapshot'] | null>(null);
   const stop = useCallback(() => {
     if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
@@ -61,6 +67,7 @@ export function useWheelAnimation({
       setKind(nextKind);
       setSnapshot(draw.snapshot);
       setRotation(0);
+      setPointerColor(wheelSliceColor(draw.snapshot, 0, colors));
       const finish = () => {
         if (runRef.current !== run) return;
         stop();
@@ -69,19 +76,23 @@ export function useWheelAnimation({
         setCelebration(draw);
         const angle = plan.rotation;
         setRotation(angle);
+        setPointerColor(wheelSliceColor(draw.snapshot, angle, colors));
         if (wheelRef.current)
           wheelRef.current.style.transform = `rotate(${angle}deg)`;
       };
       const paint = () => {
         if (runRef.current !== run) return;
         const elapsed = now() - startTime;
+        const angle = spinRotation(plan, elapsed);
         if (wheelRef.current)
-          wheelRef.current.style.transform = `rotate(${spinRotation(plan, elapsed)}deg)`;
+          wheelRef.current.style.transform = `rotate(${angle}deg)`;
+        setPointerColor(wheelSliceColor(draw.snapshot, angle, colors));
         if (elapsed >= plan.durationMs) finish();
         else frameRef.current = requestAnimationFrame(paint);
       };
       if (reduced.matches) {
         setRotation(plan.rotation);
+        setPointerColor(wheelSliceColor(draw.snapshot, plan.rotation, colors));
         if (wheelRef.current)
           wheelRef.current.style.transform = `rotate(${plan.rotation}deg)`;
         timerRef.current = window.setTimeout(
@@ -102,7 +113,7 @@ export function useWheelAnimation({
         );
       }
     },
-    [getServerNow, stop],
+    [colors, getServerNow, stop],
   );
 
   useEffect(() => {
@@ -126,16 +137,21 @@ export function useWheelAnimation({
         setKind(null);
         setSnapshot(null);
         setRotation(mode === 'result' && plan ? plan.rotation : 0);
+        if (result && mode === 'result')
+          setPointerColor(
+            wheelSliceColor(result.snapshot, plan?.rotation ?? 0, colors),
+          );
       }
     });
     return () => cancelAnimationFrame(frame);
-  }, [result, mode, displayKey, getServerNow, start, stop]);
+  }, [result, mode, displayKey, getServerNow, start, stop, colors]);
 
   useEffect(() => stop, [stop]);
   const joining = revealPending && presentedId !== result?.id;
   return {
     wheelRef,
     rotation,
+    pointerColor,
     spin: kind !== null || joining,
     live: kind === 'live' || joining,
     snapshot: snapshot ?? (joining ? (result?.snapshot ?? null) : null),
@@ -158,6 +174,10 @@ export function useWheelAnimation({
           ? animationPlan(current.result).rotation
           : 0;
       setRotation(angle);
+      if (current.result && current.mode === 'result')
+        setPointerColor(
+          wheelSliceColor(current.result.snapshot, angle, colors),
+        );
       if (wheelRef.current)
         wheelRef.current.style.transform = `rotate(${angle}deg)`;
     },

@@ -55,6 +55,11 @@ describe('runTick', () => {
 
   it('maps expired subscriptions to gone and other delivery failures to retry', async () => {
     const jobs = [job('one'), job('two'), job('three')];
+    jobs[2]!.payload = {
+      title: 'Tokens received',
+      body: 'A teammate sent you tokens.',
+      tag: 'lunch-transfer-example',
+    };
     const finishNotification = vi.fn(async () => undefined);
     const service = game({
       claimNotifications: vi.fn(async () => jobs),
@@ -94,10 +99,12 @@ describe('runTick', () => {
       'sent',
     );
     expect(sent).toHaveLength(3);
-    for (const delivery of sent) {
+    for (const delivery of sent.slice(0, 2)) {
       expect(delivery.timeoutMs).toBe(10_000);
       expect(JSON.parse(delivery.payload).tag).toMatch(/^lunch-draw-draw-/);
     }
+    expect(sent[2]!.timeoutMs).toBe(10_000);
+    expect(JSON.parse(sent[2]!.payload).tag).toBe('lunch-transfer-example');
   });
 
   it('does not draw or claim jobs when database readiness fails', async () => {
