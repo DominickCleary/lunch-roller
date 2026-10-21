@@ -87,6 +87,7 @@ export const settings = pgTable(
     checkInPledge: text('check_in_pledge')
       .default('I pledge that I actually obeyed the wheel')
       .notNull(),
+    bettingCloseMinutes: integer('betting_close_minutes').default(5).notNull(),
     weekdays: integer()
       .array()
       .default(sql`ARRAY[1,2,3,4,5]`)
@@ -117,6 +118,10 @@ export const settings = pgTable(
     check(
       'settings_check_in_pledge',
       sql`length(btrim(${t.checkInPledge})) between 1 and 500`,
+    ),
+    check(
+      'settings_betting_close_minutes',
+      sql`${t.bettingCloseMinutes} between 0 and 1440`,
     ),
     check(
       'settings_time',
@@ -171,6 +176,102 @@ export const attendance = pgTable(
   (t) => [uniqueIndex('attendance_once').on(t.participantId, t.drawId)],
 );
 
+export const bettingMarkets = pgTable(
+  'betting_markets',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    localDate: date('local_date').notNull(),
+    timezone: text().notNull(),
+    scheduledTime: text('scheduled_time').notNull(),
+    cutoffMinutes: integer('cutoff_minutes').notNull(),
+    status: text({ enum: ['open', 'settled', 'void'] })
+      .default('open')
+      .notNull(),
+    drawId: uuid('draw_id').references(() => draws.id),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('betting_market_open_date')
+      .on(t.localDate)
+      .where(sql`${t.status} = 'open'`),
+    check(
+      'betting_market_status',
+      sql`${t.status} in ('open','settled','void')`,
+    ),
+    check('betting_market_cutoff', sql`${t.cutoffMinutes} between 0 and 1440`),
+    check(
+      'betting_market_time',
+      sql`${t.scheduledTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`,
+    ),
+  ],
+);
+
+export const bets = pgTable(
+  'bets',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    marketId: uuid('market_id')
+      .notNull()
+      .references(() => bettingMarkets.id),
+    localDate: date('local_date').notNull(),
+    participantId: uuid('participant_id')
+      .notNull()
+      .references(() => participants.id),
+    placeId: uuid('place_id')
+      .notNull()
+      .references(() => places.id),
+    placeName: text('place_name').notNull(),
+    stake: integer().notNull(),
+    status: text({ enum: ['open', 'won', 'lost', 'cancelled', 'refunded'] })
+      .default('open')
+      .notNull(),
+    payout: integer(),
+    probability: doublePrecision(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    settledAt: timestamp('settled_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('bet_once_per_market').on(t.marketId, t.participantId),
+    check(
+      'bet_status',
+      sql`${t.status} in ('open','won','lost','cancelled','refunded')`,
+    ),
+    index('bet_participant_recent').on(t.participantId, t.updatedAt),
+    index('bet_place_open')
+      .on(t.placeId)
+      .where(sql`${t.status} = 'open'`),
+    check('bet_stake_positive', sql`${t.stake} between 1 and 2147483647`),
+    check(
+      'bet_payout_valid',
+      sql`${t.payout} is null or ${t.payout} between 0 and 2147483647`,
+    ),
+    check(
+      'bet_probability_valid',
+      sql`${t.probability} is null or ${t.probability} between 0 and 1`,
+    ),
+  ],
+);
+
+/** Own idempotency namespace: edits may move a stake without a ledger delta. */
+export const betRequests = pgTable(
+  'bet_requests',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    participantId: uuid('participant_id')
+      .notNull()
+      .references(() => participants.id),
+    idempotencyKey: text('idempotency_key').notNull(),
+    requestHash: text('request_hash').notNull(),
+    response: jsonb().$type<unknown>().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('bet_request_once').on(t.participantId, t.idempotencyKey),
+  ],
+);
+
 /** Authoritative balance is SUM(delta); never rewrite ledger history. */
 export const tokenLedger = pgTable(
   'token_ledger',
@@ -188,6 +289,9 @@ export const tokenLedger = pgTable(
         'add-place',
         'remove-place',
         'correction',
+        'bet-stake',
+        'bet-release',
+        'bet-payout',
       ],
     }).notNull(),
     idempotencyKey: text('idempotency_key').notNull(),
@@ -195,6 +299,7 @@ export const tokenLedger = pgTable(
     response: jsonb().$type<unknown>(),
     attendanceId: uuid('attendance_id').references(() => attendance.id),
     placeId: uuid('place_id').references(() => places.id),
+    betId: uuid('bet_id').references(() => bets.id),
     reason: text(),
     createdAt: createdAt(),
   },
@@ -205,7 +310,7 @@ export const tokenLedger = pgTable(
     check('ledger_nonzero', sql`${t.delta} <> 0`),
     check(
       'ledger_kind',
-      sql`${t.kind} in ('attendance','boost','reduce','add-place','remove-place','correction')`,
+      sql`${t.kind} in ('attendance','boost','reduce','add-place','remove-place','correction','bet-stake','bet-release','bet-payout')`,
     ),
     check(
       'correction_reason',

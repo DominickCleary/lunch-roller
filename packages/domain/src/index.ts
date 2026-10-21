@@ -93,6 +93,117 @@ export function wheelDisplay(
   throw new Error('Schedule needs at least one valid weekday');
 }
 
+/** Pick today's scheduled date until its draw exists; otherwise the next scheduled calendar date. */
+export function nextBettingDate(
+  now: Date,
+  schedule: { timezone: string; weekdays: number[] },
+  hasTodayDraw: boolean,
+): string {
+  const clock = localClock(now, schedule.timezone);
+  if (!hasTodayDraw && schedule.weekdays.includes(clock.weekday))
+    return clock.localDate;
+  const [year, month, day] = clock.localDate.split('-').map(Number) as [
+    number,
+    number,
+    number,
+  ];
+  for (let offset = 1; offset <= 7; offset++) {
+    const weekday = ((clock.weekday - 1 + offset) % 7) + 1;
+    if (!schedule.weekdays.includes(weekday)) continue;
+    return new Date(Date.UTC(year, month - 1, day + offset))
+      .toISOString()
+      .slice(0, 10);
+  }
+  throw new Error('Schedule needs at least one valid weekday');
+}
+
+function localMinuteAsUtc(instant: Date, timezone: string): number {
+  const parts = new Intl.DateTimeFormat('en-US-u-ca-iso8601-nu-latn', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(instant);
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value;
+  const [year, month, day, hour, minute] = [
+    'year',
+    'month',
+    'day',
+    'hour',
+    'minute',
+  ].map((type) => Number(get(type as Intl.DateTimeFormatPartTypes)));
+  if (
+    [year, month, day, hour, minute].some((value) => !Number.isInteger(value))
+  )
+    throw new Error('Unable to resolve scheduled local time');
+  return Date.UTC(year!, month! - 1, day!, hour!, minute!);
+}
+
+/** Resolve the first instant at which the schedule's local comparison becomes due. */
+export function scheduledInstant(
+  localDate: string,
+  time: string,
+  timezone: string,
+): Date {
+  const [year, month, day] = localDate.split('-').map(Number) as [
+    number,
+    number,
+    number,
+  ];
+  const [hour, minute] = time.split(':').map(Number) as [number, number];
+  const naive = Date.UTC(year, month - 1, day, hour, minute);
+  const offsets = new Set<number>();
+  for (const offsetHours of [-36, -12, 0, 12, 36]) {
+    const sample = new Date(naive + offsetHours * 60 * 60_000);
+    const sampleMinute = Math.floor(sample.getTime() / 60_000) * 60_000;
+    offsets.add((localMinuteAsUtc(sample, timezone) - sampleMinute) / 60_000);
+  }
+  const candidates = [...offsets].map(
+    (offset) => new Date(naive - offset * 60_000),
+  );
+  const exact = candidates.filter((candidate) => {
+    const clock = localClock(candidate, timezone);
+    return clock.localDate === localDate && clock.time === time;
+  });
+  if (exact.length)
+    return new Date(Math.min(...exact.map((candidate) => candidate.getTime())));
+
+  // During a spring-forward gap, use the first later local minute as the draw does.
+  const from =
+    Math.min(...candidates.map((candidate) => candidate.getTime())) -
+    3 * 60 * 60_000;
+  const to =
+    Math.max(...candidates.map((candidate) => candidate.getTime())) +
+    3 * 60 * 60_000;
+  for (let instant = from; instant <= to; instant += 60_000) {
+    const clock = localClock(new Date(instant), timezone);
+    if (clock.localDate === localDate && clock.time >= time)
+      return new Date(instant);
+  }
+  throw new Error('Scheduled local date does not exist in this timezone');
+}
+
+/** Subtract real elapsed minutes from the scheduled instant, then show its local clock. */
+export function bettingCutoff(
+  localDate: string,
+  scheduledTime: string,
+  minutes: number,
+  timezone = 'UTC',
+): { localDate: string; time: string } {
+  if (!Number.isInteger(minutes) || minutes < 0 || minutes > 1440)
+    throw new Error('Invalid betting cutoff');
+  const cutoff = new Date(
+    scheduledInstant(localDate, scheduledTime, timezone).getTime() -
+      minutes * 60_000,
+  );
+  const clock = localClock(cutoff, timezone);
+  return { localDate: clock.localDate, time: clock.time };
+}
+
 function finite(value: number): number {
   if (!Number.isFinite(value)) throw new Error('Weight must be finite');
   return value;

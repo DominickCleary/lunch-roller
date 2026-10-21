@@ -74,10 +74,12 @@ it('persists validated preferences and reports authoritative check-in status per
   const configured = await service.setPreferences({
     wheelSwitchTime: '23:59',
     checkInPledge: '  I followed the wheel today.  ',
+    bettingCloseMinutes: 5,
   });
   expect(configured).toEqual({
     wheelSwitchTime: '23:59',
     checkInPledge: 'I followed the wheel today.',
+    bettingCloseMinutes: 5,
   });
   expect(await service.getPreferences()).toEqual(configured);
   expect(
@@ -87,13 +89,18 @@ it('persists validated preferences and reports authoritative check-in status per
     service.setPreferences({
       wheelSwitchTime: '24:00',
       checkInPledge: 'valid pledge',
+      bettingCloseMinutes: 5,
     }),
   ).rejects.toMatchObject({
     status: 400,
     code: 'INVALID_PREFERENCES',
   });
   await expect(
-    service.setPreferences({ wheelSwitchTime: '08:30', checkInPledge: '   ' }),
+    service.setPreferences({
+      wheelSwitchTime: '08:30',
+      checkInPledge: '   ',
+      bettingCloseMinutes: 5,
+    }),
   ).rejects.toMatchObject({
     status: 400,
     code: 'INVALID_PREFERENCES',
@@ -143,6 +150,7 @@ it('persists validated preferences and reports authoritative check-in status per
   await service.setPreferences({
     wheelSwitchTime: '09:15',
     checkInPledge: '  Updated pledge  ',
+    bettingCloseMinutes: 7,
   });
   expect(await service.getSchedule()).toEqual(schedule);
   const nextDrawAt = new Date('2199-07-23T12:00:00Z');

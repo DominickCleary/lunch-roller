@@ -24,6 +24,9 @@ import {
   probabilities,
   selectPlace,
   wheelDisplay,
+  nextBettingDate,
+  bettingCutoff,
+  scheduledInstant,
 } from '@lunch/domain';
 import type {
   AttendanceStatus,
@@ -42,16 +45,25 @@ import type {
   TodayResponse,
   WalletResponse,
   TokenBalanceSetResponse,
+  BetView,
+  BettingWindow,
+  CurrentBetsResponse,
+  SetBetRequest,
 } from '@lunch/contracts';
 import {
   gamePreferences,
   economySettings,
   tokenBalanceSetRequest,
   setRestaurantOddsRequest,
+  setBetRequest,
+  cancelBetRequest,
 } from '@lunch/contracts';
 import type { createDatabase } from './index';
 import {
   attendance,
+  bets,
+  betRequests,
+  bettingMarkets,
   draws,
   notificationOutbox,
   participants,
@@ -65,6 +77,7 @@ type Database = ReturnType<typeof createDatabase>;
 type Tx = Parameters<Parameters<Database['db']['transaction']>[0]>[0];
 type DrawRow = typeof draws.$inferSelect;
 type LedgerRow = typeof tokenLedger.$inferSelect;
+type BetMutationResponse = { bet: BetView | null; balance: number };
 
 export class GameError extends Error {
   constructor(
@@ -163,6 +176,45 @@ function drawView(row: DrawRow): DrawResponse {
   };
 }
 
+function betView(row: typeof bets.$inferSelect): BetView {
+  return {
+    id: row.id,
+    localDate: row.localDate,
+    placeId: row.placeId,
+    placeName: row.placeName,
+    stake: row.stake,
+    status: row.status,
+    payout: row.payout,
+    probability: row.probability,
+    updatedAt: row.updatedAt.toISOString(),
+    settledAt: row.settledAt?.toISOString() ?? null,
+  };
+}
+
+function bettingWindowView(
+  row: typeof bettingMarkets.$inferSelect,
+  now: Date,
+): BettingWindow {
+  const cutoff = bettingCutoff(
+    row.localDate,
+    row.scheduledTime,
+    row.cutoffMinutes,
+    row.timezone,
+  );
+  const cutoffInstant =
+    scheduledInstant(row.localDate, row.scheduledTime, row.timezone).getTime() -
+    row.cutoffMinutes * 60_000;
+  return {
+    localDate: row.localDate,
+    timezone: row.timezone,
+    drawTime: row.scheduledTime,
+    cutoffMinutes: row.cutoffMinutes,
+    cutoffLocalDate: cutoff.localDate,
+    cutoffLocalTime: cutoff.time,
+    open: row.status === 'open' && now.getTime() < cutoffInstant,
+  };
+}
+
 function participantView(row: typeof participants.$inferSelect): Participant {
   return { id: row.id, name: row.name, active: row.active };
 }
@@ -186,6 +238,7 @@ function preferencesFromRow(
   return {
     wheelSwitchTime: row.wheelSwitchTime,
     checkInPledge: row.checkInPledge,
+    bettingCloseMinutes: row.bettingCloseMinutes,
   };
 }
 
@@ -209,6 +262,43 @@ async function currentEconomy(tx: Tx): Promise<EconomySettings> {
 }
 
 async function deactivateParticipant(tx: Tx, id: string): Promise<void> {
+  const openBets = await tx
+    .select({
+      id: bets.id,
+      participantId: bets.participantId,
+      placeId: bets.placeId,
+      stake: bets.stake,
+    })
+    .from(bets)
+    .innerJoin(bettingMarkets, eq(bets.marketId, bettingMarkets.id))
+    .where(
+      and(
+        eq(bets.participantId, id),
+        eq(bets.status, 'open'),
+        eq(bettingMarkets.status, 'open'),
+      ),
+    );
+  for (const bet of openBets) {
+    await tx.insert(tokenLedger).values({
+      participantId: bet.participantId,
+      delta: bet.stake,
+      kind: 'bet-release',
+      idempotencyKey: `bet-disabled:${bet.id}`,
+      requestHash: createHash(`disabled:${bet.id}`),
+      placeId: bet.placeId,
+      betId: bet.id,
+      reason: 'Bet stake refunded because participant was disabled',
+    });
+    await tx
+      .update(bets)
+      .set({
+        status: 'refunded',
+        payout: 0,
+        updatedAt: new Date(),
+        settledAt: new Date(),
+      })
+      .where(eq(bets.id, bet.id));
+  }
   const subs = await tx
     .update(pushSubscriptions)
     .set({ active: false })
@@ -240,6 +330,8 @@ async function participantHasReferences(tx: Tx, id: string): Promise<boolean> {
       exists(select 1 from attendance where participant_id = ${id}::uuid) or
       exists(select 1 from token_ledger where participant_id = ${id}::uuid) or
       exists(select 1 from places where added_by = ${id}::uuid) or
+      exists(select 1 from bets where participant_id = ${id}::uuid) or
+      exists(select 1 from bet_requests where participant_id = ${id}::uuid) or
       exists(select 1 from push_subscriptions where participant_id = ${id}::uuid)
       as referenced
   `);
@@ -673,6 +765,185 @@ export class GameService {
     };
   }
 
+  private async currentBettingMarket(tx: Tx, now: Date) {
+    const [row] = await tx.select().from(settings).where(eq(settings.id, 1));
+    if (!row)
+      fail(503, 'NOT_INITIALIZED', 'Game settings are not initialized.');
+    const schedule = getScheduleFromRow(row);
+    const openMarkets = await tx
+      .select()
+      .from(bettingMarkets)
+      .where(eq(bettingMarkets.status, 'open'));
+    for (const stale of openMarkets) {
+      if (stale.localDate < localClock(now, stale.timezone).localDate)
+        await this.refundMarket(tx, stale.id, 'void');
+    }
+    const today = localClock(now, schedule.timezone).localDate;
+    const [todayDraw] = await tx
+      .select({ id: draws.id })
+      .from(draws)
+      .where(eq(draws.localDate, today));
+    const localDate = nextBettingDate(now, schedule, Boolean(todayDraw));
+    let [market] = await tx
+      .select()
+      .from(bettingMarkets)
+      .where(
+        and(
+          eq(bettingMarkets.localDate, localDate),
+          eq(bettingMarkets.status, 'open'),
+        ),
+      );
+    if (!market) {
+      [market] = await tx
+        .insert(bettingMarkets)
+        .values({
+          localDate,
+          timezone: schedule.timezone,
+          scheduledTime: schedule.time,
+          cutoffMinutes: row.bettingCloseMinutes,
+        })
+        .returning();
+    }
+    return market!;
+  }
+
+  private async recordBetRequest<T>(
+    tx: Tx,
+    participantId: string,
+    key: string,
+    hash: string,
+    response: T,
+  ): Promise<void> {
+    await tx.insert(betRequests).values({
+      participantId,
+      idempotencyKey: key,
+      requestHash: hash,
+      response: response as unknown,
+    });
+  }
+
+  private async replayBetRequest<T>(
+    tx: Tx,
+    participantId: string,
+    key: string,
+    hash: string,
+  ): Promise<T | null> {
+    const [prior] = await tx
+      .select()
+      .from(betRequests)
+      .where(
+        and(
+          eq(betRequests.participantId, participantId),
+          eq(betRequests.idempotencyKey, key),
+        ),
+      );
+    if (!prior) return null;
+    if (prior.requestHash !== hash)
+      fail(
+        409,
+        'IDEMPOTENCY_MISMATCH',
+        'This idempotency key was used for a different request.',
+      );
+    const response = prior.response as T;
+    if (typeof response === 'object' && response !== null)
+      replayResponses.add(response as object);
+    return response;
+  }
+
+  private async refundMarket(
+    tx: Tx,
+    marketId: string,
+    status: 'void' | 'settled',
+    drawId?: string,
+  ) {
+    const open = await tx
+      .select()
+      .from(bets)
+      .where(and(eq(bets.marketId, marketId), eq(bets.status, 'open')));
+    for (const bet of open) {
+      await tx.insert(tokenLedger).values({
+        participantId: bet.participantId,
+        delta: bet.stake,
+        kind: 'bet-release',
+        idempotencyKey: `bet-refund:${bet.id}`,
+        requestHash: createHash(`refund:${bet.id}`),
+        placeId: bet.placeId,
+        betId: bet.id,
+        reason: 'Bet refunded because its draw schedule changed or expired',
+      });
+      await tx
+        .update(bets)
+        .set({
+          status: 'refunded',
+          payout: 0,
+          updatedAt: new Date(),
+          settledAt: new Date(),
+        })
+        .where(eq(bets.id, bet.id));
+    }
+    await tx
+      .update(bettingMarkets)
+      .set({ status, drawId: drawId ?? null })
+      .where(eq(bettingMarkets.id, marketId));
+  }
+
+  private async settleMarket(
+    tx: Tx,
+    localDate: string,
+    draw: DrawRow,
+    now: Date,
+  ) {
+    const [market] = await tx
+      .select()
+      .from(bettingMarkets)
+      .where(
+        and(
+          eq(bettingMarkets.localDate, localDate),
+          eq(bettingMarkets.status, 'open'),
+        ),
+      );
+    if (!market) return;
+    const open = await tx
+      .select()
+      .from(bets)
+      .where(and(eq(bets.marketId, market.id), eq(bets.status, 'open')));
+    for (const bet of open) {
+      const probability =
+        draw.snapshot.find((item) => item.placeId === bet.placeId)
+          ?.probability ?? 0;
+      const won = bet.placeId === draw.placeId;
+      const payout =
+        won && probability > 0
+          ? Math.min(2147483647, Math.floor(bet.stake / probability))
+          : 0;
+      if (payout > 0)
+        await tx.insert(tokenLedger).values({
+          participantId: bet.participantId,
+          delta: payout,
+          kind: 'bet-payout',
+          idempotencyKey: `bet-payout:${bet.id}`,
+          requestHash: createHash(`payout:${bet.id}:${draw.id}`),
+          placeId: bet.placeId,
+          betId: bet.id,
+          reason: 'Winning lunch bet payout',
+        });
+      await tx
+        .update(bets)
+        .set({
+          status: won ? 'won' : 'lost',
+          payout,
+          probability,
+          updatedAt: now,
+          settledAt: now,
+        })
+        .where(eq(bets.id, bet.id));
+    }
+    await tx
+      .update(bettingMarkets)
+      .set({ status: 'settled', drawId: draw.id })
+      .where(eq(bettingMarkets.id, market.id));
+  }
+
   async savePlace(
     input: { name?: string; active?: boolean },
     id?: string,
@@ -695,6 +966,26 @@ export class GameService {
       }
       const [current] = await tx.select().from(places).where(eq(places.id, id));
       if (!current) fail(404, 'PLACE_NOT_FOUND', 'Place was not found.');
+      if (input.active === false && current.active) {
+        const [openBet] = await tx
+          .select({ id: bets.id })
+          .from(bets)
+          .innerJoin(bettingMarkets, eq(bets.marketId, bettingMarkets.id))
+          .where(
+            and(
+              eq(bets.placeId, id),
+              eq(bets.status, 'open'),
+              eq(bettingMarkets.status, 'open'),
+            ),
+          )
+          .limit(1);
+        if (openBet)
+          fail(
+            409,
+            'PLACE_HAS_OPEN_BETS',
+            'This restaurant has open bets. Wait for the draw or refund the market before archiving it.',
+          );
+      }
       if (input.name === undefined && input.active === undefined)
         return placeView(current);
       const [row] = await tx
@@ -723,6 +1014,19 @@ export class GameService {
 
   async setSchedule(schedule: Schedule): Promise<Schedule> {
     return transaction(this.database, async (tx) => {
+      const current = await currentSchedule(tx);
+      if (
+        current.timezone === schedule.timezone &&
+        current.time === schedule.time &&
+        [...current.weekdays].sort().join(',') ===
+          [...schedule.weekdays].sort().join(',')
+      )
+        return current;
+      const open = await tx
+        .select({ id: bettingMarkets.id })
+        .from(bettingMarkets)
+        .where(eq(bettingMarkets.status, 'open'));
+      for (const market of open) await this.refundMarket(tx, market.id, 'void');
       const [row] = await tx
         .update(settings)
         .set({
@@ -782,6 +1086,226 @@ export class GameService {
       },
       { isolationLevel: 'repeatable read', accessMode: 'read only' },
     );
+  }
+
+  async currentBets(
+    participantId: string,
+    now = new Date(),
+  ): Promise<CurrentBetsResponse> {
+    return transaction(this.database, async (tx) => {
+      await requireSetupComplete(tx);
+      await activeParticipant(tx, participantId);
+      const market = await this.currentBettingMarket(tx, now);
+      const [current] = await tx
+        .select()
+        .from(bets)
+        .where(
+          and(
+            eq(bets.marketId, market.id),
+            eq(bets.participantId, participantId),
+            eq(bets.status, 'open'),
+          ),
+        );
+      const recent = await tx
+        .select()
+        .from(bets)
+        .where(eq(bets.participantId, participantId))
+        .orderBy(desc(bets.updatedAt), desc(bets.id))
+        .limit(10);
+      return {
+        window: bettingWindowView(market, now),
+        bet: current ? betView(current) : null,
+        recent: recent.map(betView),
+      };
+    });
+  }
+
+  async setBet(
+    participantId: string,
+    input: SetBetRequest,
+    key: string,
+    now = new Date(),
+  ) {
+    const parsed = setBetRequest.safeParse(input);
+    if (!parsed.success)
+      fail(
+        400,
+        'INVALID_BET',
+        'Provide a restaurant and positive whole token stake.',
+      );
+    const body = parsed.data;
+    const hash = requestHash('PUT', '/api/v1/bets/current', body);
+    return transaction(this.database, async (tx) => {
+      await requireSetupComplete(tx);
+      await activeParticipant(tx, participantId);
+      const prior = await this.replayBetRequest<BetMutationResponse>(
+        tx,
+        participantId,
+        key,
+        hash,
+      );
+      if (prior) return prior;
+      const market = await this.currentBettingMarket(tx, now);
+      if (
+        market.localDate !== body.localDate ||
+        !bettingWindowView(market, now).open
+      )
+        fail(409, 'BETTING_CLOSED', 'Betting is closed for that draw.');
+      const [place] = await tx
+        .select()
+        .from(places)
+        .where(and(eq(places.id, body.placeId), eq(places.active, true)));
+      if (!place)
+        fail(404, 'PLACE_NOT_FOUND', 'That restaurant is not on the wheel.');
+      const activePlaces = await tx
+        .select({ id: places.id, logWeight: places.logWeight })
+        .from(places)
+        .where(eq(places.active, true));
+      const probability =
+        probabilities(activePlaces).find((item) => item.id === place.id)
+          ?.probability ?? 0;
+      if (probability <= 0)
+        fail(
+          409,
+          'PLACE_UNAVAILABLE',
+          'That restaurant has no current chance of winning.',
+        );
+      const [existing] = await tx
+        .select()
+        .from(bets)
+        .where(
+          and(
+            eq(bets.marketId, market.id),
+            eq(bets.participantId, participantId),
+          ),
+        );
+      const delta =
+        existing?.status === 'open' ? existing.stake - body.stake : -body.stake;
+      const currentBalance = await balance(tx, participantId);
+      if (-delta > currentBalance)
+        fail(
+          409,
+          'INSUFFICIENT_TOKENS',
+          'You do not have enough tokens for that stake.',
+        );
+      let row: typeof bets.$inferSelect | undefined;
+      if (existing) {
+        [row] = await tx
+          .update(bets)
+          .set({
+            placeId: place.id,
+            placeName: place.name,
+            stake: body.stake,
+            status: 'open',
+            payout: null,
+            probability: null,
+            settledAt: null,
+            updatedAt: now,
+          })
+          .where(eq(bets.id, existing.id))
+          .returning();
+      } else {
+        [row] = await tx
+          .insert(bets)
+          .values({
+            marketId: market.id,
+            localDate: market.localDate,
+            participantId,
+            placeId: place.id,
+            placeName: place.name,
+            stake: body.stake,
+            status: 'open',
+            updatedAt: now,
+          })
+          .returning();
+      }
+      if (delta !== 0)
+        await tx.insert(tokenLedger).values({
+          participantId,
+          delta,
+          kind: delta < 0 ? 'bet-stake' : 'bet-release',
+          idempotencyKey: `bet-change:${key}:${randomUUID()}`,
+          requestHash: hash,
+          placeId: place.id,
+          betId: row!.id,
+          reason:
+            delta < 0
+              ? 'Tokens reserved for lunch bet'
+              : 'Bet stake reduced and tokens released',
+        });
+      const responseBody = {
+        bet: betView(row!),
+        balance: await balance(tx, participantId),
+      };
+      await this.recordBetRequest(tx, participantId, key, hash, responseBody);
+      return responseBody;
+    });
+  }
+
+  async cancelBet(
+    participantId: string,
+    input: { localDate: string },
+    key: string,
+    now = new Date(),
+  ) {
+    const parsed = cancelBetRequest.safeParse(input);
+    if (!parsed.success) fail(400, 'INVALID_BET', 'Provide the draw date.');
+    const body = parsed.data;
+    const hash = requestHash('DELETE', '/api/v1/bets/current', body);
+    return transaction(this.database, async (tx) => {
+      await requireSetupComplete(tx);
+      await activeParticipant(tx, participantId);
+      const prior = await this.replayBetRequest<BetMutationResponse>(
+        tx,
+        participantId,
+        key,
+        hash,
+      );
+      if (prior) return prior;
+      const market = await this.currentBettingMarket(tx, now);
+      if (
+        market.localDate !== body.localDate ||
+        !bettingWindowView(market, now).open
+      )
+        fail(409, 'BETTING_CLOSED', 'Betting is closed for that draw.');
+      const [existing] = await tx
+        .select()
+        .from(bets)
+        .where(
+          and(
+            eq(bets.marketId, market.id),
+            eq(bets.participantId, participantId),
+            eq(bets.status, 'open'),
+          ),
+        );
+      if (existing) {
+        await tx.insert(tokenLedger).values({
+          participantId,
+          delta: existing.stake,
+          kind: 'bet-release',
+          idempotencyKey: `bet-cancel:${key}:${randomUUID()}`,
+          requestHash: hash,
+          placeId: existing.placeId,
+          betId: existing.id,
+          reason: 'Lunch bet cancelled and stake refunded',
+        });
+        await tx
+          .update(bets)
+          .set({
+            status: 'cancelled',
+            payout: 0,
+            updatedAt: now,
+            settledAt: now,
+          })
+          .where(eq(bets.id, existing.id));
+      }
+      const responseBody = {
+        bet: null,
+        balance: await balance(tx, participantId),
+      };
+      await this.recordBetRequest(tx, participantId, key, hash, responseBody);
+      return responseBody;
+    });
   }
 
   async getPreferences(): Promise<GamePreferences> {
@@ -983,6 +1507,7 @@ export class GameService {
           drawnAt: instant,
         })
         .returning();
+      await this.settleMarket(tx, due.localDate, row!, instant);
       await tx
         .update(places)
         .set({ logWeight: halveWeight(winner.logWeight) })
@@ -1111,6 +1636,26 @@ export class GameService {
         .from(places)
         .where(and(eq(places.id, input.placeId), eq(places.active, true)));
       if (!place) fail(404, 'PLACE_NOT_FOUND', 'Active place was not found.');
+      if (input.action === 'remove') {
+        const [openBet] = await tx
+          .select({ id: bets.id })
+          .from(bets)
+          .innerJoin(bettingMarkets, eq(bets.marketId, bettingMarkets.id))
+          .where(
+            and(
+              eq(bets.placeId, place.id),
+              eq(bets.status, 'open'),
+              eq(bettingMarkets.status, 'open'),
+            ),
+          )
+          .limit(1);
+        if (openBet)
+          fail(
+            409,
+            'PLACE_HAS_OPEN_BETS',
+            'This restaurant has open bets and cannot be removed until the draw is settled.',
+          );
+      }
       const current = await balance(tx, participantId);
       const economy = await currentEconomy(tx);
       const cost =

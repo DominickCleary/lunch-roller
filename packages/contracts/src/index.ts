@@ -18,11 +18,13 @@ export type SetupStatus = z.infer<typeof setupStatus>;
 export const gamePreferences = z.object({
   wheelSwitchTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   checkInPledge: z.string().trim().min(1).max(500),
+  bettingCloseMinutes: z.number().int().min(0).max(1440),
 });
 export type GamePreferences = z.infer<typeof gamePreferences>;
 export const defaultGamePreferences: GamePreferences = {
   wheelSwitchTime: '15:00',
   checkInPledge: 'I pledge that I actually obeyed the wheel',
+  bettingCloseMinutes: 5,
 };
 const tokenAmount = z.number().int().min(1).max(2147483647);
 export const economySettings = z.object({
@@ -147,6 +149,42 @@ export const purchaseResponse = z.object({
   spentTokens: z.number().int().positive(),
   balance: z.number().int().nonnegative(),
 });
+export const betView = z.object({
+  id,
+  localDate: z.iso.date(),
+  placeId: id,
+  placeName: name,
+  stake: z.number().int().positive().max(2147483647),
+  status: z.enum(['open', 'won', 'lost', 'cancelled', 'refunded']),
+  payout: z.number().int().nonnegative().max(2147483647).nullable(),
+  probability: z.number().finite().min(0).max(1).nullable(),
+  updatedAt: z.iso.datetime(),
+  settledAt: z.iso.datetime().nullable(),
+});
+export const bettingWindow = z.object({
+  localDate: z.iso.date(),
+  timezone: z.string(),
+  drawTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  cutoffMinutes: z.number().int().min(0).max(1440),
+  cutoffLocalDate: z.iso.date(),
+  cutoffLocalTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  open: z.boolean(),
+});
+export const currentBetsResponse = z.object({
+  window: bettingWindow,
+  bet: betView.nullable(),
+  recent: z.array(betView),
+});
+export const setBetRequest = z.object({
+  localDate: z.iso.date(),
+  placeId: id,
+  stake: z.number().int().min(1).max(2147483647),
+});
+export const cancelBetRequest = z.object({ localDate: z.iso.date() });
+export const betMutationResponse = z.object({
+  bet: betView.nullable(),
+  balance: z.number().int().nonnegative(),
+});
 export const adminLogin = z.object({ password: z.string().min(1).max(1024) });
 export const tokenCorrection = z.object({
   participantId: id,
@@ -235,6 +273,10 @@ export const participantsResponse = z.object({
 export const placesResponse = z.object({ places: z.array(place) });
 export type Participant = z.infer<typeof participant>;
 export type Place = z.infer<typeof place>;
+export type BetView = z.infer<typeof betView>;
+export type BettingWindow = z.infer<typeof bettingWindow>;
+export type CurrentBetsResponse = z.infer<typeof currentBetsResponse>;
+export type SetBetRequest = z.infer<typeof setBetRequest>;
 export type WalletResponse = z.infer<typeof walletResponse>;
 export type Draw = z.infer<typeof draw>;
 export type AttendanceResponse = z.infer<typeof attendanceResponse>;

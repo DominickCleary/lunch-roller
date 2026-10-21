@@ -43,6 +43,13 @@
       "when": 1792539856956,
       "tag": "0005_watery_amazoness",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792569906123,
+      "tag": "0006_famous_stark_industries",
+      "breakpoints": true
     }
   ]
 }

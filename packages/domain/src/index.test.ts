@@ -7,7 +7,35 @@ import {
   RULES,
   selectPlace,
   spendTokens,
+  nextBettingDate,
+  bettingCutoff,
 } from './index';
+
+it('uses scheduled local dates and computes betting cutoffs across midnight', () => {
+  const schedule = { timezone: 'Europe/Dublin', weekdays: [1, 2, 3, 4, 5] };
+  expect(
+    nextBettingDate(new Date('2026-10-21T08:00:00Z'), schedule, false),
+  ).toBe('2026-10-21');
+  expect(
+    nextBettingDate(new Date('2026-10-21T08:00:00Z'), schedule, true),
+  ).toBe('2026-10-22');
+  expect(bettingCutoff('2026-10-21', '11:30', 5)).toEqual({
+    localDate: '2026-10-21',
+    time: '11:25',
+  });
+  expect(bettingCutoff('2026-10-21', '00:02', 5)).toEqual({
+    localDate: '2026-10-20',
+    time: '23:57',
+  });
+  expect(bettingCutoff('2026-03-29', '01:30', 5, 'Europe/Dublin')).toEqual({
+    localDate: '2026-03-29',
+    time: '00:55',
+  });
+  expect(bettingCutoff('2026-10-25', '01:30', 5, 'Europe/Dublin')).toEqual({
+    localDate: '2026-10-25',
+    time: '01:25',
+  });
+});
 
 const places = [
   { id: 'a', logWeight: Math.log(1) },

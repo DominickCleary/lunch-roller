@@ -22,6 +22,10 @@ import {
   setRestaurantOddsRequest,
   updateParticipant,
   updatePlace,
+  setBetRequest,
+  cancelBetRequest,
+  currentBetsResponse,
+  betMutationResponse,
 } from '@lunch/contracts';
 import {
   createHash,
@@ -260,6 +264,32 @@ async function dispatch(request: NextRequest, context: Context) {
       return response(await game.today());
     if (route === '/wallet' && method === 'GET')
       return response(await game.wallet(participantId(request)));
+    if (route === '/bets/current' && method === 'GET')
+      return response(
+        currentBetsResponse.parse(
+          await game.currentBets(participantId(request)),
+        ),
+      );
+    if (route === '/bets/current' && method === 'PUT')
+      return response(
+        betMutationResponse.parse(
+          await game.setBet(
+            participantId(request),
+            parse(setBetRequest, await body(request)),
+            idempotencyKey(request),
+          ),
+        ),
+      );
+    if (route === '/bets/current' && method === 'DELETE')
+      return response(
+        betMutationResponse.parse(
+          await game.cancelBet(
+            participantId(request),
+            parse(cancelBetRequest, await body(request)),
+            idempotencyKey(request),
+          ),
+        ),
+      );
     if (route === '/attendance' && method === 'GET')
       return response(
         attendanceStatus.parse(

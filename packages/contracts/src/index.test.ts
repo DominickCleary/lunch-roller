@@ -7,7 +7,42 @@ import {
   participantRemoval,
   economySettings,
   defaultEconomySettings,
+  defaultGamePreferences,
+  gamePreferences,
+  setBetRequest,
 } from './index';
+
+it('validates betting stake and configurable close minutes', () => {
+  expect(defaultGamePreferences.bettingCloseMinutes).toBe(5);
+  expect(
+    gamePreferences.safeParse({
+      ...defaultGamePreferences,
+      bettingCloseMinutes: 0,
+    }).success,
+  ).toBe(true);
+  expect(
+    gamePreferences.safeParse({
+      ...defaultGamePreferences,
+      bettingCloseMinutes: 1440,
+    }).success,
+  ).toBe(true);
+  for (const value of [-1, 1.5, 1441])
+    expect(
+      gamePreferences.safeParse({
+        ...defaultGamePreferences,
+        bettingCloseMinutes: value,
+      }).success,
+    ).toBe(false);
+  const placeId = 'ca982f50-f7c6-4eb3-8572-28fa01106ed7';
+  expect(
+    setBetRequest.safeParse({ localDate: '2199-10-21', placeId, stake: 1 })
+      .success,
+  ).toBe(true);
+  expect(
+    setBetRequest.safeParse({ localDate: '2199-10-21', placeId, stake: 0 })
+      .success,
+  ).toBe(false);
+});
 it('validates the complete token economy and directional weight multipliers', () => {
   expect(economySettings.parse(defaultEconomySettings)).toEqual(
     defaultEconomySettings,
