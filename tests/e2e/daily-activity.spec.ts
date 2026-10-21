@@ -241,6 +241,37 @@ test('draw and calendar views keep tomorrow positions and bets on the correct da
   await expect(board.locator('.bet-board')).toContainText('12 tokens');
 });
 
+test('labels historical boosts without inventing draw positions', async ({
+  page,
+}) => {
+  await page.route('**/api/v1/activity?*', (route) =>
+    route.fulfill({
+      json: { ...sample, positions: [], bets: [], healthBonuses: [] },
+    }),
+  );
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Activity' }).click();
+  const panel = page.getByRole('tabpanel', { name: 'Activity' });
+  await expect(panel.locator('.activity-timeline li')).toHaveCount(4);
+  await expect(
+    panel.getByText('Historical purchase · draw date not recorded', {
+      exact: true,
+    }),
+  ).toHaveCount(4);
+  await expect(
+    panel.getByText('Their target draw was not recorded', { exact: false }),
+  ).toBeVisible();
+  await expect(
+    panel.getByRole('region', { name: 'Draw influence positions' }),
+  ).not.toContainText('↑ 2');
+  await panel.getByLabel('View', { exact: true }).selectOption('day');
+  await expect(
+    panel.getByText('Historical purchase · draw date not recorded', {
+      exact: true,
+    }),
+  ).toHaveCount(4);
+});
+
 test('shows the schedule, charts, coalitions and bet board without changing identity', async ({
   page,
   request,

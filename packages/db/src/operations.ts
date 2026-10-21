@@ -325,7 +325,13 @@ async function tokenLedgerActivity(
     predicates.push(eq(tokenLedger.participantId, participantId));
   if (drawDate) {
     predicates.push(
-      sql`coalesce(influence_market.local_date, ${bettingMarkets.localDate}) = ${drawDate}::date`,
+      // Legacy purchases have no saved target draw. Keep them visible on their
+      // action date without fabricating influence lots or a historical market.
+      sql`(coalesce(influence_market.local_date, ${bettingMarkets.localDate}) = ${drawDate}::date
+        or (${tokenLedger.influenceMarketId} is null
+          and ${tokenLedger.betId} is null
+          and ${tokenLedger.kind} in ('boost', 'reduce')
+          and (${tokenLedger.createdAt} at time zone ${timezone})::date = ${drawDate}::date))`,
     );
   } else if (localDate && timezone) {
     predicates.push(

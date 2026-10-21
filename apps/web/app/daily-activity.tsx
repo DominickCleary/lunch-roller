@@ -151,6 +151,14 @@ export function TokenOverview({ participantId }: { participantId: string }) {
 type ActionEntry = DailyActivityResponse['entries'][number];
 const emptyEntries: ActionEntry[] = [];
 
+function isHistoricalInfluence(entry: ActionEntry) {
+  return (
+    (entry.kind === 'boost' || entry.kind === 'reduce') &&
+    !entry.influenceLocalDate &&
+    !entry.betId
+  );
+}
+
 const actionLabel: Record<string, string> = {
   'transfer-sent': 'Sent tokens',
   'transfer-received': 'Received tokens',
@@ -614,6 +622,7 @@ export function DailyActivity({
   const board = data;
   const timezone = data?.timezone ?? 'UTC';
   const entries = data?.entries ?? emptyEntries;
+  const hasHistoricalInfluence = entries.some(isHistoricalInfluence);
   const boosts = entries
     .filter((entry) => entry.kind === 'boost')
     .reduce((sum, entry) => sum + Math.abs(entry.delta), 0);
@@ -753,9 +762,15 @@ export function DailyActivity({
         <>
           <p className="activity-chart-note">
             {scope === 'draw'
-              ? `Boosts, reductions, refunds and bets targeting ${selectedDate}, including actions made on earlier days.`
+              ? `Boosts, reductions, refunds and bets targeting ${selectedDate}, including actions made on earlier days. Older boosts and reductions without a saved draw date are included on the day they happened.`
               : `Token actions made on ${selectedDate}. The bet board shows bets targeting that date; draw dates are shown on individual actions.`}
           </p>
+          {scope === 'draw' && hasHistoricalInfluence && (
+            <p className="activity-chart-note">
+              Historical purchases are included in spending charts. Their target
+              draw was not recorded, so they are not included in draw positions.
+            </p>
+          )}
           <div className="activity-summary" aria-label="Daily activity summary">
             <article>
               <span>Boosted</span>
@@ -930,7 +945,8 @@ export function DailyActivity({
                     ? 'Actions targeting the draw on'
                     : 'Actions recorded on'}{' '}
                   {drawDateLabel}, in {timezone}. Times show when each action
-                  happened.
+                  happened. Older influence without a saved draw date uses its
+                  action date.
                 </p>
               </div>
               <span className="timeline-count">
@@ -995,6 +1011,9 @@ export function DailyActivity({
                         <p>
                           Influence for draw date {entry.influenceLocalDate}
                         </p>
+                      )}
+                      {isHistoricalInfluence(entry) && (
+                        <p>Historical purchase · draw date not recorded</p>
                       )}
                     </div>
                     <time dateTime={entry.createdAt}>

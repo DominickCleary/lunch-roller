@@ -38,6 +38,131 @@ const addedPlaceIds: string[] = [];
 const marketIds: string[] = [];
 const betIds: string[] = [];
 
+it('includes historical influence by action date without losing linked draw attribution', async () => {
+  await database.db
+    .update(settings)
+    .set({ timezone: 'America/New_York' })
+    .where(eq(settings.id, 1));
+  const [market] = await database.db
+    .insert(bettingMarkets)
+    .values({
+      localDate: '2198-10-22',
+      timezone: 'America/New_York',
+      scheduledTime: '11:30',
+      cutoffMinutes: 5,
+    })
+    .returning();
+  marketIds.push(market!.id);
+  const rows = await database.db
+    .insert(tokenLedger)
+    .values(
+      [
+        {
+          kind: 'boost' as const,
+          delta: -5,
+          createdAt: new Date('2198-10-21T03:59:59Z'),
+        },
+        {
+          kind: 'boost' as const,
+          delta: -5,
+          createdAt: new Date('2198-10-21T04:00:00Z'),
+        },
+        {
+          kind: 'reduce' as const,
+          delta: -5,
+          createdAt: new Date('2198-10-22T03:59:59Z'),
+        },
+        {
+          kind: 'boost' as const,
+          delta: -5,
+          createdAt: new Date('2198-10-22T04:00:00Z'),
+        },
+        {
+          kind: 'boost' as const,
+          delta: -5,
+          influenceMarketId: market!.id,
+          createdAt: new Date('2198-10-21T12:00:00Z'),
+        },
+        {
+          kind: 'correction' as const,
+          delta: 100,
+          reason: 'Historical activity fixture funds',
+          createdAt: new Date('2198-10-21T12:00:00Z'),
+        },
+      ].map((row) => ({
+        ...row,
+        participantId: activePerson.id,
+        placeId: firstPlace.id,
+        idempotencyKey: crypto.randomUUID(),
+        requestHash: 'historical-activity-fixture',
+      })),
+    )
+    .returning();
+  const now = new Date('2198-10-22T12:00:00Z');
+  const read = (date: string, scope: 'day' | 'draw') =>
+    service.dailyActivity(activePerson.id, date, now, scope);
+  const wallet = await service.wallet(activePerson.id);
+  const draw = await read('2198-10-21', 'draw');
+  expect(draw.entries.map((row) => row.id).sort()).toEqual(
+    [rows[1]!.id, rows[2]!.id].sort(),
+  );
+  for (const entry of draw.entries) {
+    expect(wallet.ledger.find((row) => row.id === entry.id)).toMatchObject({
+      kind: entry.kind,
+      delta: entry.delta,
+      placeId: entry.placeId,
+      createdAt: entry.createdAt,
+    });
+    expect(entry.influenceLocalDate).toBeUndefined();
+  }
+  expect(draw.positions).toEqual([]);
+  const calendar = await read('2198-10-21', 'day');
+  expect(calendar.entries.map((row) => row.id).sort()).toEqual(
+    [rows[1]!.id, rows[2]!.id, rows[4]!.id, rows[5]!.id].sort(),
+  );
+  const next = await read('2198-10-22', 'draw');
+  expect(next.entries.map((row) => row.id).sort()).toEqual(
+    [rows[3]!.id, rows[4]!.id].sort(),
+  );
+  expect(
+    next.entries.find((row) => row.id === rows[4]!.id)?.influenceLocalDate,
+  ).toBe('2198-10-22');
+
+  // Historical records remain visible after the actor and restaurant archive.
+  await database.db
+    .update(participants)
+    .set({ active: false })
+    .where(eq(participants.id, archivedPerson.id));
+  await database.db
+    .update(places)
+    .set({ active: false })
+    .where(eq(places.id, firstPlace.id));
+  const [archived] = await database.db
+    .insert(tokenLedger)
+    .values({
+      participantId: archivedPerson.id,
+      placeId: firstPlace.id,
+      kind: 'boost',
+      delta: -5,
+      idempotencyKey: crypto.randomUUID(),
+      requestHash: 'archived-historical-activity',
+      createdAt: new Date('2198-10-21T12:00:00Z'),
+    })
+    .returning();
+  expect(
+    (await read('2198-10-21', 'draw')).entries.find(
+      (row) => row.id === archived!.id,
+    ),
+  ).toMatchObject({
+    participantName: archivedPerson.name,
+    placeName: firstPlace.name,
+  });
+  await database.db
+    .update(places)
+    .set({ active: true })
+    .where(eq(places.id, firstPlace.id));
+});
+
 it('quotes open bets at live odds, refreshes changed weights and caps estimated returns', async () => {
   await service.savePlace({ active: true }, secondPlace.id);
   const [market] = await database.db
