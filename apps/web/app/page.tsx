@@ -1675,7 +1675,7 @@ export default function Home() {
       <header className="topbar">
         <a className="brand" href="#top" aria-label="Lunch Roller home">
           <span className="brand-mark">✳</span>{' '}
-          <h1 className="brand-title">Lunch Roller</h1>
+          <h1 className="brand-title">Gambling about lunch</h1>
         </a>
         <div className="top-actions">
           <ThemeToggle />
