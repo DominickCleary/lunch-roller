@@ -4,6 +4,8 @@ import { eq, inArray } from 'drizzle-orm';
 import { createDatabase } from './index';
 import { GameService, isReplay } from './operations';
 import {
+  attendance,
+  bettingMarkets,
   draws,
   notificationOutbox,
   participants,
@@ -53,15 +55,21 @@ afterAll(async () => {
       .delete(pushSubscriptions)
       .where(inArray(pushSubscriptions.id, subscriptionIds));
   }
+  await database.db
+    .delete(tokenLedger)
+    .where(inArray(tokenLedger.participantId, people));
   if (drawIds.length) {
     await database.db
       .delete(notificationOutbox)
       .where(inArray(notificationOutbox.drawId, drawIds));
+    await database.db
+      .delete(attendance)
+      .where(inArray(attendance.drawId, drawIds));
+    await database.db
+      .delete(bettingMarkets)
+      .where(inArray(bettingMarkets.drawId, drawIds));
     await database.db.delete(draws).where(inArray(draws.id, drawIds));
   }
-  await database.db
-    .delete(tokenLedger)
-    .where(inArray(tokenLedger.participantId, people));
   if (createdPlaces.length)
     await database.db.delete(places).where(inArray(places.id, createdPlaces));
   await database.db
