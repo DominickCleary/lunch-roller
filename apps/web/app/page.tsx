@@ -394,6 +394,13 @@ export default function Home() {
   const [betError, setBetError] = useState('');
   const [betNotice, setBetNotice] = useState('');
   const latestBetRequest = useRef(0);
+  const [checkInConfirmOpen, setCheckInConfirmOpen] = useState(false);
+  const checkInTrigger = useRef<HTMLButtonElement | null>(null);
+  const checkInConfirmed = useRef(false);
+  const checkInSubmitting = useRef(false);
+  const cancelCheckIn = useRef<HTMLButtonElement | null>(null);
+  const confirmCheckIn = useRef<HTMLButtonElement | null>(null);
+  const checkInConfirmation = useRef<HTMLParagraphElement | null>(null);
   const [attendance, setAttendance] = useState<{
     participantId: string;
     drawId: string;
@@ -1305,6 +1312,11 @@ export default function Home() {
       }).format(new Date(`${wheelTargetDate}T00:00:00Z`))
     : '';
 
+  function closeCheckInDialog() {
+    setCheckInConfirmOpen(false);
+    window.setTimeout(() => checkInTrigger.current?.focus(), 0);
+  }
+
   const replayResult = useCallback(() => {
     const result = today?.result;
     if (!result || spin) return;
@@ -1323,6 +1335,16 @@ export default function Home() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [removeTarget]);
+
+  useEffect(() => {
+    if (!checkInConfirmOpen) return;
+    cancelCheckIn.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeCheckInDialog();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [checkInConfirmOpen]);
 
   async function removeParticipant() {
     if (!removeTarget || busy) return;
@@ -1852,16 +1874,10 @@ export default function Home() {
                   </strong>
                 </div>
               </div>
-              <p
-                id="check-in-pledge"
-                data-testid="check-in-pledge"
-                className="check-in-pledge"
-              >
-                {today?.preferences.checkInPledge ??
-                  defaultGamePreferences.checkInPledge}
-              </p>
               {displayedAttendance?.checkedIn && (
                 <p
+                  ref={checkInConfirmation}
+                  tabIndex={-1}
                   className="check-in-confirmation"
                   data-testid="check-in-confirmation"
                   role="status"
@@ -1874,16 +1890,38 @@ export default function Home() {
                 <button
                   className="button button-yellow"
                   data-testid="check-in"
-                  aria-describedby="check-in-pledge"
+                  aria-haspopup="dialog"
                   disabled={busy || !participantId || !canCheckIn}
-                  onClick={() =>
-                    today?.result &&
-                    void mutate(
-                      '/attendance',
-                      { drawId: today.result.id },
-                      `Check-in complete — ${currentEconomy.attendanceReward} tokens added.`,
-                    )
-                  }
+                  onClick={(event) => {
+                    const result = today?.result;
+                    if (!result) return;
+                    if (checkInConfirmed.current) {
+                      checkInConfirmed.current = false;
+                      if (checkInSubmitting.current) return;
+                      checkInSubmitting.current = true;
+                      void mutate(
+                        '/attendance',
+                        { drawId: result.id },
+                        `Check-in complete — ${currentEconomy.attendanceReward} tokens added.`,
+                      )
+                        .then((confirmed) => {
+                          if (confirmed) {
+                            setCheckInConfirmOpen(false);
+                            window.setTimeout(
+                              () => checkInConfirmation.current?.focus(),
+                              0,
+                            );
+                          }
+                        })
+                        .finally(() => {
+                          checkInSubmitting.current = false;
+                        });
+                      return;
+                    }
+                    setError('');
+                    checkInTrigger.current = event.currentTarget;
+                    setCheckInConfirmOpen(true);
+                  }}
                 >
                   {displayedAttendance?.checkedIn ? (
                     'Checked in'
@@ -3216,6 +3254,81 @@ export default function Home() {
         </span>
         <Link href="/api/v1/health">Service health ↗</Link>
       </footer>
+      {checkInConfirmOpen && (
+        <div
+          className="dialog-backdrop"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) closeCheckInDialog();
+          }}
+        >
+          <section
+            className="confirm-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="check-in-heading"
+            aria-describedby="check-in-pledge"
+            onKeyDown={(event) => {
+              if (event.key !== 'Tab') return;
+              if (
+                event.shiftKey &&
+                document.activeElement === cancelCheckIn.current
+              ) {
+                event.preventDefault();
+                confirmCheckIn.current?.focus();
+              } else if (
+                !event.shiftKey &&
+                document.activeElement === confirmCheckIn.current
+              ) {
+                event.preventDefault();
+                cancelCheckIn.current?.focus();
+              } else if (
+                document.activeElement !== cancelCheckIn.current &&
+                document.activeElement !== confirmCheckIn.current
+              ) {
+                event.preventDefault();
+                (event.shiftKey
+                  ? confirmCheckIn.current
+                  : cancelCheckIn.current
+                )?.focus();
+              }
+            }}
+          >
+            <h2 id="check-in-heading">Confirm your check-in</h2>
+            <p id="check-in-pledge" data-testid="check-in-pledge">
+              {today?.preferences.checkInPledge ??
+                defaultGamePreferences.checkInPledge}
+            </p>
+            {error && (
+              <p className="setup-error" role="alert">
+                {error}
+              </p>
+            )}
+            <div className="dialog-actions">
+              <button
+                ref={cancelCheckIn}
+                className="button button-light"
+                type="button"
+                onClick={closeCheckInDialog}
+              >
+                Cancel
+              </button>
+              <button
+                ref={confirmCheckIn}
+                className="button button-yellow"
+                type="button"
+                disabled={busy || !canCheckIn}
+                onClick={() => {
+                  if (busy || !canCheckIn) return;
+                  checkInConfirmed.current = true;
+                  checkInTrigger.current?.click();
+                }}
+              >
+                {busy ? 'Checking in…' : 'I confirm'}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       {removeTarget && (
         <div className="dialog-backdrop">
           <section
