@@ -54,7 +54,7 @@ test.afterAll(async () => {
   }
 });
 
-test('reviews and sends tokens, persists both wallets and rejects invalid API sends', async ({
+test('reviews and trades tokens, persists both wallets and rejects invalid API sends', async ({
   page,
   browser,
   request,
@@ -67,20 +67,22 @@ test('reviews and sends tokens, persists both wallets and rejects invalid API se
   await expect(page.locator('.member-status')).toContainText(senderName);
   await expect(page.locator('.balance')).toContainText('100');
   const transfer = page.locator('.token-transfer');
-  await transfer.getByText('Send tokens', { exact: true }).click();
+  await transfer.getByText('Trade tokens', { exact: true }).click();
   await transfer
     .getByLabel('Recipient', { exact: true })
     .selectOption(recipientId);
-  await transfer.getByLabel('Tokens to send').fill('25');
-  await transfer.getByRole('button', { name: 'Review transfer' }).click();
-  await expect(transfer).toContainText(`Send 25 tokens to ${recipientName}?`);
+  await transfer.getByLabel('Tokens to trade').fill('25');
+  await transfer.getByRole('button', { name: 'Review trade' }).click();
+  await expect(
+    transfer.getByRole('dialog', { name: 'Confirm trade' }),
+  ).toContainText(`Trade 25 tokens to ${recipientName}?`);
   expect((await game.wallet(senderId)).balance).toBe(100);
-  await transfer.getByRole('button', { name: 'Back', exact: true }).click();
+  await transfer.getByRole('button', { name: 'Edit trade' }).click();
   expect((await game.wallet(senderId)).balance).toBe(100);
-  await transfer.getByRole('button', { name: 'Review transfer' }).click();
-  await transfer.getByRole('button', { name: 'Confirm transfer' }).click();
+  await transfer.getByRole('button', { name: 'Review trade' }).click();
+  await transfer.getByRole('button', { name: 'Confirm trade' }).click();
   await expect(transfer.getByRole('status')).toContainText(
-    `Sent 25 tokens to ${recipientName}.`,
+    `Traded 25 tokens to ${recipientName}.`,
   );
   await expect(page.locator('.balance')).toContainText('75');
   await expect(
@@ -135,29 +137,25 @@ test('reviews and sends tokens, persists both wallets and rejects invalid API se
   );
   await page.setViewportSize({ width: 390, height: 844 });
   const mobileTransfer = page.locator('.token-transfer');
-  await mobileTransfer.getByText('Send tokens', { exact: true }).click();
+  await mobileTransfer.getByText('Trade tokens', { exact: true }).click();
   await mobileTransfer
     .getByLabel('Recipient', { exact: true })
     .selectOption(recipientId);
-  await mobileTransfer.getByLabel('Tokens to send').fill('3');
-  await mobileTransfer.getByRole('button', { name: 'Review transfer' }).focus();
+  await mobileTransfer.getByLabel('Tokens to trade').fill('3');
+  await mobileTransfer.getByRole('button', { name: 'Review trade' }).focus();
   await page.keyboard.press('Enter');
   const confirm = mobileTransfer.getByRole('button', {
-    name: 'Confirm transfer',
+    name: 'Confirm trade',
   });
   await expect(confirm).toBeFocused();
-  await mobileTransfer
-    .getByRole('button', { name: 'Back', exact: true })
-    .click();
+  await mobileTransfer.getByRole('button', { name: 'Edit trade' }).click();
   await expect(
     mobileTransfer.getByLabel('Recipient', { exact: true }),
   ).toBeFocused();
-  await mobileTransfer.getByRole('button', { name: 'Review transfer' }).click();
-  await mobileTransfer
-    .getByRole('button', { name: 'Confirm transfer' })
-    .click();
+  await mobileTransfer.getByRole('button', { name: 'Review trade' }).click();
+  await mobileTransfer.getByRole('button', { name: 'Confirm trade' }).click();
   await expect(mobileTransfer.getByRole('status')).toContainText(
-    `Sent 3 tokens to ${recipientName}.`,
+    `Traded 3 tokens to ${recipientName}.`,
   );
   expect(
     await page.evaluate(

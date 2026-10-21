@@ -250,10 +250,10 @@ export function RulesHelp({
               <section aria-labelledby="rules-team">
                 <h3 id="rules-team">Trading and activity</h3>
                 <p>
-                  <strong>Send tokens</strong> transfers available tokens to
+                  <strong>Trade tokens</strong> transfers available tokens to
                   another active teammate, with no fee. Transfers are immediate
                   and final. Reserved tokens must be refunded or released before
-                  you can send them.
+                  you can trade them.
                 </p>
                 <p>
                   <strong>Activity</strong> shows spending, refunds, who

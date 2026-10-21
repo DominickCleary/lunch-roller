@@ -1735,25 +1735,26 @@ button:disabled {
 .token-transfer button {
   min-height: 40px;
 }
-.transfer-review {
-  margin-top: 12px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--surface);
+.trade-dialog {
+  width: min(100%, 460px);
 }
-.transfer-review p:first-child {
-  margin-top: 0;
-  color: var(--text-strong);
-  font-size: 14px;
+.trade-dialog p + p {
+  margin-top: 10px;
 }
-.transfer-review .inline-form {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
-}
-.transfer-review .inline-form {
+.trade-dialog .dialog-actions {
   flex-wrap: wrap;
+}
+.trade-dialog .dialog-actions button {
+  flex: 1 1 130px;
+}
+.trade-final-note {
+  margin-top: 14px !important;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 12px !important;
+}
+.trade-dialog strong {
+  color: var(--text-strong);
 }
 [data-testid='admin-health-rule'] form {
   display: grid;

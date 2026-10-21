@@ -24,6 +24,7 @@ export function TokenTransfer({
   const submitting = useRef(false);
   const recipientField = useRef<HTMLSelectElement | null>(null);
   const confirmButton = useRef<HTMLButtonElement | null>(null);
+  const backButton = useRef<HTMLButtonElement | null>(null);
   const wasReview = useRef(false);
   const recipients = participants.filter(
     (person) => person.active && person.id !== participantId,
@@ -47,7 +48,7 @@ export function TokenTransfer({
     submitting.current = true;
     setSending(true);
     try {
-      const message = `Sent ${review.amount} token${review.amount === 1 ? '' : 's'} to ${recipient.name}.`;
+      const message = `Traded ${review.amount} token${review.amount === 1 ? '' : 's'} to ${recipient.name}.`;
       if (await onSend(review, message)) {
         setSent(message);
         setReview(null);
@@ -61,39 +62,83 @@ export function TokenTransfer({
   }
   return (
     <details className="token-transfer">
-      <summary>Send tokens</summary>
+      <summary>Trade tokens</summary>
       {sent && (
         <p className="transfer-feedback" role="status" aria-live="polite">
           {sent}
         </p>
       )}
       {review ? (
-        <div className="transfer-review" aria-live="polite">
-          <p>
-            Send <strong>{review.amount} tokens</strong> to{' '}
-            <strong>{recipient?.name ?? 'this person'}</strong>?
-          </p>
-          <p>Your balance after sending: {balance - review.amount} tokens.</p>
-          <div className="inline-form">
-            <button
-              ref={confirmButton}
-              type="button"
-              className="button button-primary"
-              disabled={
-                busy || sending || !recipient || balance < review.amount
+        <div className="dialog-backdrop">
+          <section
+            className="confirm-dialog trade-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="trade-heading"
+            aria-describedby="trade-summary trade-balance"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && !busy && !sending) {
+                event.preventDefault();
+                setReview(null);
+                return;
               }
-              onClick={() => void send()}
-            >
-              {sending ? 'Sending…' : 'Confirm transfer'}
-            </button>
-            <button
-              type="button"
-              disabled={busy || sending}
-              onClick={() => setReview(null)}
-            >
-              Back
-            </button>
-          </div>
+              if (event.key !== 'Tab') return;
+              if (
+                event.shiftKey &&
+                document.activeElement === backButton.current
+              ) {
+                event.preventDefault();
+                confirmButton.current?.focus();
+              } else if (
+                !event.shiftKey &&
+                document.activeElement === confirmButton.current
+              ) {
+                event.preventDefault();
+                backButton.current?.focus();
+              } else if (
+                document.activeElement !== backButton.current &&
+                document.activeElement !== confirmButton.current
+              ) {
+                event.preventDefault();
+                (event.shiftKey
+                  ? confirmButton.current
+                  : backButton.current
+                )?.focus();
+              }
+            }}
+          >
+            <h2 id="trade-heading">Confirm trade</h2>
+            <p id="trade-summary">
+              Trade <strong>{review.amount} tokens</strong> to{' '}
+              <strong>{recipient?.name ?? 'this person'}</strong>?
+            </p>
+            <p id="trade-balance">
+              Your balance after the trade: {balance - review.amount} tokens.
+            </p>
+            <div className="dialog-actions">
+              <button
+                ref={backButton}
+                className="button button-light"
+                type="button"
+                disabled={busy || sending}
+                onClick={() => setReview(null)}
+              >
+                Edit trade
+              </button>
+              <button
+                ref={confirmButton}
+                type="button"
+                className="button button-yellow"
+                disabled={
+                  busy || sending || !recipient || balance < review.amount
+                }
+                onClick={() => void send()}
+              >
+                {sending ? 'Trading…' : 'Confirm trade'}
+              </button>
+            </div>
+            <p className="trade-final-note">Trades are immediate and final.</p>
+          </section>
         </div>
       ) : (
         <form
@@ -124,9 +169,9 @@ export function TokenTransfer({
             </select>
           </label>
           <label>
-            Tokens to send
+            Tokens to trade
             <input
-              aria-label="Tokens to send"
+              aria-label="Tokens to trade"
               type="number"
               inputMode="numeric"
               autoComplete="off"
@@ -144,7 +189,7 @@ export function TokenTransfer({
             already excluded.
           </p>
           <button className="button button-light" disabled={busy || !valid}>
-            Review transfer
+            Review trade
           </button>
           {!recipients.length && (
             <p>No other active people are available yet.</p>
