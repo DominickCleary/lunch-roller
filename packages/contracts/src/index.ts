@@ -250,6 +250,8 @@ export const tokenOverviewResponse = z.object({
       participantId: id,
       participantName: name,
       balance: z.number().int().nonnegative(),
+      totalBalance: z.number().int().nonnegative(),
+      rank: z.number().int().positive(),
       todayDelta: z.number().int(),
     }),
   ),

@@ -583,9 +583,9 @@ it('ranks active token balances and summarizes each member’s local day change'
       .filter((entry) => entry.participantId === activePerson.id)
       .reduce((sum, entry) => sum + entry.delta, 0),
   });
-  expect(overview.rows.map((row) => row.balance)).toEqual(
+  expect(overview.rows.map((row) => row.totalBalance)).toEqual(
     overview.rows
-      .map((row) => row.balance)
+      .map((row) => row.totalBalance)
       .slice()
       .sort((a, b) => b - a),
   );

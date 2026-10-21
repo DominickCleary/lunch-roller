@@ -123,13 +123,24 @@ const tokenOverview: TokenOverviewResponse = {
       participantId: alex,
       participantName: 'Alex',
       balance: 40,
+      totalBalance: 50,
+      rank: 1,
       todayDelta: 5,
     },
-    { participantId: sam, participantName: 'Sam', balance: 26, todayDelta: -2 },
+    {
+      participantId: sam,
+      participantName: 'Sam',
+      balance: 26,
+      totalBalance: 50,
+      rank: 1,
+      todayDelta: -2,
+    },
     {
       participantId: morgan,
       participantName: 'Morgan',
       balance: 20,
+      totalBalance: 20,
+      rank: 3,
       todayDelta: 0,
     },
   ],
@@ -348,6 +359,26 @@ test('shows the schedule, charts, coalitions and bet board without changing iden
   await expect(standings.locator('.token-overview-table tbody tr')).toHaveCount(
     3,
   );
+  await expect(
+    standings.getByRole('columnheader', { name: 'Total', exact: true }),
+  ).toBeVisible();
+  await expect(
+    standings.getByRole('columnheader', { name: 'Uncommitted', exact: true }),
+  ).toBeVisible();
+  const standingsRows = standings.locator('.token-overview-table tbody tr');
+  await expect(standingsRows.locator('th')).toHaveText(['1', '1', '3']);
+  await expect(standingsRows.nth(0).locator('td')).toHaveText([
+    'Alex',
+    '50',
+    '40',
+    '↑ +5',
+  ]);
+  await expect(standingsRows.nth(1).locator('td')).toHaveText([
+    'Sam',
+    '50',
+    '26',
+    '↓ −2',
+  ]);
   await expect(standings.locator('.token-overview-table')).toContainText(
     '↑ +5',
   );

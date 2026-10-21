@@ -26,6 +26,8 @@ Use the header's Dark mode / Light mode toggle to change the theme. The site fol
 
 Open Team token activity below your own token history to view another active roster member's balance, transactions, reasons and dates. Viewing activity leaves your selected name and game actions unchanged.
 
+Token standings shows Total and Uncommitted tokens. Total includes uncommitted tokens plus stakes in open bets and pending boosts/reductions, including units locked for an undrawn result. Settled purchases and historical spending are excluded. Rankings use total tokens; equal totals share a rank (1, 1, 3), with names only ordering tied rows. Today shows the net change in uncommitted tokens.
+
 Places have three health levels: **Treat**, **Balanced**, and **Healthy**. Choose a level when adding a place; admins can edit it later. Existing places start Balanced. After a Treat place wins, every active Healthy place receives a permanent ×1.25 weight bonus, alongside the winner’s usual halving. Admins can disable the rule or change its multiplier under Health balance. Result and Daily activity panels show automatic bonuses separately from paid boosts, with saved chances before/after the bonus.
 
 Open **Trade tokens** in your wallet to choose another active person, enter a whole-token amount, review, and confirm. Transfers are immediate, final, and fee-free; both wallets and Daily activity record the other person and amount. Only available tokens can be traded. The server serializes transfers with purchases and prevents overdrafts and duplicate sends on retries. Transfers use the same trust-based name selection as the rest of the game.

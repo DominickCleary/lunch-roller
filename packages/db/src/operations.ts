@@ -1577,7 +1577,7 @@ export class GameService {
         const localDate = localClock(now, configuration.timezone).localDate;
         const balance = sql<number>`coalesce(sum(${tokenLedger.delta}), 0)::float8`;
         const todayDelta = sql<number>`coalesce(sum(${tokenLedger.delta}) filter (where (${tokenLedger.createdAt} at time zone ${configuration.timezone})::date = ${localDate}::date), 0)::float8`;
-        const rows = await typedTx
+        const balances = await typedTx
           .select({
             participantId: participants.id,
             participantName: participants.name,
@@ -1588,11 +1588,69 @@ export class GameService {
           .leftJoin(tokenLedger, eq(tokenLedger.participantId, participants.id))
           .where(eq(participants.active, true))
           .groupBy(participants.id, participants.name)
-          .orderBy(desc(balance), asc(participants.name));
+          .orderBy(asc(participants.name));
+        const pendingBets = await typedTx
+          .select({
+            participantId: bets.participantId,
+            tokens: sql<number>`sum(${bets.stake})::float8`,
+          })
+          .from(bets)
+          .innerJoin(bettingMarkets, eq(bets.marketId, bettingMarkets.id))
+          .where(
+            and(eq(bets.status, 'open'), eq(bettingMarkets.status, 'open')),
+          )
+          .groupBy(bets.participantId);
+        const pendingInfluence = await typedTx
+          .select({
+            participantId: influenceLots.participantId,
+            tokens: sql<number>`sum(${influenceLots.tokenCost})::float8`,
+          })
+          .from(influenceLots)
+          .innerJoin(
+            bettingMarkets,
+            eq(influenceLots.marketId, bettingMarkets.id),
+          )
+          .where(
+            and(
+              isNull(influenceLots.withdrawnAt),
+              eq(bettingMarkets.status, 'open'),
+            ),
+          )
+          .groupBy(influenceLots.participantId);
+        const betTokens = new Map(
+          pendingBets.map((row) => [row.participantId, row.tokens]),
+        );
+        const influenceTokens = new Map(
+          pendingInfluence.map((row) => [row.participantId, row.tokens]),
+        );
+        const totals = balances
+          .map((row) => ({
+            ...row,
+            totalBalance:
+              row.balance +
+              (betTokens.get(row.participantId) ?? 0) +
+              (influenceTokens.get(row.participantId) ?? 0),
+          }))
+          .sort(
+            (a, b) =>
+              b.totalBalance - a.totalBalance ||
+              a.participantName.localeCompare(b.participantName),
+          );
+        let rank = 0;
+        const rows = totals.map((row, index) => {
+          if (
+            index === 0 ||
+            row.totalBalance !== totals[index - 1]!.totalBalance
+          )
+            rank = index + 1;
+          return { ...row, rank };
+        });
         for (const row of rows) {
           if (
             !Number.isSafeInteger(row.balance) ||
             row.balance < 0 ||
+            !Number.isSafeInteger(row.totalBalance) ||
+            row.totalBalance < row.balance ||
             !Number.isSafeInteger(row.todayDelta)
           )
             fail(

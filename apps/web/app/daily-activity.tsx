@@ -67,8 +67,12 @@ export function TokenOverview({ participantId }: { participantId: string }) {
         <div>
           <h3>Token standings</h3>
           <p>
-            Current balances, ranked · net change today
+            Ranked by total tokens · uncommitted tokens are available to spend
             {data ? ` · ${data.localDate} ${data.timezone}` : ''}
+          </p>
+          <p>
+            Total includes tokens reserved in open bets and pending boosts or
+            reductions. Today shows the change in uncommitted tokens.
           </p>
         </div>
         <span className="activity-live-indicator">Live · 30 sec</span>
@@ -103,20 +107,22 @@ export function TokenOverview({ participantId }: { participantId: string }) {
               <tr>
                 <th scope="col">Rank</th>
                 <th scope="col">Member</th>
-                <th scope="col">Tokens</th>
+                <th scope="col">Total</th>
+                <th scope="col">Uncommitted</th>
                 <th scope="col">Today</th>
               </tr>
             </thead>
             <tbody>
-              {data.rows.map((row, index) => (
+              {data.rows.map((row) => (
                 <tr key={row.participantId}>
                   <th scope="row" className="token-overview-rank">
-                    {index + 1}
+                    {row.rank}
                   </th>
                   <td>{row.participantName}</td>
                   <td className="token-overview-balance">
-                    {tokenCount(row.balance)}
+                    {tokenCount(row.totalBalance)}
                   </td>
+                  <td>{tokenCount(row.balance)}</td>
                   <td>
                     <span
                       className={`token-overview-change ${row.todayDelta > 0 ? 'positive' : row.todayDelta < 0 ? 'negative' : 'neutral'}`}
