@@ -1837,7 +1837,6 @@ export default function Home() {
               <div className="section-heading">
                 <div>
                   <p className="eyebrow">01 / YOUR SEAT AT THE TABLE</p>
-                  <h2>You</h2>
                 </div>
                 <span className="mini-icon">↗</span>
               </div>
@@ -1983,9 +1982,7 @@ export default function Home() {
                 </div>
                 <span className="odds-total">{odds.length} PLACES</span>
               </div>
-              <p className="muted">
-                Current chances for the next draw.
-              </p>
+              <p className="muted">Current chances for the next draw.</p>
               <div
                 className="odds-format-toggle"
                 role="group"
