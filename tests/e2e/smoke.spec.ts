@@ -56,7 +56,7 @@ test('landing page requires a saved name before showing the lunch wheel', async 
   await expect(
     page
       .locator('.top-actions')
-      .getByRole('link', { name: 'Admin', exact: true }),
+      .getByRole('button', { name: 'Admin', exact: true }),
   ).toBeVisible();
   await page.screenshot({ path: 'test-results/wheel-mobile.png' });
 

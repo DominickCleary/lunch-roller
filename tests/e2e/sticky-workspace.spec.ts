@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+const adminPassword = process.env.ADMIN_PASSWORD ?? 'integration-only-password';
+
 test.beforeEach(async ({ page, request }) => {
   const response = await request.get('/api/v1/participants');
   const { participants } = await response.json();
@@ -169,6 +171,9 @@ test('desktop activity and admin scroll independently without moving the wheel o
     .toBe(sidebarScrollBeforeAdmin);
   await expect(page.locator('.wheel-wrap')).toBeVisible();
   await expect(page.locator('.topbar')).toHaveCSS('position', 'static');
+  await page.getByLabel('Administrator password').fill(adminPassword);
+  await page.getByRole('button', { name: 'Unlock', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'People' })).toBeVisible();
   const admin = page.locator('.admin-disclosure');
   await expect
     .poll(() =>
@@ -243,6 +248,9 @@ test('mobile scrolls the document with a compact sticky wheel and accessible con
   await expect(page.locator('.admin-disclosure')).toHaveAttribute('open', '');
   expect(await page.evaluate(() => window.scrollY)).toBe(pageScrollBeforeAdmin);
   await expect(wheel).toBeVisible();
+  await page.getByLabel('Administrator password').fill(adminPassword);
+  await page.getByRole('button', { name: 'Unlock', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'People' })).toBeVisible();
   const admin = page.locator('.admin-disclosure');
   await expect
     .poll(() =>
