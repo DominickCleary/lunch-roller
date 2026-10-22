@@ -97,6 +97,9 @@ export const settings = pgTable(
     healthBonusMultiplier: doublePrecision('health_bonus_multiplier')
       .default(1.25)
       .notNull(),
+    postDrawDelayMinutes: integer('post_draw_delay_minutes')
+      .default(0)
+      .notNull(),
     wheelSpinSeconds: integer('wheel_spin_seconds').default(20).notNull(),
     wheelSwitchTime: text('wheel_switch_time').default('15:00').notNull(),
     checkInPledge: text('check_in_pledge')
@@ -117,6 +120,10 @@ export const settings = pgTable(
     check(
       'settings_wheel_spin_seconds',
       sql`${t.wheelSpinSeconds} between 5 and 60`,
+    ),
+    check(
+      'settings_post_draw_delay_minutes',
+      sql`${t.postDrawDelayMinutes} between 0 and 1440`,
     ),
     check('settings_singleton', sql`${t.id} = 1`),
     check(

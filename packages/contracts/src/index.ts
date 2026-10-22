@@ -16,6 +16,7 @@ export const setupStatus = z.object({
 });
 export type SetupStatus = z.infer<typeof setupStatus>;
 export const gamePreferences = z.object({
+  postDrawDelayMinutes: z.number().int().min(0).max(1440).default(0),
   wheelSpinSeconds: z.number().int().min(5).max(60).default(20),
   wheelSwitchTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   checkInPledge: z.string().trim().min(1).max(500),
@@ -24,6 +25,7 @@ export const gamePreferences = z.object({
 export type GamePreferences = z.infer<typeof gamePreferences>;
 export type GamePreferencesInput = z.input<typeof gamePreferences>;
 export const defaultGamePreferences: GamePreferences = {
+  postDrawDelayMinutes: 0,
   wheelSpinSeconds: 20,
   wheelSwitchTime: '15:00',
   checkInPledge: 'I pledge that I actually obeyed the wheel',

@@ -43,7 +43,7 @@ afterAll(async () => {
         timezone: originalSchedule.timezone,
         spinTime: originalSchedule.time,
         weekdays: originalSchedule.weekdays,
-        wheelSwitchTime: originalPreferences.wheelSwitchTime,
+        ...originalPreferences,
         checkInPledge: originalPreferences.checkInPledge,
       })
       .where(eq(settings.id, 1));
@@ -77,6 +77,7 @@ it('persists validated preferences and reports authoritative check-in status per
     bettingCloseMinutes: 5,
   });
   expect(configured).toEqual({
+    postDrawDelayMinutes: 0,
     wheelSpinSeconds: 20,
     wheelSwitchTime: '23:59',
     checkInPledge: 'I followed the wheel today.',

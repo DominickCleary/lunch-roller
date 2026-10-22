@@ -539,8 +539,8 @@ export function DailyActivity({
   localDate: string;
   nextDrawDate: string;
 }) {
-  const [scope, setScope] = useState<'day' | 'draw'>('day');
-  const [selectedDate, setSelectedDate] = useState(localDate);
+  const scope = 'draw';
+  const [selectedDate, setSelectedDate] = useState(nextDrawDate);
   const [result, setResult] = useState<ActivityResult | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [personFilter, setPersonFilter] = useState('all');
@@ -548,8 +548,8 @@ export function DailyActivity({
   const requestKey = `${participantId}:${scope}:${selectedDate}`;
 
   useEffect(() => {
-    setSelectedDate(scope === 'draw' ? nextDrawDate : localDate);
-  }, [scope, nextDrawDate, localDate]);
+    setSelectedDate(nextDrawDate);
+  }, [nextDrawDate]);
 
   useEffect(() => {
     if (!participantId || !selectedDate) return;
@@ -676,39 +676,17 @@ export function DailyActivity({
   return (
     <section
       className="daily-activity"
-      aria-label="Daily token activity"
+      aria-label="Spin token activity"
       aria-busy={!current || current.refreshing}
     >
       <header className="daily-activity-header">
         <div>
-          <p className="activity-eyebrow">
-            {scope === 'draw'
-              ? 'Activity for one draw'
-              : 'Actions by calendar day'}
-          </p>
-          <h2>Activity room</h2>
-          <p className="activity-date-caption">
-            {drawDateLabel}
-            {data ? ` · ${timezone}` : ''}
-          </p>
+          <p className="activity-eyebrow">Lunch roll activity</p>
+          <h2>Activity for spin dated {drawDateLabel}</h2>
+          <p className="activity-date-caption">{data ? timezone : ''}</p>
         </div>
         <div className="activity-date-controls">
-          <label htmlFor="activity-scope">View</label>
-          <select
-            id="activity-scope"
-            value={scope}
-            onChange={(event) => {
-              setScope(event.target.value as 'day' | 'draw');
-              setPersonFilter('all');
-              setPlaceFilter('all');
-            }}
-          >
-            <option value="day">Calendar day</option>
-            <option value="draw">Draw activity</option>
-          </select>
-          <label htmlFor="activity-date">
-            {scope === 'draw' ? 'Draw date' : 'Activity date'}
-          </label>
+          <label htmlFor="activity-date">Spin date</label>
           <input
             id="activity-date"
             type="date"
@@ -722,33 +700,25 @@ export function DailyActivity({
           <div className="activity-date-shortcuts">
             <button
               type="button"
-              className={
-                scope === 'day' && selectedDate === localDate ? 'selected' : ''
-              }
+              className={selectedDate === localDate ? 'selected' : ''}
               onClick={() => {
-                setScope('day');
                 setSelectedDate(localDate);
                 setPersonFilter('all');
                 setPlaceFilter('all');
               }}
             >
-              Today
+              Today’s spin
             </button>
             <button
               type="button"
-              className={
-                scope === 'draw' && selectedDate === nextDrawDate
-                  ? 'selected'
-                  : ''
-              }
+              className={selectedDate === nextDrawDate ? 'selected' : ''}
               onClick={() => {
-                setScope('draw');
                 setSelectedDate(nextDrawDate);
                 setPersonFilter('all');
                 setPlaceFilter('all');
               }}
             >
-              Next draw · {nextDrawDate}
+              Next spin · {nextDrawDate}
             </button>
           </div>
         </div>
@@ -783,18 +753,18 @@ export function DailyActivity({
       ) : (
         <>
           <p className="activity-chart-note">
-            {scope === 'draw'
-              ? `Purchases, refunds and bets for ${selectedDate}, including actions made on earlier days. Purchases after a roll are attributed to the next draw.`
-              : `Token actions made on ${selectedDate}. The bet board shows bets targeting that date; draw dates are shown on individual actions.`}
+            Purchases, refunds and bets for the spin dated {selectedDate},
+            including actions made on earlier days. Purchases after a roll
+            belong to the next spin.
           </p>
-          {scope === 'draw' && hasHistoricalInfluence && (
+          {hasHistoricalInfluence && (
             <p className="activity-chart-note">
               Historical purchases are included in spending charts. Their draw
               date is inferred from draw timing and the schedule; they do not
               create editable positions.
             </p>
           )}
-          <div className="activity-summary" aria-label="Daily activity summary">
+          <div className="activity-summary" aria-label="Spin activity summary">
             <article>
               <span>Boosted</span>
               <strong>
@@ -820,20 +790,19 @@ export function DailyActivity({
               <p>on the draw dated {selectedDate}</p>
             </article>
           </div>
-          {scope === 'draw' && data.positions && (
+          {data.positions && (
             <DrawPositions
               positions={data.positions}
               localDate={selectedDate}
             />
           )}
-          {scope === 'draw' &&
-            data.healthBonuses?.map((event) => (
-              <HealthBonusSummary
-                key={event.drawId}
-                bonus={event.bonus}
-                winner={event.placeName}
-              />
-            ))}
+          {data.healthBonuses?.map((event) => (
+            <HealthBonusSummary
+              key={event.drawId}
+              bonus={event.bonus}
+              winner={event.placeName}
+            />
+          ))}
           <div className="activity-dashboard-grid">
             <section className="activity-panel activity-trend-panel">
               <div className="activity-panel-heading">
@@ -964,11 +933,8 @@ export function DailyActivity({
               <div>
                 <h3>Token actions</h3>
                 <p>
-                  {scope === 'draw'
-                    ? 'Actions targeting the draw on'
-                    : 'Actions recorded on'}{' '}
-                  {drawDateLabel}, in {timezone}. Times show when each action
-                  happened.
+                  Actions for the spin dated {drawDateLabel}, in {timezone}.
+                  Times show when each action happened.
                 </p>
               </div>
               <span className="timeline-count">

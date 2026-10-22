@@ -107,7 +107,7 @@ afterAll(async () => {
   }
 });
 
-it('switches from the saved snapshot to mutable upcoming odds after the cutoff', async () => {
+it('shows mutable upcoming odds immediately while preserving the saved snapshot', async () => {
   await service.setSchedule({
     timezone: 'UTC',
     time: '00:00',
@@ -121,8 +121,8 @@ it('switches from the saved snapshot to mutable upcoming odds after the cutoff',
 
   const beforeCutoff = await service.today(new Date('2188-03-02T14:59:59Z'));
   expect(beforeCutoff.wheel).toEqual({
-    mode: 'result',
-    localDate: '2188-03-02',
+    mode: 'upcoming',
+    localDate: '2188-03-03',
   });
   expect(beforeCutoff.result?.snapshot).toEqual(draw.snapshot);
 

@@ -4,23 +4,23 @@ import { wheelDisplay } from './index';
 const weekdays = [1, 2, 3, 4, 5];
 
 describe('wheelDisplay', () => {
-  it('keeps the saved result through 14:59:59 and rolls at 15:00 local time', () => {
+  it('shows the next spin immediately after a result', () => {
     const schedule = { timezone: 'Europe/Dublin', weekdays };
 
     expect(
       wheelDisplay(new Date('2026-01-12T14:59:59Z'), schedule, true),
-    ).toEqual({ mode: 'result', localDate: '2026-01-12' });
+    ).toEqual({ mode: 'upcoming', localDate: '2026-01-13' });
     expect(
       wheelDisplay(new Date('2026-01-12T15:00:00Z'), schedule, true),
     ).toEqual({ mode: 'upcoming', localDate: '2026-01-13' });
   });
 
-  it('applies the cutoff in both standard and summer time', () => {
+  it('shows the next spin in summer time', () => {
     const schedule = { timezone: 'Europe/Dublin', weekdays };
 
     expect(
       wheelDisplay(new Date('2026-07-13T13:59:59Z'), schedule, true),
-    ).toEqual({ mode: 'result', localDate: '2026-07-13' });
+    ).toEqual({ mode: 'upcoming', localDate: '2026-07-14' });
     expect(
       wheelDisplay(new Date('2026-07-13T14:00:00Z'), schedule, true),
     ).toEqual({ mode: 'upcoming', localDate: '2026-07-14' });
@@ -96,7 +96,6 @@ describe('wheelDisplay', () => {
         new Date('2026-04-08T10:00:00Z'),
         { timezone: 'UTC', weekdays: [1, 3, 5] },
         false,
-        '15:00',
         '2026-04-08',
       ),
     ).toEqual({ mode: 'upcoming', localDate: '2026-04-10' });

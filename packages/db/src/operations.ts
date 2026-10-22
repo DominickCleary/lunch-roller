@@ -416,34 +416,30 @@ async function tokenLedgerActivity(
     : attributed;
 }
 
-function wheelPeriodOpensAt(
+async function wheelPeriodOpensAt(
+  tx: Tx,
   row: typeof settings.$inferSelect,
   now: Date,
-  hasTodayDraw: boolean,
 ) {
-  if (!hasTodayDraw) return null;
-  const date = localClock(now, row.timezone).localDate;
-  return scheduledInstant(
-    date,
-    row.wheelSwitchTime,
-    row.timezone,
+  if (row.postDrawDelayMinutes === 0) return null;
+  const [lastDraw] = await tx
+    .select({ drawnAt: draws.drawnAt })
+    .from(draws)
+    .where(lte(draws.drawnAt, now))
+    .orderBy(desc(draws.drawnAt))
+    .limit(1);
+  if (!lastDraw) return null;
+  return new Date(
+    lastDraw.drawnAt.getTime() + row.postDrawDelayMinutes * 60_000,
   ).toISOString();
 }
 
 async function requireWheelPeriod(tx: Tx, now: Date) {
   const [row] = await tx.select().from(settings).where(eq(settings.id, 1));
   if (!row) fail(503, 'NOT_INITIALIZED', 'Game settings are not initialized.');
-  const [todayDraw] = await tx
-    .select({ id: draws.id })
-    .from(draws)
-    .where(eq(draws.localDate, localClock(now, row.timezone).localDate));
-  const opensAt = wheelPeriodOpensAt(row, now, Boolean(todayDraw));
+  const opensAt = await wheelPeriodOpensAt(tx, row, now);
   if (opensAt && now < new Date(opensAt))
-    fail(
-      409,
-      'WHEEL_ACTIVITY_PAUSED',
-      `Wheel activity reopens at ${row.wheelSwitchTime} (${row.timezone}).`,
-    );
+    fail(409, 'WHEEL_ACTIVITY_PAUSED', `Wheel activity reopens at ${opensAt}.`);
 }
 
 function bettingWindowView(
@@ -515,6 +511,7 @@ function preferencesFromRow(
   row: typeof settings.$inferSelect,
 ): GamePreferences {
   return {
+    postDrawDelayMinutes: row.postDrawDelayMinutes,
     wheelSwitchTime: row.wheelSwitchTime,
     wheelSpinSeconds: row.wheelSpinSeconds,
     checkInPledge: row.checkInPledge,
@@ -1168,7 +1165,7 @@ export class GameService {
     }
     return {
       ...market!,
-      opensAt: wheelPeriodOpensAt(row, now, Boolean(todayDraw)),
+      opensAt: await wheelPeriodOpensAt(tx, row, now),
     };
   }
 
@@ -2876,7 +2873,6 @@ export class GameService {
             now,
             schedule,
             Boolean(existing),
-            settingsRow.wheelSwitchTime,
             settingsRow.skipDrawDate,
           ),
           result: existing ? drawView(existing) : null,

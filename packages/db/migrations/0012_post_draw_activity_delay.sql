@@ -1,0 +1,2 @@
+ALTER TABLE "settings" ADD COLUMN "post_draw_delay_minutes" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "settings" ADD CONSTRAINT "settings_post_draw_delay_minutes" CHECK ("settings"."post_draw_delay_minutes" between 0 and 1440);

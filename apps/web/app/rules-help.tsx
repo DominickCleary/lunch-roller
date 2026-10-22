@@ -122,11 +122,15 @@ export function RulesHelp({
                   winner modal to return to the current wheel.
                 </p>
                 <p>
-                  From <strong>{preferences.wheelSwitchTime}</strong>, the wheel
-                  previews the next scheduled draw once today’s draw is
-                  complete.
+                  After each roll, the wheel shows live odds for the next
+                  scheduled spin.
                 </p>
               </section>
+              <p>
+                {preferences.postDrawDelayMinutes === 0
+                  ? 'Boosts, reductions, bets and place purchases reopen immediately after each roll for the next spin.'
+                  : `Boosts, reductions, bets and place purchases reopen ${preferences.postDrawDelayMinutes} minutes after each roll for the next spin.`}
+              </p>
               <section aria-labelledby="rules-tokens">
                 <h3 id="rules-tokens">Tokens and places</h3>
                 <dl className="rules-values">

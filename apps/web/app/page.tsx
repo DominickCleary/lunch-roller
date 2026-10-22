@@ -32,7 +32,7 @@ import { RulesHelp } from './rules-help';
 import { TeamActivity } from './team-activity';
 import { DailyActivity, TokenOverview } from './daily-activity';
 import { TokenEntryDescription, WalletBets } from './token-history';
-import { HealthBadge, HealthSelect, HealthBonusSummary } from './health-label';
+import { HealthBadge, HealthSelect } from './health-label';
 import { TokenTransfer } from './token-transfer';
 import { InfluenceControls } from './influence-controls';
 import { PlaceNameControl, PlaceActionControls } from './place-controls';
@@ -755,11 +755,20 @@ export default function Home() {
   }, []);
 
   const betCutoffAt = currentBets?.window.cutoffAt;
-  const betWindowOpen =
-    currentBets?.window.open && today?.wheel.mode !== 'result';
-  const wheelActivityPaused = today?.wheel.mode === 'result';
-  const wheelPauseMessage = `Wheel activity reopens at ${today?.preferences.wheelSwitchTime ?? ''} (${today?.schedule.timezone ?? ''}).`;
   const betOpensAt = currentBets?.window.opensAt;
+  const wheelActivityPaused = Boolean(
+    betOpensAt &&
+    today?.serverTime &&
+    Date.parse(today.serverTime) < Date.parse(betOpensAt),
+  );
+  const betWindowOpen = currentBets?.window.open && !wheelActivityPaused;
+  const wheelPauseMessage = betOpensAt
+    ? `Wheel activity reopens at ${new Intl.DateTimeFormat('en-GB', {
+        timeZone: today?.schedule.timezone,
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(new Date(betOpensAt))} (${today?.schedule.timezone ?? ''}).`
+    : '';
   useEffect(() => {
     if (!participantId || !wheelActivityPaused || !betOpensAt) return;
     const timer = window.setTimeout(
@@ -788,10 +797,10 @@ export default function Home() {
             : current,
         );
       },
-      Math.max(0, new Date(betCutoffAt).getTime() - Date.now()),
+      Math.max(0, new Date(betCutoffAt).getTime() - getServerNow()),
     );
     return () => window.clearTimeout(timer);
-  }, [betCutoffAt, betWindowOpen]);
+  }, [betCutoffAt, betWindowOpen, getServerNow]);
 
   async function saveBet(event: FormEvent) {
     event.preventDefault();
@@ -985,10 +994,7 @@ export default function Home() {
     ...fallbackEconomySettings,
     ...today?.economy,
   };
-  const baselineOptions =
-    today?.wheel.mode === 'result' && today.result
-      ? today.result.snapshot
-      : odds;
+  const baselineOptions = odds;
   const activeReplay = animationSnapshot;
   const wheelOptions = activeReplay ?? baselineOptions;
   const gradient = useMemo(() => {
@@ -1368,7 +1374,6 @@ export default function Home() {
   const currentName = participants.find(
     (person) => person.id === participantId,
   )?.name;
-  const drawnPlace = today?.result?.placeName;
   const displayedDrawId = today?.result?.id ?? null;
   const displayedAttendance =
     attendance &&
@@ -1891,11 +1896,9 @@ export default function Home() {
                       ? 'The shared lunch wheel is spinning'
                       : activeReplay
                         ? `Replaying today's saved result for ${today?.result?.localDate ?? ''}`
-                        : today?.wheel.mode === 'result'
-                          ? `Today's committed result is ${drawnPlace ?? 'saved'} for ${wheelTargetLabel}`
-                          : today?.status === 'skipped'
-                            ? `Today's roll is skipped for an event; the next roll is ${wheelTargetLabel}`
-                            : `Live odds for the next scheduled draw on ${wheelTargetLabel}`
+                        : today?.status === 'skipped'
+                          ? `Today's roll is skipped for an event; the next roll is ${wheelTargetLabel}`
+                          : `Live odds for the next scheduled draw on ${wheelTargetLabel}`
                   }
                 >
                   <div
@@ -1924,7 +1927,7 @@ export default function Home() {
                     role="img"
                     aria-label={
                       wheelOptions.length
-                        ? `Wheel with ${wheelOptions.length} lunch places, sized by ${activeReplay ? "today's saved result snapshot replay" : today?.wheel.mode === 'result' ? "today's committed draw snapshot" : 'live odds for the next scheduled draw'}`
+                        ? `Wheel with ${wheelOptions.length} lunch places, sized by ${activeReplay ? "today's saved result snapshot replay" : 'live odds for the next scheduled draw'}`
                         : 'Empty lunch wheel'
                     }
                   >
@@ -1974,11 +1977,9 @@ export default function Home() {
                       ? 'THE WHEEL IS DECIDING…'
                       : activeReplay
                         ? "REPLAYING TODAY'S RESULT"
-                        : today?.wheel.mode === 'result'
-                          ? "TODAY'S RESULT"
-                          : today?.status === 'skipped'
-                            ? 'ROLL SKIPPED · NEXT DRAW'
-                            : 'LIVE ODDS FOR NEXT DRAW'}
+                        : today?.status === 'skipped'
+                          ? 'ROLL SKIPPED · NEXT DRAW'
+                          : 'LIVE ODDS FOR NEXT DRAW'}
                   </span>
                   <strong
                     role="status"
@@ -1994,15 +1995,11 @@ export default function Home() {
                       ? 'Watch the pointer…'
                       : activeReplay && today?.result
                         ? `Saved pick · ${today.result.localDate}`
-                        : today?.wheel.mode === 'result'
-                          ? drawnPlace
-                            ? `${drawnPlace} · ${wheelTargetLabel}`
-                            : wheelTargetLabel
-                          : today?.status === 'skipped'
-                            ? `Roll skipped for an event · next roll ${wheelTargetLabel} at ${today.schedule.time}`
-                            : wheelTargetLabel
-                              ? `Scheduled for ${wheelTargetLabel} at ${today?.schedule.time ?? ''}`
-                              : 'Loading schedule'}
+                        : today?.status === 'skipped'
+                          ? `Roll skipped for an event · next roll ${wheelTargetLabel} at ${today.schedule.time}`
+                          : wheelTargetLabel
+                            ? `Scheduled for ${wheelTargetLabel} at ${today?.schedule.time ?? ''}`
+                            : 'Loading schedule'}
                   </strong>
                   {today?.result && (
                     <button
@@ -2533,30 +2530,6 @@ export default function Home() {
                   />
                 </div>
               </form>
-              {!liveReveal && today?.result?.healthBonus && (
-                <HealthBonusSummary
-                  bonus={today.result.healthBonus}
-                  winner={today.result.placeName}
-                />
-              )}
-              {!liveReveal && today?.result && (
-                <div className="result-note" data-testid="today-result">
-                  <span>✳</span>
-                  <p>
-                    Today&apos;s pick was{' '}
-                    <strong>{today.result.placeName}</strong> on{' '}
-                    <time dateTime={today.result.localDate}>
-                      {new Intl.DateTimeFormat('en-GB', {
-                        dateStyle: 'medium',
-                        timeZone: 'UTC',
-                      }).format(
-                        new Date(`${today.result.localDate}T00:00:00Z`),
-                      )}
-                    </time>
-                    .
-                  </p>
-                </div>
-              )}
             </div>
             <div className="panel token-activity-panel">
               <div className="ledger">
@@ -3416,19 +3389,6 @@ export default function Home() {
                       their original spin.
                     </p>
                     <label>
-                      Wheel switch time
-                      <input
-                        type="time"
-                        value={preferences.wheelSwitchTime}
-                        onChange={(event) =>
-                          setPreferences({
-                            ...preferences,
-                            wheelSwitchTime: event.target.value,
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
                       Close betting this many minutes before the draw
                       <input
                         type="number"
@@ -3445,6 +3405,27 @@ export default function Home() {
                         }
                       />
                     </label>
+                    <label>
+                      Reopen activity this many minutes after the roll
+                      <input
+                        type="number"
+                        required
+                        min={0}
+                        max={1440}
+                        step={1}
+                        value={preferences.postDrawDelayMinutes}
+                        onChange={(event) =>
+                          setPreferences({
+                            ...preferences,
+                            postDrawDelayMinutes: Number(event.target.value),
+                          })
+                        }
+                      />
+                    </label>
+                    <p className="muted">
+                      0 opens boosts, reductions, bets and place purchases
+                      immediately after the roll.
+                    </p>
                     <label>
                       Check-in pledge
                       <input

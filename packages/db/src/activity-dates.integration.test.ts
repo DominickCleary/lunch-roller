@@ -78,6 +78,7 @@ it('keeps Friday actions for Monday together across midnight, weekend DST, refun
     ...(await game.getPreferences()),
     wheelSwitchTime: '15:00',
     bettingCloseMinutes: 5,
+    postDrawDelayMinutes: 210,
   });
   await game.correctTokens(
     {
@@ -322,4 +323,83 @@ it('keeps Friday actions for Monday together across midnight, weekend DST, refun
   expect(
     settled.positions?.find((row) => row.participantId === person.id)?.status,
   ).toBe('committed');
+});
+
+it('opens immediately by default and carries an optional delay across midnight', async () => {
+  await game.setSchedule({
+    timezone: 'UTC',
+    time: '11:30',
+    weekdays: [1, 2, 3, 4, 5],
+  });
+  await game.setPreferences({
+    ...(await game.getPreferences()),
+    wheelSwitchTime: '23:59',
+    postDrawDelayMinutes: 0,
+  });
+  const drawnAt = new Date('2026-11-02T23:50:00Z');
+  const draw = await game.drawIfDue(drawnAt);
+  expect(draw).not.toBeNull();
+  drawIds.push(draw!.id);
+  expect((await game.today(drawnAt)).wheel).toEqual({
+    mode: 'upcoming',
+    localDate: '2026-11-03',
+  });
+  const market = await game.currentInfluence(person.id, drawnAt);
+  expect(market.window).toMatchObject({
+    open: true,
+    opensAt: null,
+    localDate: '2026-11-03',
+  });
+  marketIds.push(
+    ...(
+      await database.db
+        .select()
+        .from(bettingMarkets)
+        .where(eq(bettingMarkets.localDate, '2026-11-03'))
+    ).map((row) => row.id),
+  );
+  const body = { localDate: '2026-11-03', placeId: place.id };
+  const key = crypto.randomUUID();
+  const purchase = await game.purchase(
+    person.id,
+    { placeId: place.id, action: 'boost' },
+    key,
+    drawnAt,
+  );
+  await game.setBet(
+    person.id,
+    { ...body, stake: 5 },
+    crypto.randomUUID(),
+    drawnAt,
+  );
+  await game.setPreferences({
+    ...(await game.getPreferences()),
+    postDrawDelayMinutes: 30,
+  });
+  const beforeOpen = new Date('2026-11-03T00:19:59Z');
+  expect((await game.currentBets(person.id, beforeOpen)).window).toMatchObject({
+    open: false,
+    opensAt: '2026-11-03T00:20:00.000Z',
+  });
+  await expect(
+    game.purchase(
+      person.id,
+      { placeId: place.id, action: 'boost' },
+      crypto.randomUUID(),
+      beforeOpen,
+    ),
+  ).rejects.toMatchObject({ code: 'INFLUENCE_CLOSED' });
+  // Successful retries still return their receipt while new edits are paused.
+  expect(
+    await game.purchase(
+      person.id,
+      { placeId: place.id, action: 'boost' },
+      key,
+      beforeOpen,
+    ),
+  ).toEqual(purchase);
+  expect(
+    (await game.currentInfluence(person.id, new Date('2026-11-03T00:20:00Z')))
+      .window.open,
+  ).toBe(true);
 });

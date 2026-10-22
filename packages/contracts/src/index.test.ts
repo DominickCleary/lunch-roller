@@ -340,3 +340,16 @@ it('validates configurable spin time and direct weight/refund requests', () => {
       false,
     );
 });
+
+it('defaults to immediate post-roll activity and bounds the configurable delay', () => {
+  const legacy = { ...defaultGamePreferences, postDrawDelayMinutes: undefined };
+  expect(gamePreferences.parse(legacy).postDrawDelayMinutes).toBe(0);
+  for (const postDrawDelayMinutes of [0, 1, 1440])
+    expect(
+      gamePreferences.safeParse({ ...legacy, postDrawDelayMinutes }).success,
+    ).toBe(true);
+  for (const postDrawDelayMinutes of [-1, 0.5, 1441, Infinity])
+    expect(
+      gamePreferences.safeParse({ ...legacy, postDrawDelayMinutes }).success,
+    ).toBe(false);
+});
