@@ -28,6 +28,8 @@ test.beforeAll(async () => {
     bettingCloseMinutes: 9,
     wheelSwitchTime: '16:45',
     maxWalkMinutes: 12,
+    venueEligibilityCriteria:
+      'Must serve food\nMust offer a takeaway option\nMust be open during lunchtime',
   });
   await game.setHealthRule({ enabled: true, multiplier: 1.6 });
 });
@@ -62,8 +64,11 @@ test('navbar Help explains current rules, refreshes changed settings, and works 
   await expect(tokens).toContainText('Banish ×');
   await expect(tokens).toContainText('×1.2 the average active weight');
   await expect(tokens).toContainText(
-    'within 12 minutes’ walk (the administrator can change this limit) and must be open during lunch hours',
+    'within 12 minutes’ walk of the Dublin office',
   );
+  await expect(tokens).toContainText('Must serve food');
+  await expect(tokens).toContainText('Must offer a takeaway option');
+  await expect(tokens).toContainText('Must be open during lunchtime');
   await expect(tokens).toContainText('New markets close 9 minutes');
   await expect(tokens).toContainText('Boosting −2 makes it −1');
   await expect(
@@ -86,6 +91,8 @@ test('navbar Help explains current rules, refreshes changed settings, and works 
   await game.setPreferences({
     ...(await game.getPreferences()),
     maxWalkMinutes: 8,
+    venueEligibilityCriteria:
+      'Offer takeaway\nBe open at lunchtime\nServe food',
   });
   await game.setHealthRule({ enabled: false, multiplier: 1.6 });
   await page.setViewportSize({ width: 390, height: 844 });
@@ -93,8 +100,11 @@ test('navbar Help explains current rules, refreshes changed settings, and works 
   await help.click();
   await expect(tokens).toContainText('17 tokens · ×1.4 weight');
   await expect(tokens).toContainText(
-    'within 8 minutes’ walk (the administrator can change this limit) and must be open during lunch hours',
+    'within 8 minutes’ walk of the Dublin office',
   );
+  await expect(tokens).toContainText('Offer takeaway');
+  await expect(tokens).toContainText('Be open at lunchtime');
+  await expect(tokens).toContainText('Serve food');
   await expect(
     modal.getByRole('region', { name: 'Health balance' }),
   ).toContainText('health bonus is currently disabled');

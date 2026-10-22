@@ -75,9 +75,14 @@ it('persists validated preferences and reports authoritative check-in status per
     wheelSwitchTime: '23:59',
     checkInPledge: '  I followed the wheel today.  ',
     bettingCloseMinutes: 5,
+    maxWalkMinutes: 10,
+    venueEligibilityCriteria:
+      'Serve food\nOffer a takeaway option\nOpen at lunchtime',
   });
   expect(configured).toEqual({
-    maxWalkMinutes: 15,
+    maxWalkMinutes: 10,
+    venueEligibilityCriteria:
+      'Serve food\nOffer a takeaway option\nOpen at lunchtime',
     postDrawDelayMinutes: 0,
     wheelSpinSeconds: 20,
     wheelSwitchTime: '23:59',

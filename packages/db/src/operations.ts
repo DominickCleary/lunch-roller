@@ -537,6 +537,7 @@ function preferencesFromRow(
     checkInPledge: row.checkInPledge,
     bettingCloseMinutes: row.bettingCloseMinutes,
     maxWalkMinutes: row.maxWalkMinutes,
+    venueEligibilityCriteria: row.venueEligibilityCriteria,
   };
 }
 

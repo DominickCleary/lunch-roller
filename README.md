@@ -20,7 +20,7 @@ Beside each lunch spot, the influence controls show the team's boost/reduction c
 
 A compact countdown in the sidebar shows the saved betting cutoff, then switches to the scheduled spin countdown when betting closes. It uses the server clock; on small screens it sits above the wheel. New installations default to closing bets ten minutes before the spin; admins can change the cutoff for future markets. Existing configured cutoffs are preserved.
 
-Restaurants must be within the configured walking limit (default 15 minutes, admin adjustable) and open during lunch hours. The team checks eligibility before adding a place.
+Restaurants must meet the eligibility requirements shown in Help. The walking limit defaults to 10 minutes from the Dublin office and is admin adjustable; admins can also edit the other requirements. The team checks eligibility before adding a place.
 
 The navbar **Help** icon opens the current rules, including configured token prices, weight multipliers, health bonuses, schedule, cutoff, betting and transfers. It refreshes public settings when opened; the member controls keep live status and action values without repeating the rule explanations.
 

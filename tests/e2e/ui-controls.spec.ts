@@ -116,9 +116,12 @@ test('unifies place management, odds and direct weights; persists spin duration 
   await preferences.getByLabel('Wheel spin duration (seconds)').fill('7');
   await preferences.getByRole('button', { name: 'Save preferences' }).click();
   await expect(
-    page.getByText('Wheel, check-in and betting preferences saved.', {
-      exact: true,
-    }),
+    page.getByText(
+      'Wheel, check-in, betting and eligibility preferences saved.',
+      {
+        exact: true,
+      },
+    ),
   ).toBeVisible();
   expect((await game.getPreferences()).wheelSpinSeconds).toBe(7);
   await page.reload();

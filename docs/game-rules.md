@@ -21,7 +21,7 @@ A fresh workplace starts without people or places. An administrator must add at 
 
 ## Restaurant eligibility
 
-- Only add restaurants within a 15-minute walk of the workplace by default. Admins can change the maximum walking time (1–120 minutes) in preferences. Restaurants must be open during lunch hours. The team checks walking times and opening hours before adding a place; the app does not verify them automatically.
+- Only add places that meet the requirements listed in Help. The walking limit defaults to 10 minutes from the Dublin office and admins can change it (1–120 minutes). Admins can edit the other eligibility requirements in preferences. The team checks eligibility before adding a place; the app does not verify venue details automatically.
 
 ## Tokens
 

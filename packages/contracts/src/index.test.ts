@@ -384,13 +384,16 @@ it('accepts historical sidebar counts and defaults older responses to no histori
 });
 
 it('validates the restaurant walking limit and supplies a compatible default', () => {
-  expect(defaultGamePreferences.maxWalkMinutes).toBe(15);
+  expect(defaultGamePreferences.maxWalkMinutes).toBe(10);
+  expect(defaultGamePreferences.venueEligibilityCriteria).toBe(
+    'Must serve food\nMust offer a takeaway option\nMust be open during lunchtime',
+  );
   expect(
     gamePreferences.parse({
       ...defaultGamePreferences,
       maxWalkMinutes: undefined,
     }).maxWalkMinutes,
-  ).toBe(15);
+  ).toBe(10);
   for (const maxWalkMinutes of [1, 15, 120])
     expect(
       gamePreferences.safeParse({ ...defaultGamePreferences, maxWalkMinutes })
@@ -400,5 +403,18 @@ it('validates the restaurant walking limit and supplies a compatible default', (
     expect(
       gamePreferences.safeParse({ ...defaultGamePreferences, maxWalkMinutes })
         .success,
+    ).toBe(false);
+  expect(
+    gamePreferences.parse({
+      ...defaultGamePreferences,
+      venueEligibilityCriteria: '  Serve food  \n Offer takeaway  ',
+    }).venueEligibilityCriteria,
+  ).toBe('Serve food  \n Offer takeaway');
+  for (const venueEligibilityCriteria of ['', '   ', 'x'.repeat(2001)])
+    expect(
+      gamePreferences.safeParse({
+        ...defaultGamePreferences,
+        venueEligibilityCriteria,
+      }).success,
     ).toBe(false);
 });

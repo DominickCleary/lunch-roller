@@ -3385,7 +3385,7 @@ export default function Home() {
                   className="admin-tool-card"
                   data-testid="admin-preferences"
                 >
-                  <h3>Wheel, check-in and betting</h3>
+                  <h3>Wheel, check-in, betting and eligibility</h3>
                   <form
                     onSubmit={(event) => {
                       event.preventDefault();
@@ -3393,7 +3393,7 @@ export default function Home() {
                         '/admin/preferences',
                         'PUT',
                         preferences,
-                        'Wheel, check-in and betting preferences saved.',
+                        'Wheel, check-in, betting and eligibility preferences saved.',
                       );
                     }}
                   >
@@ -3474,8 +3474,27 @@ export default function Home() {
                       />
                     </label>
                     <p className="muted">
-                      Only add places within this walk of the workplace and open
-                      during lunch hours. The team checks these requirements.
+                      The Help view shows this walking limit as a venue
+                      eligibility requirement. The team checks walking times.
+                    </p>
+                    <label>
+                      Other venue eligibility requirements (one per line)
+                      <textarea
+                        value={preferences.venueEligibilityCriteria}
+                        maxLength={2000}
+                        rows={4}
+                        required
+                        onChange={(event) =>
+                          setPreferences({
+                            ...preferences,
+                            venueEligibilityCriteria: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <p className="muted">
+                      These requirements appear in Help. The team checks them;
+                      the app does not verify venue details automatically.
                     </p>
                     <label>
                       Check-in pledge
@@ -3493,7 +3512,11 @@ export default function Home() {
                     </label>
                     <button
                       className="button button-dark"
-                      disabled={busy || !preferences.checkInPledge.trim()}
+                      disabled={
+                        busy ||
+                        !preferences.checkInPledge.trim() ||
+                        !preferences.venueEligibilityCriteria.trim()
+                      }
                     >
                       Save preferences
                     </button>

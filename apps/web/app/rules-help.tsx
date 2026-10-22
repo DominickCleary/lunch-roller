@@ -187,12 +187,25 @@ export function RulesHelp({
                     </dd>
                   </div>
                 </dl>
-                <p>
-                  Restaurants must be within{' '}
-                  <strong>{preferences.maxWalkMinutes} minutes’ walk</strong>{' '}
-                  (the administrator can change this limit) and must be open
-                  during lunch hours.
-                </p>
+                <h4>Venue eligibility</h4>
+                <p>To keep things fair and practical, a place must:</p>
+                <ul>
+                  <li>
+                    Be within{' '}
+                    <strong>
+                      {preferences.maxWalkMinutes} minutes’ walk of the Dublin
+                      office
+                    </strong>
+                    . The administrator can change the walking limit.
+                  </li>
+                  {preferences.venueEligibilityCriteria
+                    .split(/\r?\n/)
+                    .map((criterion) => criterion.trim())
+                    .filter(Boolean)
+                    .map((criterion, index) => (
+                      <li key={`${index}-${criterion}`}>{criterion}</li>
+                    ))}
+                </ul>
                 <p>
                   Your signed position is boosts or reductions, never both.
                   Boosting −2 makes it −1 and refunds the original reduction

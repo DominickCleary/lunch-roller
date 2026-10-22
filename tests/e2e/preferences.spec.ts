@@ -111,7 +111,10 @@ test('admin preferences persist and participants see the pledge and completed ch
   const preferencesCard = page.getByTestId('admin-preferences');
   await preferencesCard
     .getByLabel('Maximum restaurant walk (minutes)')
-    .fill('12');
+    .fill('10');
+  await preferencesCard
+    .getByLabel('Other venue eligibility requirements (one per line)')
+    .fill('Must serve food\nMust offer takeaway\nMust be open at lunch');
   await preferencesCard
     .getByLabel('Reopen activity this many minutes after the roll')
     .fill('10');
@@ -122,14 +125,21 @@ test('admin preferences persist and participants see the pledge and completed ch
     .getByRole('button', { name: 'Save preferences' })
     .click();
   await expect(
-    page.getByText('Wheel, check-in and betting preferences saved.'),
+    page.getByText(
+      'Wheel, check-in, betting and eligibility preferences saved.',
+    ),
   ).toBeVisible();
   await page.reload();
   await signIn(page);
   await expect(preferencesCard.getByLabel('Wheel switch time')).toHaveCount(0);
   await expect(
     preferencesCard.getByLabel('Maximum restaurant walk (minutes)'),
-  ).toHaveValue('12');
+  ).toHaveValue('10');
+  await expect(
+    preferencesCard.getByLabel(
+      'Other venue eligibility requirements (one per line)',
+    ),
+  ).toHaveValue('Must serve food\nMust offer takeaway\nMust be open at lunch');
   await expect(preferencesCard.getByLabel('Check-in pledge')).toHaveValue(
     'I followed the wheel for lunch.',
   );
@@ -147,7 +157,9 @@ test('admin preferences persist and participants see the pledge and completed ch
   expect(await saved.json()).toEqual({
     ...originalPreferences,
     postDrawDelayMinutes: 10,
-    maxWalkMinutes: 12,
+    maxWalkMinutes: 10,
+    venueEligibilityCriteria:
+      'Must serve food\nMust offer takeaway\nMust be open at lunch',
     checkInPledge: 'I followed the wheel for lunch.',
   });
   const publicToday = await request.get('/api/v1/today');

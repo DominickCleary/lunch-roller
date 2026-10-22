@@ -156,7 +156,12 @@ export const settings = pgTable(
       .default('I pledge that I actually obeyed the wheel')
       .notNull(),
     bettingCloseMinutes: integer('betting_close_minutes').default(10).notNull(),
-    maxWalkMinutes: integer('max_walk_minutes').default(15).notNull(),
+    maxWalkMinutes: integer('max_walk_minutes').default(10).notNull(),
+    venueEligibilityCriteria: text('venue_eligibility_criteria')
+      .default(
+        'Must serve food\nMust offer a takeaway option\nMust be open during lunchtime',
+      )
+      .notNull(),
     weekdays: integer()
       .array()
       .default(sql`ARRAY[1,2,3,4,5]`)

@@ -1119,11 +1119,27 @@ button:disabled {
   margin: 0 0 9px;
 }
 .admin-tool-card form > label input,
-.admin-tool-card form > label select {
+.admin-tool-card form > label select,
+.admin-tool-card form > label textarea {
   display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   height: 32px;
   margin-top: 4px;
   font-size: 10px;
+}
+.admin-tool-card form > label textarea {
+  height: auto;
+  min-height: 76px;
+  padding: 7px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 10px;
+  resize: vertical;
 }
 .admin-tool-card .button-dark {
   min-height: 32px;
@@ -1316,6 +1332,9 @@ button:disabled {
   }
   .top-actions {
     gap: 10px;
+  }
+  .theme-toggle > span:not(:first-child) {
+    display: none;
   }
   .top-nav {
     gap: 8px;
