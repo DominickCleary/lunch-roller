@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   defaultEconomySettings,
   defaultHealthRuleSettings,
@@ -1781,6 +1782,14 @@ export default function Home() {
     >
       <header className="topbar">
         <a className="brand" href="#top" aria-label="Gambling about lunch home">
+          <Image
+            className="brand-logo"
+            src="/android-chrome-192x192.png"
+            alt=""
+            width={192}
+            height={192}
+            priority
+          />
           <h1 className="brand-title">Gambling about lunch</h1>
         </a>
         <div className="top-actions">
@@ -3689,7 +3698,16 @@ export default function Home() {
       )}
 
       <footer className="footer">
-        <span className="brand">Gambling about lunch</span>
+        <span className="brand">
+          <Image
+            className="brand-logo"
+            src="/android-chrome-192x192.png"
+            alt=""
+            width={192}
+            height={192}
+          />
+          <span className="brand-title">Gambling about lunch</span>
+        </span>
         <Link href="/api/v1/health">Service health ↗</Link>
       </footer>
       {checkInConfirmOpen && (

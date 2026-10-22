@@ -22,7 +22,7 @@ The navbar **Help** icon opens the current rules, including configured token pri
 
 After the roll, wheel purchases and bet changes open immediately for the next scheduled spin. Admins can configure a post-roll delay of 0–1440 minutes under Wheel, check-in and betting; 0 is immediate. Controls show the reopening time when a delay applies. Check-in and token transfers retain their existing timing.
 
-The interface uses an iron-and-brass ritual theme, with a parchment-and-brass light variant. Compact member controls, activity charts, admin panels and dialogs share the same palette. The site uses a typographic wordmark while the spinning-wheel/ouroboros logo artwork is supplied separately.
+The interface uses an iron-and-brass ritual theme, with a parchment-and-brass light variant. Compact member controls, activity charts, admin panels and dialogs share the same palette. The supplied “The Wheel” ouroboros logo appears alongside the site name in the header and footer, and supplies browser, home-screen and notification icons. Source artwork is kept in `favicon_io/`; the served assets live in `apps/web/public/`.
 
 Use the header's Dark mode / Light mode toggle to change the theme. The site follows your system theme until you choose one, then remembers that choice in your browser and synchronizes it across tabs.
 

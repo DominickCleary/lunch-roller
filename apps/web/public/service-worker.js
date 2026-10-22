@@ -16,7 +16,7 @@ self.addEventListener('push', (event) => {
       tag:
         payload.tag ||
         (payload.drawId ? `lunch-draw-${payload.drawId}` : 'lunch-roller'),
-      icon: '/icon.svg',
+      icon: '/android-chrome-192x192.png',
       data: { url: '/' },
     }),
   );
