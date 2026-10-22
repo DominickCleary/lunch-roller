@@ -41,16 +41,33 @@ export function CountdownBanner({
     window,
     fallbackCutoffMinutes,
   });
-  const spinLabel = spinning
-    ? 'THE WHEEL IS SPINNING'
-    : state.drawDue
-      ? 'SPIN DUE · WAITING FOR THE DRAW'
-      : 'SPIN STARTS IN';
+  const showingSpin = state.bettingClosed;
+  const label = showingSpin
+    ? spinning
+      ? 'THE WHEEL IS SPINNING'
+      : state.drawDue
+        ? 'SPIN DUE · WAITING FOR THE DRAW'
+        : 'SPIN STARTS IN'
+    : 'BETS CLOSE IN';
+  const value = showingSpin
+    ? spinning
+      ? 'LIVE'
+      : state.drawDue
+        ? 'DUE'
+        : formatCountdown(state.drawSeconds)
+    : formatCountdown(state.cutoffSeconds);
+  const accessibleValue = showingSpin
+    ? spinning
+      ? 'The wheel is spinning now'
+      : state.drawDue
+        ? 'The scheduled spin is due and waiting for the draw'
+        : `Spin starts in ${formatCountdown(state.drawSeconds)}`
+    : `Betting closes in ${formatCountdown(state.cutoffSeconds)}`;
 
   return (
     <section
       className={`countdown-banner${spinning ? ' is-spinning' : ''}`}
-      aria-label="Lunch draw countdowns"
+      aria-label="Next lunch draw countdown"
       data-testid="countdown-banner"
     >
       <div className="countdown-banner-heading">
@@ -61,49 +78,17 @@ export function CountdownBanner({
           {window?.localDate === localDate ? window.drawTime : drawTime}
         </strong>
       </div>
-      <div className="countdown-timers">
-        <div className="countdown-timer">
-          <span className="countdown-eyebrow">
-            {state.bettingClosed ? 'BETTING CLOSED' : 'BETS CLOSE IN'}
-          </span>
-          <strong
-            className="countdown-value"
-            data-testid="bet-cutoff-countdown"
-            role="timer"
-            aria-label={
-              state.bettingClosed
-                ? 'Betting is closed'
-                : `Betting closes in ${formatCountdown(state.cutoffSeconds)}`
-            }
-            aria-live="off"
-          >
-            {state.bettingClosed
-              ? 'CLOSED'
-              : formatCountdown(state.cutoffSeconds)}
-          </strong>
-        </div>
-        <div className="countdown-timer countdown-spin">
-          <span className="countdown-eyebrow">{spinLabel}</span>
-          <strong
-            className="countdown-value"
-            data-testid="spin-countdown"
-            role="timer"
-            aria-label={
-              spinning
-                ? 'The wheel is spinning now'
-                : state.drawDue
-                  ? 'The scheduled spin is due and waiting for the draw'
-                  : `Spin starts in ${formatCountdown(state.drawSeconds)}`
-            }
-            aria-live="off"
-          >
-            {spinning
-              ? 'LIVE'
-              : state.drawDue
-                ? 'DUE'
-                : formatCountdown(state.drawSeconds)}
-          </strong>
-        </div>
+      <div className={`countdown-timer${showingSpin ? ' countdown-spin' : ''}`}>
+        <span className="countdown-eyebrow">{label}</span>
+        <strong
+          className="countdown-value"
+          data-testid={showingSpin ? 'spin-countdown' : 'bet-cutoff-countdown'}
+          role="timer"
+          aria-label={accessibleValue}
+          aria-live="off"
+        >
+          {value}
+        </strong>
       </div>
     </section>
   );

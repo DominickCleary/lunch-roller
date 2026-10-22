@@ -7,15 +7,16 @@
     auto;
 }
 .countdown-banner {
-  grid-column: 1 / -1;
+  grid-column: 2;
   grid-row: 2;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  min-height: 112px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
   margin: 12px 0 0;
-  padding: 16px 24px;
+  padding: 12px;
   border: 2px solid var(--accent);
   border-radius: 12px;
   background: linear-gradient(110deg, var(--surface-soft), var(--surface));
@@ -40,14 +41,10 @@
   font-weight: 800;
   letter-spacing: 0.12em;
 }
-.countdown-timers {
-  display: flex;
-  align-items: stretch;
-  gap: 14px;
-}
 .countdown-timer {
-  min-width: 190px;
-  padding: 10px 16px;
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   background: var(--surface);
@@ -74,7 +71,9 @@
 .countdown-banner.is-spinning .countdown-spin .countdown-value {
   color: var(--danger);
 }
-.site-shell:has(.countdown-banner) .hero,
+.site-shell:has(.countdown-banner) .hero {
+  grid-row: 2 / 4;
+}
 .site-shell:has(.countdown-banner) .play-grid {
   grid-row: 3;
 }
@@ -86,15 +85,14 @@
 }
 @media (max-width: 850px) {
   .countdown-banner {
-    gap: 14px;
-    padding: 14px;
-  }
-  .countdown-timers {
-    gap: 8px;
+    gap: 7px;
+    padding: 10px;
   }
   .countdown-timer {
-    min-width: 150px;
-    padding: 9px 11px;
+    padding: 9px 10px;
+  }
+  .countdown-value {
+    font-size: clamp(22px, 3vw, 34px);
   }
 }
 @media (max-width: 620px) {
@@ -116,20 +114,8 @@
   .countdown-banner-heading strong {
     font-size: 19px;
   }
-  .countdown-timers {
-    display: grid;
-    min-width: 0;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
   .countdown-timer {
-    min-width: 0;
     padding: 9px 10px;
-  }
-  .site-shell:has(.countdown-banner) .countdown-timer {
-    min-width: 0;
-  }
-  .site-shell:has(.countdown-banner) .countdown-timers {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
   .countdown-eyebrow {
     font-size: 9px;
@@ -140,9 +126,11 @@
   }
   .site-shell:has(.countdown-banner) .hero {
     order: 2;
+    grid-row: auto;
   }
   .site-shell:has(.countdown-banner) .play-grid {
     order: 3;
+    grid-row: auto;
   }
   .site-shell:has(.countdown-banner) .admin-disclosure {
     order: 4;

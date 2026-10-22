@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import type { TodayResponse } from '@lunch/contracts';
 import { scheduledInstant } from '../../packages/domain/src/index';
 
-test('shows live bet cutoff and spin countdowns from the saved market clock', async ({
+test('shows the active countdown in the sidebar and switches at the saved cutoff', async ({
   page,
   request,
 }) => {
@@ -74,16 +74,25 @@ test('shows live bet cutoff and spin countdowns from the saved market clock', as
   const cutoff = page.getByTestId('bet-cutoff-countdown');
   const spin = page.getByTestId('spin-countdown');
   await expect(page.getByTestId('countdown-banner')).toBeVisible();
+  const bannerBounds = await page.getByTestId('countdown-banner').boundingBox();
+  const wheelBounds = await page.locator('.hero').boundingBox();
+  expect(bannerBounds).not.toBeNull();
+  expect(wheelBounds).not.toBeNull();
+  expect(bannerBounds!.x).toBeGreaterThan(
+    wheelBounds!.x + wheelBounds!.width - 1,
+  );
   await expect(cutoff).toHaveText('00:01:00');
-  await expect(spin).toHaveText('00:11:00');
+  await expect(spin).toHaveCount(0);
+  await expect(page.getByText('BETS CLOSE IN')).toBeVisible();
 
   await page.clock.fastForward(2_000);
   await expect(cutoff).toHaveText('00:00:58');
-  await expect(spin).toHaveText('00:10:58');
+  await expect(spin).toHaveCount(0);
 
   await page.clock.fastForward(58_000);
-  await expect(cutoff).toHaveText('CLOSED');
+  await expect(cutoff).toHaveCount(0);
   await expect(spin).toHaveText('00:10:00');
+  await expect(page.getByText('SPIN STARTS IN')).toBeVisible();
 
   await page.setViewportSize({ width: 375, height: 812 });
   await expect(page.getByTestId('countdown-banner')).toBeVisible();
