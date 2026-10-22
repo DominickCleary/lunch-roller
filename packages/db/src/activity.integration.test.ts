@@ -563,13 +563,14 @@ it('shows original token targets and a timezone-scoped team activity snapshot', 
   );
 });
 
-it('ranks active token balances and summarizes each member’s local day change', async () => {
+it('ranks active token balances and summarizes each member’s spin change', async () => {
   const now = new Date('2199-10-21T16:00:00.000Z');
   const overview = await service.tokenOverview(activePerson.id, now);
   const activity = await service.dailyActivity(
     activePerson.id,
-    overview.localDate,
+    overview.spinLocalDate,
     now,
+    'draw',
   );
   const wallet = await service.wallet(activePerson.id);
   const activeRow = overview.rows.find(
@@ -579,7 +580,7 @@ it('ranks active token balances and summarizes each member’s local day change'
   expect(activeRow).toMatchObject({
     participantName: activePerson.name,
     balance: wallet.balance,
-    todayDelta: activity.entries
+    spinDelta: activity.entries
       .filter((entry) => entry.participantId === activePerson.id)
       .reduce((sum, entry) => sum + entry.delta, 0),
   });

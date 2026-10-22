@@ -117,6 +117,7 @@ const sample: DailyActivityResponse = {
 };
 const tokenOverview: TokenOverviewResponse = {
   localDate: date,
+  spinLocalDate: date,
   timezone: 'Europe/Dublin',
   rows: [
     {
@@ -125,7 +126,7 @@ const tokenOverview: TokenOverviewResponse = {
       balance: 40,
       totalBalance: 50,
       rank: 1,
-      todayDelta: 5,
+      spinDelta: 5,
     },
     {
       participantId: sam,
@@ -133,7 +134,7 @@ const tokenOverview: TokenOverviewResponse = {
       balance: 26,
       totalBalance: 50,
       rank: 1,
-      todayDelta: -2,
+      spinDelta: -2,
     },
     {
       participantId: morgan,
@@ -141,7 +142,7 @@ const tokenOverview: TokenOverviewResponse = {
       balance: 20,
       totalBalance: 20,
       rank: 3,
-      todayDelta: 0,
+      spinDelta: 0,
     },
   ],
 };
@@ -413,7 +414,7 @@ test('shows the schedule, charts, coalitions and bet board without changing iden
         participantId,
         participantName: expect.any(String),
         balance: expect.any(Number),
-        todayDelta: expect.any(Number),
+        spinDelta: expect.any(Number),
       }),
     ]),
   });
@@ -453,6 +454,13 @@ test('shows the schedule, charts, coalitions and bet board without changing iden
   await expect(
     standings.getByRole('columnheader', { name: 'Uncommitted', exact: true }),
   ).toBeVisible();
+  await expect(
+    standings.getByRole('columnheader', { name: 'This spin', exact: true }),
+  ).toBeVisible();
+  await expect(
+    standings.getByRole('columnheader', { name: 'Today', exact: true }),
+  ).toHaveCount(0);
+  await expect(standings).toContainText(`Spin dated ${date}`);
   const standingsRows = standings.locator('.token-overview-table tbody tr');
   await expect(standingsRows.locator('th')).toHaveText(['1', '1', '3']);
   await expect(standingsRows.nth(0).locator('td')).toHaveText([
@@ -601,4 +609,65 @@ test('retries failures and rejects a delayed response for a previous date', asyn
   release?.();
   await expect(panel.getByLabel('Spin date')).toHaveValue('2026-10-19');
   await expect(panel.locator('.bet-board-panel .bet-board')).toHaveCount(0);
+});
+
+test('standings refresh their spin date and change when the target advances', async ({
+  page,
+  request,
+}) => {
+  const today = await (await request.get('/api/v1/today')).json();
+  const { participants } = await (
+    await request.get('/api/v1/participants')
+  ).json();
+  const currentBets = await (
+    await request.get('/api/v1/bets/current', {
+      headers: { 'X-Participant-Id': participants[0].id },
+    })
+  ).json();
+  // Keep unrelated polls immediate while advancing the standings polling clock.
+  await page.route('**/api/v1/today', (route) =>
+    route.fulfill({
+      json: {
+        ...today,
+        localDate: date,
+        result: null,
+        status: 'pending',
+        wheel: { mode: 'upcoming', localDate: date },
+      },
+    }),
+  );
+  await page.route('**/api/v1/bets/current', (route) =>
+    route.fulfill({ json: currentBets }),
+  );
+  await page.clock.install();
+  let advanced = false;
+  await page.route('**/api/v1/token-overview', (route) =>
+    route.fulfill({
+      json: {
+        ...tokenOverview,
+        spinLocalDate: advanced ? '2026-10-22' : date,
+        rows: tokenOverview.rows.map((row) => ({
+          ...row,
+          spinDelta: advanced ? 0 : row.spinDelta,
+        })),
+      },
+    }),
+  );
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Token standings' }).click();
+  const standings = page.getByRole('tabpanel', { name: 'Token standings' });
+  await expect(standings).toContainText(`Spin dated ${date}`);
+  await expect(
+    standings.getByLabel('Gained 5 tokens for this spin'),
+  ).toBeVisible();
+  advanced = true;
+  await page.clock.fastForward(30_000);
+  await expect(standings).toContainText('Spin dated 2026-10-22');
+  await expect(
+    standings.getByLabel('No net token change for this spin'),
+  ).toHaveCount(3);
+  await expect(
+    standings.locator('.token-overview-table tbody tr').nth(0).locator('td'),
+  ).toHaveText(['Alex', '50', '40', '—']);
+  await page.unrouteAll({ behavior: 'wait' });
 });

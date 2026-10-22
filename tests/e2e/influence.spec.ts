@@ -226,3 +226,85 @@ test('edits persisted influence from the odds list without changing selected ide
     ),
   ).toBe(memberId);
 });
+
+test('shows legacy current-spin boosts and reductions without making them refundable', async ({
+  page,
+  request,
+}) => {
+  const before = await game.currentInfluence(memberId);
+  if (
+    !before.places.some(
+      (entry) =>
+        entry.placeId === placeId &&
+        entry.yourBoosts + entry.yourReductions > 0,
+    )
+  )
+    await game.changeInfluence(
+      memberId,
+      {
+        localDate: before.window.localDate,
+        placeId,
+        action: 'boost',
+        change: 1,
+      },
+      randomUUID(),
+    );
+  const original = (await game.currentInfluence(memberId)).places.find(
+    (entry) => entry.placeId === placeId,
+  )!;
+  await database.db.insert(schema.tokenLedger).values(
+    ['boost', 'boost', 'reduce'].map((kind) => ({
+      participantId: memberId,
+      placeId,
+      kind: kind as 'boost' | 'reduce',
+      delta: -5,
+      idempotencyKey: randomUUID(),
+      requestHash: 'historical-sidebar-fixture',
+      createdAt: new Date(),
+    })),
+  );
+  await page.addInitScript(
+    (id) => localStorage.setItem('lunch-roller.participant-id', id),
+    memberId,
+  );
+  await page.goto(appOrigin);
+  const row = page.locator('.odds-row').filter({ hasText: placeName });
+  await expect(
+    row.getByLabel(`${original.boosts + 2} boosts`, { exact: true }),
+  ).toBeVisible();
+  await expect(
+    row.getByLabel(`${original.reductions + 1} reductions`, { exact: true }),
+  ).toBeVisible();
+  await expect(row.locator('.team-count')).toHaveAttribute(
+    'title',
+    /2 historical boosts and 1 historical reductions/,
+  );
+  await page.reload();
+  await expect(
+    row.getByLabel(`${original.boosts + 2} boosts`, { exact: true }),
+  ).toBeVisible();
+  await row
+    .getByRole('button', { name: `Refund tokens for ${placeName}` })
+    .click();
+  await expect(row.locator('.influence-net-value')).toHaveText('0');
+  await expect(row.getByLabel('2 boosts', { exact: true })).toBeVisible();
+  await expect(row.getByLabel('1 reductions', { exact: true })).toBeVisible();
+  await expect(
+    row.getByRole('button', { name: `Refund tokens for ${placeName}` }),
+  ).toBeDisabled();
+  const response = await request.get('/api/v1/influence/current', {
+    headers: { 'X-Participant-Id': memberId },
+  });
+  expect(
+    (await response.json()).places.find(
+      (entry: { placeId: string }) => entry.placeId === placeId,
+    ),
+  ).toMatchObject({
+    boosts: 2,
+    reductions: 1,
+    historicalBoosts: 2,
+    historicalReductions: 1,
+    yourBoosts: 0,
+    yourReductions: 0,
+  });
+});

@@ -68,11 +68,14 @@ export function TokenOverview({ participantId }: { participantId: string }) {
           <h3>Token standings</h3>
           <p>
             Ranked by total tokens · uncommitted tokens are available to spend
-            {data ? ` · ${data.localDate} ${data.timezone}` : ''}
+            {data
+              ? ` · Spin dated ${data.spinLocalDate} (${data.timezone})`
+              : ''}
           </p>
           <p>
             Total includes tokens reserved in open bets and pending boosts or
-            reductions. Today shows the change in uncommitted tokens.
+            reductions. This spin shows net token actions for that spin,
+            including actions made on earlier days.
           </p>
         </div>
         <span className="activity-live-indicator">Live · 30 sec</span>
@@ -109,7 +112,7 @@ export function TokenOverview({ participantId }: { participantId: string }) {
                 <th scope="col">Member</th>
                 <th scope="col">Total</th>
                 <th scope="col">Uncommitted</th>
-                <th scope="col">Today</th>
+                <th scope="col">This spin</th>
               </tr>
             </thead>
             <tbody>
@@ -125,19 +128,19 @@ export function TokenOverview({ participantId }: { participantId: string }) {
                   <td>{tokenCount(row.balance)}</td>
                   <td>
                     <span
-                      className={`token-overview-change ${row.todayDelta > 0 ? 'positive' : row.todayDelta < 0 ? 'negative' : 'neutral'}`}
+                      className={`token-overview-change ${row.spinDelta > 0 ? 'positive' : row.spinDelta < 0 ? 'negative' : 'neutral'}`}
                       aria-label={
-                        row.todayDelta > 0
-                          ? `Gained ${tokenCount(row.todayDelta)} tokens today`
-                          : row.todayDelta < 0
-                            ? `Lost ${tokenCount(Math.abs(row.todayDelta))} tokens today`
-                            : 'No net token change today'
+                        row.spinDelta > 0
+                          ? `Gained ${tokenCount(row.spinDelta)} tokens for this spin`
+                          : row.spinDelta < 0
+                            ? `Lost ${tokenCount(Math.abs(row.spinDelta))} tokens for this spin`
+                            : 'No net token change for this spin'
                       }
                     >
-                      {row.todayDelta > 0
-                        ? `↑ +${tokenCount(row.todayDelta)}`
-                        : row.todayDelta < 0
-                          ? `↓ −${tokenCount(Math.abs(row.todayDelta))}`
+                      {row.spinDelta > 0
+                        ? `↑ +${tokenCount(row.spinDelta)}`
+                        : row.spinDelta < 0
+                          ? `↓ −${tokenCount(Math.abs(row.spinDelta))}`
                           : '—'}
                     </span>
                   </td>

@@ -1651,20 +1651,41 @@ export class GameService {
         if (!person.active)
           fail(403, 'PARTICIPANT_INACTIVE', 'Participant is inactive.');
         const [configuration] = await typedTx
-          .select({ timezone: settings.timezone })
+          .select()
           .from(settings)
           .where(eq(settings.id, 1));
         if (!configuration)
           fail(503, 'NOT_INITIALIZED', 'Game settings are not initialized.');
         const localDate = localClock(now, configuration.timezone).localDate;
         const balance = sql<number>`coalesce(sum(${tokenLedger.delta}), 0)::float8`;
-        const todayDelta = sql<number>`coalesce(sum(${tokenLedger.delta}) filter (where (${tokenLedger.createdAt} at time zone ${configuration.timezone})::date = ${localDate}::date), 0)::float8`;
+        const [todayDraw] = await typedTx
+          .select({ id: draws.id })
+          .from(draws)
+          .where(eq(draws.localDate, localDate));
+        const spinLocalDate = nextBettingDate(
+          now,
+          getScheduleFromRow(configuration),
+          Boolean(todayDraw),
+          configuration.skipDrawDate,
+        );
+        const activity = await tokenLedgerActivity(
+          typedTx,
+          undefined,
+          undefined,
+          undefined,
+          spinLocalDate,
+        );
+        const spinDeltas = new Map<string, number>();
+        for (const entry of activity)
+          spinDeltas.set(
+            entry.participantId,
+            (spinDeltas.get(entry.participantId) ?? 0) + entry.delta,
+          );
         const balances = await typedTx
           .select({
             participantId: participants.id,
             participantName: participants.name,
             balance,
-            todayDelta,
           })
           .from(participants)
           .leftJoin(tokenLedger, eq(tokenLedger.participantId, participants.id))
@@ -1708,6 +1729,7 @@ export class GameService {
         const totals = balances
           .map((row) => ({
             ...row,
+            spinDelta: spinDeltas.get(row.participantId) ?? 0,
             totalBalance:
               row.balance +
               (betTokens.get(row.participantId) ?? 0) +
@@ -1733,7 +1755,7 @@ export class GameService {
             row.balance < 0 ||
             !Number.isSafeInteger(row.totalBalance) ||
             row.totalBalance < row.balance ||
-            !Number.isSafeInteger(row.todayDelta)
+            !Number.isSafeInteger(row.spinDelta)
           )
             fail(
               409,
@@ -1741,7 +1763,12 @@ export class GameService {
               'A token balance exceeds the supported range.',
             );
         }
-        return { localDate, timezone: configuration.timezone, rows };
+        return {
+          localDate,
+          spinLocalDate,
+          timezone: configuration.timezone,
+          rows,
+        };
       },
       { isolationLevel: 'repeatable read', accessMode: 'read only' },
     );
@@ -2126,6 +2153,8 @@ export class GameService {
         {
           boosts: number;
           reductions: number;
+          historicalBoosts: number;
+          historicalReductions: number;
           yourBoosts: number;
           yourReductions: number;
         }
@@ -2134,6 +2163,8 @@ export class GameService {
         totals.set(place.id, {
           boosts: 0,
           reductions: 0,
+          historicalBoosts: 0,
+          historicalReductions: 0,
           yourBoosts: 0,
           yourReductions: 0,
         });
@@ -2146,6 +2177,27 @@ export class GameService {
         } else {
           count.reductions += 1;
           if (lot.participantId === participantId) count.yourReductions += 1;
+        }
+      }
+      const activity = await tokenLedgerActivity(
+        tx,
+        undefined,
+        undefined,
+        undefined,
+        market.localDate,
+      );
+      for (const entry of activity) {
+        // Linked purchases are already represented by their unwithdrawn lots.
+        // Legacy purchases have no refundable lot; only their display is inferred.
+        if (entry.influenceLocalDate || entry.betId || !entry.placeId) continue;
+        const count = totals.get(entry.placeId);
+        if (!count) continue;
+        if (entry.kind === 'boost') {
+          count.boosts += 1;
+          count.historicalBoosts += 1;
+        } else if (entry.kind === 'reduce') {
+          count.reductions += 1;
+          count.historicalReductions += 1;
         }
       }
       return {

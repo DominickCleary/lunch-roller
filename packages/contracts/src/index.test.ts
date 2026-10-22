@@ -21,6 +21,7 @@ import {
   dailyActivityResponse,
   changeInfluenceRequest,
   currentInfluenceResponse,
+  influencePosition,
 } from './index';
 
 it('accepts optional live bet quotes and rejects invalid probabilities and returns', () => {
@@ -352,4 +353,32 @@ it('defaults to immediate post-roll activity and bounds the configurable delay',
     expect(
       gamePreferences.safeParse({ ...legacy, postDrawDelayMinutes }).success,
     ).toBe(false);
+});
+
+it('accepts historical sidebar counts and defaults older responses to no historical units', () => {
+  const current = {
+    placeId: 'ca982f50-f7c6-4eb3-8572-28fa01106ed7',
+    boosts: 1,
+    reductions: 0,
+    yourBoosts: 1,
+    yourReductions: 0,
+  };
+  expect(influencePosition.parse(current)).toMatchObject({
+    historicalBoosts: 0,
+    historicalReductions: 0,
+  });
+  expect(
+    influencePosition.parse({
+      ...current,
+      boosts: 3,
+      reductions: 1,
+      historicalBoosts: 2,
+      historicalReductions: 1,
+    }),
+  ).toMatchObject({
+    yourBoosts: 1,
+    yourReductions: 0,
+    historicalBoosts: 2,
+    historicalReductions: 1,
+  });
 });

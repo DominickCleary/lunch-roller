@@ -102,6 +102,12 @@ it('keeps Friday actions for Monday together across midnight, weekend DST, refun
   expect((await game.currentBets(person.id, beforeOpen)).window.open).toBe(
     false,
   );
+  const pausedStandings = await game.tokenOverview(person.id, beforeOpen);
+  expect(pausedStandings.spinLocalDate).toBe(monday);
+  expect(
+    pausedStandings.rows.find((row) => row.participantId === person.id)
+      ?.spinDelta,
+  ).toBe(0);
   const walletBefore = await game.wallet(person.id);
   for (const action of ['boost', 'reduce'] as const) {
     await expect(
@@ -187,6 +193,22 @@ it('keeps Friday actions for Monday together across midnight, weekend DST, refun
   const saturdayAt = new Date('2026-10-23T23:30:00Z');
   const market = await game.currentInfluence(person.id, fridayAt);
   expect(market.window.localDate).toBe(monday);
+  expect(market.places.find((row) => row.placeId === place.id)).toMatchObject({
+    boosts: 1,
+    reductions: 0,
+    historicalBoosts: 1,
+    historicalReductions: 0,
+    yourBoosts: 0,
+    yourReductions: 0,
+  });
+  await expect(
+    game.refundInfluence(
+      person.id,
+      { localDate: monday, placeId: place.id },
+      crypto.randomUUID(),
+      fridayAt,
+    ),
+  ).rejects.toMatchObject({ status: 409 });
   marketIds.push(
     ...(
       await database.db
@@ -237,11 +259,41 @@ it('keeps Friday actions for Monday together across midnight, weekend DST, refun
 
   const read = (date: string, scope: 'draw' | 'day') =>
     game.dailyActivity(person.id, date, sundayAt, scope);
+  const sidebar = await game.currentInfluence(person.id, sundayAt);
+  expect(sidebar.places.find((row) => row.placeId === place.id)).toMatchObject({
+    boosts: 2,
+    reductions: 0,
+    historicalBoosts: 1,
+    historicalReductions: 0,
+    yourBoosts: 1,
+    yourReductions: 0,
+  });
   const target = await read(monday, 'draw');
   const entries = target.entries.filter(
     (entry) => entry.participantId === person.id,
   );
   expect(entries).toHaveLength(7);
+  const standings = await game.tokenOverview(person.id, sundayAt);
+  expect(standings).toMatchObject({
+    localDate: '2026-10-25',
+    spinLocalDate: monday,
+  });
+  expect(
+    standings.rows.find((row) => row.participantId === person.id)?.spinDelta,
+  ).toBe(-25);
+  expect(
+    standings.rows.find((row) => row.participantId === person.id)?.spinDelta,
+  ).toBe(entries.reduce((sum, entry) => sum + entry.delta, 0));
+  // The saved cutoff locks edits without resetting the spin's standings.
+  const lockedStandings = await game.tokenOverview(
+    person.id,
+    new Date(`${monday}T12:00:00Z`),
+  );
+  expect(lockedStandings.spinLocalDate).toBe(monday);
+  expect(
+    lockedStandings.rows.find((row) => row.participantId === person.id)
+      ?.spinDelta,
+  ).toBe(-25);
   expect(
     entries.every(
       (entry) =>
@@ -306,6 +358,41 @@ it('keeps Friday actions for Monday together across midnight, weekend DST, refun
   const mondayDraw = await game.drawIfDue(new Date(`${monday}T11:30:00Z`));
   expect(mondayDraw).not.toBeNull();
   drawIds.push(mondayDraw!.id);
+  // The next spin must not retain the completed spin's legacy counters.
+  const nextSidebar = await game.currentInfluence(
+    person.id,
+    new Date(`${monday}T12:00:00Z`),
+  );
+  marketIds.push(
+    ...(
+      await database.db
+        .select()
+        .from(bettingMarkets)
+        .where(eq(bettingMarkets.localDate, '2026-10-27'))
+    ).map((row) => row.id),
+  );
+  expect(
+    nextSidebar.places.find((row) => row.placeId === place.id),
+  ).toMatchObject({
+    boosts: 0,
+    reductions: 0,
+    historicalBoosts: 0,
+    historicalReductions: 0,
+  });
+  const nextStandings = await game.tokenOverview(
+    person.id,
+    new Date(`${monday}T11:30:00Z`),
+  );
+  expect(nextStandings.spinLocalDate).toBe('2026-10-27');
+  expect(
+    nextStandings.rows.find((row) => row.participantId === person.id)
+      ?.spinDelta,
+  ).toBe(0);
+  await game.setDrawSkip(true, new Date(`${monday}T12:00:00Z`));
+  expect(
+    (await game.tokenOverview(person.id, new Date(`${monday}T12:00:00Z`)))
+      .spinLocalDate,
+  ).toBe('2026-10-28');
   const settled = await game.dailyActivity(
     person.id,
     monday,
@@ -377,6 +464,13 @@ it('opens immediately by default and carries an optional delay across midnight',
     postDrawDelayMinutes: 30,
   });
   const beforeOpen = new Date('2026-11-03T00:19:59Z');
+  for (const at of [drawnAt, beforeOpen, new Date('2026-11-03T00:20:00Z')]) {
+    const standings = await game.tokenOverview(person.id, at);
+    expect(standings.spinLocalDate).toBe('2026-11-03');
+    expect(
+      standings.rows.find((row) => row.participantId === person.id)?.spinDelta,
+    ).toBe(-10);
+  }
   expect((await game.currentBets(person.id, beforeOpen)).window).toMatchObject({
     open: false,
     opensAt: '2026-11-03T00:20:00.000Z',

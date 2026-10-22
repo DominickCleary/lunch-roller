@@ -71,6 +71,9 @@ export function InfluenceControls({
       : localMinute(now, window.timezone) >= cutoff);
   const boosts = position?.boosts ?? 0;
   const reductions = position?.reductions ?? 0;
+  const historicalBoosts = position?.historicalBoosts ?? 0;
+  const historicalReductions = position?.historicalReductions ?? 0;
+  const historicalCount = historicalBoosts + historicalReductions;
   const yourBoosts = position?.yourBoosts ?? 0;
   const yourReductions = position?.yourReductions ?? 0;
   const net = yourBoosts - yourReductions;
@@ -114,7 +117,11 @@ export function InfluenceControls({
         <div className="influence-market-counts" aria-label="Market positions">
           <span
             className="market-count team-count"
-            title="Team boosts and reductions"
+            title={
+              historicalCount > 0
+                ? `This spin’s team totals include ${historicalBoosts} historical boosts and ${historicalReductions} historical reductions. Historical purchases cannot be refunded; your position controls show refundable units only.`
+                : 'Team boosts and reductions for this spin'
+            }
           >
             <span aria-label={`${boosts} boosts`}>↑{boosts}</span>{' '}
             <span aria-label={`${reductions} reductions`}>↓{reductions}</span>

@@ -247,6 +247,7 @@ export const walletResponse = z.object({
 });
 export const tokenOverviewResponse = z.object({
   localDate: z.iso.date(),
+  spinLocalDate: z.iso.date(),
   timezone: z.string(),
   rows: z.array(
     z.object({
@@ -255,7 +256,7 @@ export const tokenOverviewResponse = z.object({
       balance: z.number().int().nonnegative(),
       totalBalance: z.number().int().nonnegative(),
       rank: z.number().int().positive(),
-      todayDelta: z.number().int(),
+      spinDelta: z.number().int(),
     }),
   ),
 });
@@ -333,6 +334,8 @@ export const influencePosition = z.object({
   placeId: id,
   boosts: z.number().int().nonnegative(),
   reductions: z.number().int().nonnegative(),
+  historicalBoosts: z.number().int().nonnegative().default(0),
+  historicalReductions: z.number().int().nonnegative().default(0),
   yourBoosts: z.number().int().nonnegative(),
   yourReductions: z.number().int().nonnegative(),
 });
