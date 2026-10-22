@@ -188,6 +188,12 @@ export function RulesHelp({
                   </div>
                 </dl>
                 <p>
+                  Restaurants must be within{' '}
+                  <strong>{preferences.maxWalkMinutes} minutes’ walk</strong>{' '}
+                  (the administrator can change this limit) and must be open
+                  during lunch hours.
+                </p>
+                <p>
                   Your signed position is boosts or reductions, never both.
                   Boosting −2 makes it −1 and refunds the original reduction
                   price. Moving away from zero spends tokens; moving toward zero

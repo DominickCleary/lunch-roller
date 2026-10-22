@@ -92,6 +92,13 @@
       "when": 1792660298032,
       "tag": "0012_post_draw_activity_delay",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792665453171,
+      "tag": "0013_curly_banshee",
+      "breakpoints": true
     }
   ]
 }

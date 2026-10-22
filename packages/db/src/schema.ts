@@ -105,7 +105,8 @@ export const settings = pgTable(
     checkInPledge: text('check_in_pledge')
       .default('I pledge that I actually obeyed the wheel')
       .notNull(),
-    bettingCloseMinutes: integer('betting_close_minutes').default(5).notNull(),
+    bettingCloseMinutes: integer('betting_close_minutes').default(10).notNull(),
+    maxWalkMinutes: integer('max_walk_minutes').default(15).notNull(),
     weekdays: integer()
       .array()
       .default(sql`ARRAY[1,2,3,4,5]`)
@@ -153,6 +154,10 @@ export const settings = pgTable(
     check(
       'settings_betting_close_minutes',
       sql`${t.bettingCloseMinutes} between 0 and 1440`,
+    ),
+    check(
+      'settings_max_walk_minutes',
+      sql`${t.maxWalkMinutes} between 1 and 120`,
     ),
     check(
       'settings_time',

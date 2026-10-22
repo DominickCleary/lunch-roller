@@ -77,6 +77,7 @@ it('persists validated preferences and reports authoritative check-in status per
     bettingCloseMinutes: 5,
   });
   expect(configured).toEqual({
+    maxWalkMinutes: 15,
     postDrawDelayMinutes: 0,
     wheelSpinSeconds: 20,
     wheelSwitchTime: '23:59',
@@ -152,9 +153,17 @@ it('persists validated preferences and reports authoritative check-in status per
   await service.setPreferences({
     wheelSwitchTime: '09:15',
     checkInPledge: '  Updated pledge  ',
+    maxWalkMinutes: 12,
     bettingCloseMinutes: 7,
   });
   expect(await service.getSchedule()).toEqual(schedule);
+  expect((await service.getPreferences()).maxWalkMinutes).toBe(12);
+  expect((await service.today(firstDrawAt)).preferences.maxWalkMinutes).toBe(
+    12,
+  );
+  await expect(
+    service.setPreferences({ ...configured, maxWalkMinutes: 0 }),
+  ).rejects.toMatchObject({ status: 400, code: 'INVALID_PREFERENCES' });
   const nextDrawAt = new Date('2199-07-23T12:00:00Z');
   expect(await service.attendanceStatus(first.id, nextDrawAt)).toEqual({
     drawId: null,

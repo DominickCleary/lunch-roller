@@ -48,6 +48,8 @@ import {
 } from '../lib/wheel-animation';
 import { scheduledInstant } from '@lunch/domain';
 import { calendarDateLabel } from '../lib/date-label';
+import { CountdownBanner } from './countdown-banner';
+import './countdown-banner.css';
 
 type ApiError = { error?: { code?: string; message?: string } };
 type TokenBalanceRow = { participantId: string; balance: number };
@@ -1827,6 +1829,18 @@ export default function Home() {
         </div>
       </header>
 
+      {entryStage === 'game' && today?.wheel.localDate && (
+        <CountdownBanner
+          localDate={today.wheel.localDate}
+          drawTime={today.schedule.time}
+          timezone={today.schedule.timezone}
+          window={currentBets?.window ?? null}
+          fallbackCutoffMinutes={today.preferences.bettingCloseMinutes}
+          getServerNow={getServerNow}
+          spinning={liveReveal}
+        />
+      )}
+
       {entryStage !== 'game' ? (
         entryGate
       ) : (
@@ -3435,6 +3449,27 @@ export default function Home() {
                     <p className="muted">
                       0 opens boosts, reductions, bets and place purchases
                       immediately after the roll.
+                    </p>
+                    <label>
+                      Maximum restaurant walk (minutes)
+                      <input
+                        type="number"
+                        required
+                        min={1}
+                        max={120}
+                        step={1}
+                        value={preferences.maxWalkMinutes}
+                        onChange={(event) =>
+                          setPreferences({
+                            ...preferences,
+                            maxWalkMinutes: Number(event.target.value),
+                          })
+                        }
+                      />
+                    </label>
+                    <p className="muted">
+                      Only add places within this walk of the workplace and open
+                      during lunch hours. The team checks these requirements.
                     </p>
                     <label>
                       Check-in pledge

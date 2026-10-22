@@ -526,6 +526,7 @@ function preferencesFromRow(
     wheelSpinSeconds: row.wheelSpinSeconds,
     checkInPledge: row.checkInPledge,
     bettingCloseMinutes: row.bettingCloseMinutes,
+    maxWalkMinutes: row.maxWalkMinutes,
   };
 }
 

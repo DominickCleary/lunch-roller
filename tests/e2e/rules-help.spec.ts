@@ -27,6 +27,7 @@ test.beforeAll(async () => {
     wheelSpinSeconds: 9,
     bettingCloseMinutes: 9,
     wheelSwitchTime: '16:45',
+    maxWalkMinutes: 12,
   });
   await game.setHealthRule({ enabled: true, multiplier: 1.6 });
 });
@@ -60,6 +61,9 @@ test('navbar Help explains current rules, refreshes changed settings, and works 
   await expect(tokens).toContainText('41 tokens');
   await expect(tokens).toContainText('Banish ×');
   await expect(tokens).toContainText('×1.2 the average active weight');
+  await expect(tokens).toContainText(
+    'within 12 minutes’ walk (the administrator can change this limit) and must be open during lunch hours',
+  );
   await expect(tokens).toContainText('New markets close 9 minutes');
   await expect(tokens).toContainText('Boosting −2 makes it −1');
   await expect(
@@ -79,11 +83,18 @@ test('navbar Help explains current rules, refreshes changed settings, and works 
   await expect(modal).not.toBeVisible();
   await expect(help).toBeFocused();
   await game.setEconomy({ ...(await game.getEconomy()), boostCost: 17 });
+  await game.setPreferences({
+    ...(await game.getPreferences()),
+    maxWalkMinutes: 8,
+  });
   await game.setHealthRule({ enabled: false, multiplier: 1.6 });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ colorScheme: 'dark' });
   await help.click();
   await expect(tokens).toContainText('17 tokens · ×1.4 weight');
+  await expect(tokens).toContainText(
+    'within 8 minutes’ walk (the administrator can change this limit) and must be open during lunch hours',
+  );
   await expect(
     modal.getByRole('region', { name: 'Health balance' }),
   ).toContainText('health bonus is currently disabled');

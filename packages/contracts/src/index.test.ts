@@ -137,7 +137,7 @@ it('accepts enriched activity while supplying defaults for saved wallet receipts
 });
 
 it('validates betting stake and configurable close minutes', () => {
-  expect(defaultGamePreferences.bettingCloseMinutes).toBe(5);
+  expect(defaultGamePreferences.bettingCloseMinutes).toBe(10);
   expect(
     gamePreferences.safeParse({
       ...defaultGamePreferences,
@@ -381,4 +381,24 @@ it('accepts historical sidebar counts and defaults older responses to no histori
     historicalBoosts: 2,
     historicalReductions: 1,
   });
+});
+
+it('validates the restaurant walking limit and supplies a compatible default', () => {
+  expect(defaultGamePreferences.maxWalkMinutes).toBe(15);
+  expect(
+    gamePreferences.parse({
+      ...defaultGamePreferences,
+      maxWalkMinutes: undefined,
+    }).maxWalkMinutes,
+  ).toBe(15);
+  for (const maxWalkMinutes of [1, 15, 120])
+    expect(
+      gamePreferences.safeParse({ ...defaultGamePreferences, maxWalkMinutes })
+        .success,
+    ).toBe(true);
+  for (const maxWalkMinutes of [0, -1, 1.5, 121])
+    expect(
+      gamePreferences.safeParse({ ...defaultGamePreferences, maxWalkMinutes })
+        .success,
+    ).toBe(false);
 });
