@@ -52,11 +52,12 @@ test('submits suggestions, permits one vote per request, and lets admins review 
   page,
   request,
 }) => {
-  await page.addInitScript(
+  await page.goto(origin);
+  await page.evaluate(
     (id) => localStorage.setItem('lunch-roller.participant-id', id),
     authorId,
   );
-  await page.goto(origin);
+  await page.reload();
   await page.getByRole('link', { name: 'Suggestion board' }).click();
   await expect(
     page.getByRole('heading', { name: 'Suggestion board' }),
@@ -129,11 +130,23 @@ test('submits suggestions, permits one vote per request, and lets admins review 
   ).toHaveAttribute('aria-pressed', 'true');
 
   const voteHeaders = { Origin: origin, 'X-Participant-Id': voterId };
+  const beforeDuplicate = await request.get('/api/v1/suggestions', {
+    headers: voteHeaders,
+  });
+  const beforeDuplicateSuggestions = (await beforeDuplicate.json())
+    .suggestions as Array<{ id: string; yourVote: number | null }>;
+  expect(
+    beforeDuplicateSuggestions.find((item) => item.id === firstSuggestion!.id)
+      ?.yourVote,
+  ).toBe(1);
   const duplicateVote = await request.put(
     `/api/v1/suggestions/${firstSuggestion!.id}/vote`,
     { data: { value: -1 }, headers: voteHeaders },
   );
-  expect(duplicateVote.status()).toBe(409);
+  expect(
+    duplicateVote.status(),
+    `Duplicate vote response: ${JSON.stringify(await duplicateVote.json())}`,
+  ).toBe(409);
   expect((await duplicateVote.json()).error.code).toBe('ALREADY_VOTED');
 
   await page.reload();
@@ -188,9 +201,15 @@ test('submits suggestions, permits one vote per request, and lets admins review 
     page.getByRole('button', { name: 'Approve' }).first(),
   ).toBeVisible();
 
-  await firstCard.getByRole('button', { name: 'Approve' }).click();
+  await firstCard
+    .locator('.suggestion-admin-actions')
+    .getByRole('button', { name: 'Approve' })
+    .click();
   await expect(firstCard.locator('.suggestion-status')).toHaveText('Approved');
-  await secondCard.getByRole('button', { name: 'Deny' }).click();
+  await secondCard
+    .locator('.suggestion-admin-actions')
+    .getByRole('button', { name: 'Deny' })
+    .click();
   await expect(secondCard.locator('.suggestion-status')).toHaveText('Denied');
   await page.reload();
   await expect(
