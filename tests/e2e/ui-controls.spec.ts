@@ -36,6 +36,12 @@ test('unifies place management, odds and direct weights; persists spin duration 
   page,
   request,
 }) => {
+  await page.addLocatorHandler(
+    page.getByRole('button', { name: 'Praise the Wheel', exact: true }),
+    async (button) => {
+      await button.click();
+    },
+  );
   await page.emulateMedia({ colorScheme: 'light' });
   await page.addInitScript(
     (id) => localStorage.setItem('lunch-roller.participant-id', id),

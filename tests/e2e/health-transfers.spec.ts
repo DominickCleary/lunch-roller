@@ -134,6 +134,25 @@ test('reviews and trades tokens, persists both wallets and rejects invalid API s
   await expect(
     page.getByRole('heading', { name: /Activity for spin dated/ }),
   ).toBeVisible();
+  const activity = page.getByRole('tabpanel', { name: 'Activity' });
+  const sentTrade = activity.locator('.activity-timeline li').filter({
+    hasText: `Sent to ${recipientName}`,
+  });
+  const receivedTrade = activity.locator('.activity-timeline li').filter({
+    hasText: `Received from ${senderName}`,
+  });
+  await expect(sentTrade).toHaveCount(1);
+  await expect(sentTrade).toContainText(senderName);
+  await expect(sentTrade).toContainText('−25');
+  await expect(receivedTrade).toHaveCount(1);
+  await expect(receivedTrade).toContainText(recipientName);
+  await expect(receivedTrade).toContainText('+25');
+  await activity
+    .getByLabel('Person', { exact: true })
+    .selectOption(recipientId);
+  await expect(sentTrade).toHaveCount(0);
+  await expect(receivedTrade).toHaveCount(1);
+  await activity.getByLabel('Person', { exact: true }).selectOption('all');
   await page.setViewportSize({ width: 390, height: 844 });
   const mobileTransfer = page.locator('.token-transfer');
   await mobileTransfer.getByText('Trade tokens', { exact: true }).click();

@@ -329,11 +329,14 @@ async function tokenLedgerActivity(
     predicates.push(eq(tokenLedger.participantId, participantId));
   if (drawDate) {
     predicates.push(
-      // Include unlinked wheel purchases for read-only attribution below.
+      // Include unlinked wheel purchases and transfers for read-only attribution below.
       sql`(coalesce(influence_market.local_date, ${bettingMarkets.localDate}) = ${drawDate}::date
         or (${tokenLedger.influenceMarketId} is null
           and ${tokenLedger.betId} is null
-          and ${tokenLedger.kind} in ('boost', 'reduce', 'add-place', 'remove-place')))`,
+          and ${tokenLedger.kind} in (
+            'boost', 'reduce', 'add-place', 'remove-place',
+            'transfer-sent', 'transfer-received'
+          )))`,
     );
   } else if (localDate && timezone) {
     predicates.push(
@@ -371,7 +374,14 @@ async function tokenLedgerActivity(
   const needsAttribution = (row: (typeof rows)[number]) =>
     !row.influenceLocalDate &&
     !row.betId &&
-    ['boost', 'reduce', 'add-place', 'remove-place'].includes(row.kind);
+    [
+      'boost',
+      'reduce',
+      'add-place',
+      'remove-place',
+      'transfer-sent',
+      'transfer-received',
+    ].includes(row.kind);
   const [configuration] = rows.some(needsAttribution)
     ? await tx.select().from(settings).where(eq(settings.id, 1))
     : [];

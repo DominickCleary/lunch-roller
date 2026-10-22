@@ -223,3 +223,63 @@ test('reduced motion skips rotation and finishes on the same saved point', async
     'settled',
   );
 });
+
+test('keeps narrow slice names visible as their odds shrink on desktop and mobile', async ({
+  page,
+  request,
+}) => {
+  const base = (await (
+    await request.get('/api/v1/today')
+  ).json()) as TodayResponse;
+  const { participants } = await (
+    await request.get('/api/v1/participants')
+  ).json();
+  const places = base.odds.slice(0, 3);
+  expect(places).toHaveLength(3);
+  let probabilities = [0.5, 0.46, 0.04];
+  await page.addInitScript(
+    (id) => localStorage.setItem('lunch-roller.participant-id', id),
+    participants[0].id,
+  );
+  await page.route('**/api/v1/today', (route) =>
+    route.fulfill({
+      json: {
+        ...base,
+        status: 'pending',
+        result: null,
+        odds: places.map((place, index) => ({
+          ...place,
+          probability: probabilities[index],
+        })),
+      },
+    }),
+  );
+  await page.goto('/');
+  const labels = page.getByTestId('lunch-wheel').locator('.wheel-label');
+  await expect(labels).toHaveCount(3);
+  const narrowLabel = labels.nth(2);
+  await expect(narrowLabel).toBeVisible();
+  await expect(narrowLabel).toHaveAttribute('title', places[2]!.name);
+
+  probabilities = [0.949999, 0.05, 0.000001];
+  await page.reload();
+  for (const width of [1440, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const colorScheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme });
+      await expect(labels).toHaveCount(3);
+      await expect(narrowLabel).toBeVisible();
+      await expect(narrowLabel).not.toBeEmpty();
+      expect(
+        await narrowLabel.evaluate((element) =>
+          Number.parseFloat(getComputedStyle(element).fontSize),
+        ),
+      ).toBeGreaterThanOrEqual(10);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+    }
+  }
+});

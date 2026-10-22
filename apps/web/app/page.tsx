@@ -1941,24 +1941,25 @@ export default function Home() {
                     }
                   >
                     {wheelOptions.length
-                      ? wheelOptions
-                          .map((option, index) => ({ option, index }))
-                          .filter(({ option }) => option.probability >= 0.05)
-                          .map(({ option, index }) => (
-                            <span
-                              className="wheel-label"
-                              key={option.placeId}
-                              title={option.name}
-                              aria-label={option.name}
-                              style={{
-                                transform: `rotate(${(wheelOptions.slice(0, index).reduce((sum, item) => sum + item.probability, 0) + option.probability / 2) * 360}deg) translateY(-28cqw) rotate(-90deg)`,
-                              }}
-                            >
-                              {option.name.length > 14
-                                ? `${option.name.slice(0, 13)}…`
-                                : option.name}
-                            </span>
-                          ))
+                      ? wheelOptions.map((option, index) => (
+                          <span
+                            className="wheel-label"
+                            key={option.placeId}
+                            title={option.name}
+                            aria-label={option.name}
+                            style={{
+                              fontSize:
+                                option.probability < 0.05
+                                  ? `clamp(10px, ${Math.max(1.8, option.probability * 80)}cqw, 24px)`
+                                  : undefined,
+                              transform: `rotate(${(wheelOptions.slice(0, index).reduce((sum, item) => sum + item.probability, 0) + option.probability / 2) * 360}deg) translateY(-28cqw) rotate(-90deg)`,
+                            }}
+                          >
+                            {option.name.length > 14
+                              ? `${option.name.slice(0, 13)}…`
+                              : option.name}
+                          </span>
+                        ))
                       : null}
                   </div>
                   <button

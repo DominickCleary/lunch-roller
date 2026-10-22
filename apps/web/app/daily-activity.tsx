@@ -756,9 +756,10 @@ export function DailyActivity({
       ) : (
         <>
           <p className="activity-chart-note">
-            Purchases, refunds and bets for the spin dated {selectedDate},
-            including actions made on earlier days. Purchases after a roll
-            belong to the next spin.
+            Purchases, refunds, bets and token trades for the spin dated{' '}
+            {selectedDate}, including actions made on earlier days. Purchases
+            after a roll belong to the next spin. Token trades are grouped with
+            the next spin after the trade; their actual times are shown below.
           </p>
           {hasHistoricalInfluence && (
             <p className="activity-chart-note">

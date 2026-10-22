@@ -23,6 +23,12 @@ const originalPlaces = await database.db.select().from(places);
 const person = await game.saveParticipant({
   name: `activity-dates-${crypto.randomUUID()}`,
 });
+const recipient = await game.saveParticipant({
+  name: `activity-dates-recipient-${crypto.randomUUID()}`,
+});
+const trader = await game.saveParticipant({
+  name: `activity-dates-trader-${crypto.randomUUID()}`,
+});
 const place = await game.savePlace({
   name: `activity-dates-${crypto.randomUUID()}`,
 });
@@ -38,7 +44,13 @@ afterAll(async () => {
       .where(eq(influenceLots.participantId, person.id));
     await database.db
       .delete(tokenLedger)
-      .where(eq(tokenLedger.participantId, person.id));
+      .where(
+        inArray(tokenLedger.participantId, [
+          person.id,
+          recipient.id,
+          trader.id,
+        ]),
+      );
     await database.db
       .delete(betRequests)
       .where(eq(betRequests.participantId, person.id));
@@ -56,7 +68,7 @@ afterAll(async () => {
     await database.db.delete(places).where(eq(places.id, place.id));
     await database.db
       .delete(participants)
-      .where(eq(participants.id, person.id));
+      .where(inArray(participants.id, [person.id, recipient.id, trader.id]));
     for (const row of originalPlaces)
       await database.db
         .update(places)
@@ -66,6 +78,97 @@ afterAll(async () => {
   } finally {
     await database.close();
   }
+});
+
+it('attributes both sides of token trades to the next spin in Activity and standings', async () => {
+  await game.setSchedule({
+    timezone: 'UTC',
+    time: '23:59',
+    weekdays: [1, 2, 3, 4, 5],
+  });
+  await game.correctTokens(
+    {
+      participantId: trader.id,
+      delta: 100,
+      reason: 'Disposable transfer activity fixture',
+    },
+    crypto.randomUUID(),
+  );
+  const transfer = await game.transferTokens(
+    trader.id,
+    { recipientId: recipient.id, amount: 30 },
+    crypto.randomUUID(),
+  );
+  const [sent] = (await game.wallet(trader.id)).ledger.filter(
+    (entry) => entry.transferId === transfer.transferId,
+  );
+  const [received] = (await game.wallet(recipient.id)).ledger.filter(
+    (entry) => entry.transferId === transfer.transferId,
+  );
+  expect(sent).toBeDefined();
+  expect(received).toBeDefined();
+
+  const overview = await game.tokenOverview(trader.id);
+  const drawActivity = await game.dailyActivity(
+    trader.id,
+    overview.spinLocalDate,
+    new Date(),
+    'draw',
+  );
+  const tradeEntries = drawActivity.entries.filter(
+    (entry) => entry.transferId === transfer.transferId,
+  );
+  expect(tradeEntries).toHaveLength(2);
+  expect(tradeEntries).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        id: sent!.id,
+        kind: 'transfer-sent',
+        participantId: trader.id,
+        inferredDrawLocalDate: overview.spinLocalDate,
+      }),
+      expect.objectContaining({
+        id: received!.id,
+        kind: 'transfer-received',
+        participantId: recipient.id,
+        inferredDrawLocalDate: overview.spinLocalDate,
+      }),
+    ]),
+  );
+  expect(
+    overview.rows.find((row) => row.participantId === trader.id)?.spinDelta,
+  ).toBe(-30);
+  expect(
+    overview.rows.find((row) => row.participantId === recipient.id)?.spinDelta,
+  ).toBe(30);
+
+  const actionDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'UTC',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(sent!.createdAt));
+  const dayActivity = await game.dailyActivity(trader.id, actionDate);
+  expect(
+    dayActivity.entries.filter(
+      (entry) => entry.transferId === transfer.transferId,
+    ),
+  ).toHaveLength(2);
+
+  const followingDate = new Date(`${overview.spinLocalDate}T00:00:00Z`);
+  followingDate.setUTCDate(followingDate.getUTCDate() + 1);
+  const unrelatedSpin = followingDate.toISOString().slice(0, 10);
+  const otherActivity = await game.dailyActivity(
+    trader.id,
+    unrelatedSpin,
+    new Date(),
+    'draw',
+  );
+  expect(
+    otherActivity.entries.some(
+      (entry) => entry.transferId === transfer.transferId,
+    ),
+  ).toBe(false);
 });
 
 it('keeps Friday actions for Monday together across midnight, weekend DST, refunds and settlement', async () => {
