@@ -1284,6 +1284,15 @@ button:disabled {
     grid-template-rows: none;
     overflow: visible;
   }
+  .site-shell:has(.hero):not(:has(.admin-disclosure[open])) {
+    overflow-x: clip;
+  }
+  .site-shell:has(.admin-disclosure[open]) {
+    overflow-x: clip;
+  }
+  .hero-wheel {
+    overflow-x: clip;
+  }
   .topbar {
     flex: 0 0 54px;
   }
