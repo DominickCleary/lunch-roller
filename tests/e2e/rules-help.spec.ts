@@ -69,7 +69,7 @@ test('navbar Help explains current rules, refreshes changed settings, and works 
     '9 seconds',
   );
   await expect(modal.getByRole('region', { name: 'The wheel' })).toContainText(
-    '16:45',
+    'After each roll, the wheel shows live odds for the next scheduled spin.',
   );
   await expect(
     modal.getByRole('button', { name: 'Close rules' }),

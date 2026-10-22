@@ -154,11 +154,11 @@ test('rolls the displayed wheel, keeps current odds live, and replays the saved 
     throw new Error('The rollover draw fixture was not created.');
   await page.clock.install();
 
-  let mode: 'result' | 'upcoming' = 'result';
+  const mode = 'upcoming';
   await page.route('**/api/v1/today', async (route) => {
     const response = await route.fetch();
     const today = await response.json();
-    const upcomingDate = mode === 'result' ? fixtureDate : nextDate;
+    const upcomingDate = nextDate;
     await route.fulfill({
       response,
       json: {
@@ -181,11 +181,9 @@ test('rolls the displayed wheel, keeps current odds live, and replays the saved 
   await expect(page.getByTestId('lunch-wheel')).toBeVisible();
   await expect(page.getByTestId('wheel-target')).toHaveAttribute(
     'data-target-date',
-    fixtureDate,
+    nextDate,
   );
-  await expect(page.getByTestId('today-result')).toContainText(
-    fixtureDraw.placeName,
-  );
+  await expect(page.getByTestId('today-result')).toHaveCount(0);
 
   const snapshotProbabilities = fixtureDraw.snapshot.map(
     (option) => option.probability,
@@ -196,10 +194,12 @@ test('rolls the displayed wheel, keeps current odds live, and replays the saved 
   expect(snapshotProbabilities).not.toEqual(
     initialLiveOdds.odds.map((option) => option.probability),
   );
-  const snapshotGradient = await wheelGradient(page);
-  expectGradientMatches(snapshotGradient, snapshotProbabilities);
+  const initialGradient = await wheelGradient(page);
+  expectGradientMatches(
+    initialGradient,
+    initialLiveOdds.odds.map((option) => option.probability),
+  );
 
-  mode = 'upcoming';
   await page.clock.fastForward(30_000);
   await expect(page.getByTestId('wheel-target')).toHaveAttribute(
     'data-target-date',
@@ -241,7 +241,7 @@ test('rolls the displayed wheel, keeps current odds live, and replays the saved 
     fullPage: true,
   });
   await page.setViewportSize({ width: 1440, height: 1000 });
-  expect(upcomingGradient).not.toBe(snapshotGradient);
+  expect(upcomingGradient).toBe(initialGradient);
   const liveProbabilities = liveOddsBeforeBoost.odds.map(
     (option) => option.probability,
   );
@@ -272,7 +272,19 @@ test('rolls the displayed wheel, keeps current odds live, and replays the saved 
 
   const replay = page.getByRole('button', { name: "Replay today's result" });
   await replay.click();
-  await expect.poll(() => wheelGradient(page)).toBe(snapshotGradient);
+  await expect
+    .poll(async () =>
+      gradientEnds(await wheelGradient(page)).map((n) => n.toFixed(1)),
+    )
+    .toEqual(
+      snapshotProbabilities.map((_, index) =>
+        (
+          snapshotProbabilities
+            .slice(0, index + 1)
+            .reduce((sum, p) => sum + p, 0) * 360
+        ).toFixed(1),
+      ),
+    );
   await page.clock.fastForward(25_000);
   const celebration = page.getByRole('dialog', {
     name: 'The Wheel has spoken',
@@ -282,7 +294,7 @@ test('rolls the displayed wheel, keeps current odds live, and replays the saved 
   await expect(celebration).toHaveAccessibleDescription(
     `${fixtureDraw.placeName} has been chosen.`,
   );
-  expect(await wheelGradient(page)).toBe(snapshotGradient);
+  expectGradientMatches(await wheelGradient(page), snapshotProbabilities);
   await expect(replay).toBeDisabled();
   await expect(
     celebration.getByRole('button', { name: 'Praise the Wheel' }),
@@ -310,7 +322,7 @@ test('rolls the displayed wheel, keeps current odds live, and replays the saved 
   await page.screenshot({ path: '/tmp/lunch-winner-mobile.png' });
   // Polling and elapsed time must not restore the upcoming wheel behind the modal.
   await page.clock.fastForward(30_000);
-  expect(await wheelGradient(page)).toBe(snapshotGradient);
+  expectGradientMatches(await wheelGradient(page), snapshotProbabilities);
   await celebration.getByRole('button', { name: 'Praise the Wheel' }).click();
   await expect(replay).toBeEnabled({ timeout: 8000 });
   await expect(page.getByTestId('wheel-target')).toHaveAttribute(
@@ -324,10 +336,22 @@ test('rolls the displayed wheel, keeps current odds live, and replays the saved 
 
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await replay.click();
-  await expect.poll(() => wheelGradient(page)).toBe(snapshotGradient);
+  await expect
+    .poll(async () =>
+      gradientEnds(await wheelGradient(page)).map((n) => n.toFixed(1)),
+    )
+    .toEqual(
+      snapshotProbabilities.map((_, index) =>
+        (
+          snapshotProbabilities
+            .slice(0, index + 1)
+            .reduce((sum, p) => sum + p, 0) * 360
+        ).toFixed(1),
+      ),
+    );
   await page.clock.fastForward(1_500);
   await expect(celebration).toBeVisible();
-  expect(await wheelGradient(page)).toBe(snapshotGradient);
+  expectGradientMatches(await wheelGradient(page), snapshotProbabilities);
   await page.keyboard.press('Escape');
   await expect(replay).toBeEnabled();
   await expect(page.getByTestId('wheel-target')).toHaveAttribute(

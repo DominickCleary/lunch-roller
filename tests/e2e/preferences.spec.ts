@@ -109,7 +109,9 @@ test('admin preferences persist and participants see the pledge and completed ch
   expect(invalidPreferences.status()).toBe(400);
 
   const preferencesCard = page.getByTestId('admin-preferences');
-  await preferencesCard.getByLabel('Wheel switch time').fill('12:34');
+  await preferencesCard
+    .getByLabel('Reopen activity this many minutes after the roll')
+    .fill('10');
   await preferencesCard
     .getByLabel('Check-in pledge')
     .fill('I followed the wheel for lunch.');
@@ -121,12 +123,16 @@ test('admin preferences persist and participants see the pledge and completed ch
   ).toBeVisible();
   await page.reload();
   await signIn(page);
-  await expect(preferencesCard.getByLabel('Wheel switch time')).toHaveValue(
-    '12:34',
-  );
+  await expect(preferencesCard.getByLabel('Wheel switch time')).toHaveCount(0);
   await expect(preferencesCard.getByLabel('Check-in pledge')).toHaveValue(
     'I followed the wheel for lunch.',
   );
+
+  await expect(
+    preferencesCard.getByLabel(
+      'Reopen activity this many minutes after the roll',
+    ),
+  ).toHaveValue('10');
 
   const saved = await request.get('/api/v1/admin/preferences', {
     headers: { Cookie: adminCookie! },
@@ -134,7 +140,7 @@ test('admin preferences persist and participants see the pledge and completed ch
   expect(saved.status()).toBe(200);
   expect(await saved.json()).toEqual({
     ...originalPreferences,
-    wheelSwitchTime: '12:34',
+    postDrawDelayMinutes: 10,
     checkInPledge: 'I followed the wheel for lunch.',
   });
   const publicToday = await request.get('/api/v1/today');

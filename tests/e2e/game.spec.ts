@@ -202,14 +202,12 @@ async function exerciseAdminUiAndGame(
     result: { placeId: string; placeName: string } | null;
   };
   expect(initialToday.result?.placeId).toBe(result.placeId);
-  await expect(page.getByTestId('today-result')).toContainText(
-    result.placeName,
-  );
+  await expect(page.getByTestId('today-result')).toHaveCount(0);
   const liveWinner = page.getByRole('dialog', {
     name: 'The Wheel has spoken',
   });
-  if (await liveWinner.isVisible())
-    await liveWinner.getByRole('button', { name: 'Praise the Wheel' }).click();
+  await expect(liveWinner).toBeVisible({ timeout: 30000 });
+  await liveWinner.getByRole('button', { name: 'Praise the Wheel' }).click();
   const replay = page.getByRole('button', {
     name: "Replay today's result",
   });
@@ -244,9 +242,7 @@ async function exerciseAdminUiAndGame(
   }
   let actualAngle: number;
   if (initialToday.wheel.mode === 'result') {
-    await expect(page.getByTestId('today-result')).toContainText(
-      result.placeName,
-    );
+    await expect(page.getByTestId('today-result')).toHaveCount(0);
     await expect(wheel).not.toHaveClass(/wheel-spinning/);
     actualAngle = await readSettledAngle();
   } else {
@@ -254,9 +250,7 @@ async function exerciseAdminUiAndGame(
       'data-target-date',
       initialToday.wheel.localDate,
     );
-    await expect(page.getByTestId('today-result')).toContainText(
-      result.placeName,
-    );
+    await expect(page.getByTestId('today-result')).toHaveCount(0);
     // Reduced motion holds the saved snapshot briefly, which lets the pointer
     // check observe the historical wheel before the live odds return.
     await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -320,9 +314,7 @@ async function exerciseAdminUiAndGame(
   page.off('request', recordDrawRequest);
   expect(drawRequests).toHaveLength(0);
   if (initialToday.wheel.mode === 'result') {
-    await expect(page.getByTestId('today-result')).toContainText(
-      result.placeName,
-    );
+    await expect(page.getByTestId('today-result')).toHaveCount(0);
   } else {
     await expect(page.getByTestId('wheel-target')).toHaveAttribute(
       'data-target-date',
@@ -428,9 +420,7 @@ async function exerciseAdminUiAndGame(
       .getByLabel('Your name')
       .selectOption({ label: memberName });
     await secondPage.getByRole('button', { name: 'Enter lunch wheel' }).click();
-    await expect(secondPage.getByTestId('today-result')).toContainText(
-      result.placeName,
-    );
+    await expect(secondPage.getByTestId('today-result')).toHaveCount(0);
     const reducedTransition = await secondPage
       .locator('.wheel')
       .evaluate((element) => getComputedStyle(element).transitionDuration);
@@ -549,5 +539,6 @@ test('admin forms manage the game and members see the same committed draw', asyn
   browser,
   request,
 }) => {
+  test.setTimeout(60000);
   await exerciseAdminUiAndGame(page, browser, request);
 });

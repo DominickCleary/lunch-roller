@@ -41,7 +41,7 @@ async function prepare(
         ...base,
         serverTime: new Date(lastServerTime).toISOString(),
         localDate: '2026-10-21',
-        wheel: { mode: 'result', localDate: '2026-10-21' },
+        wheel: { mode: 'upcoming', localDate: '2026-10-22' },
         status: 'drawn',
         result: {
           id: '00000000-0000-4000-8000-000000000073',
@@ -158,11 +158,9 @@ test('shares the live phase across skewed clocks, late entry and reload, then re
         .getByRole('button', { name: 'Praise the Wheel' })
         .click();
       await expect(page.getByTestId('wheel-target')).toContainText(
-        'Border winner',
+        'Scheduled for',
       );
-      await expect(page.getByTestId('today-result')).toContainText(
-        'Border winner',
-      );
+      await expect(page.getByTestId('today-result')).toHaveCount(0);
       await page.getByRole('button', { name: "Replay today's result" }).click();
       await page.clock.runFor(100);
       await expect(page.getByTestId('lunch-wheel')).toHaveAttribute(

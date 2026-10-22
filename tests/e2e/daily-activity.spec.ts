@@ -180,7 +180,7 @@ test.beforeEach(async ({ page, request }) => {
   });
 });
 
-test('draw and calendar views keep tomorrow positions and bets on the correct dates', async ({
+test('groups activity by spin date including earlier purchases', async ({
   page,
 }) => {
   const nextDate = '2026-10-22';
@@ -231,17 +231,11 @@ test('draw and calendar views keep tomorrow positions and bets on the correct da
   await page.goto('/');
   await page.getByRole('tab', { name: 'Activity' }).click();
   const panel = page.getByRole('tabpanel', { name: 'Activity' });
-  await expect(panel.getByLabel('View', { exact: true })).toHaveValue('day');
-  await expect(panel.getByLabel('Activity date')).toHaveValue(date);
-  await expect(panel.locator('.activity-timeline li')).toHaveCount(3);
-  await expect(panel.locator('.activity-timeline')).toContainText(
-    `Historical purchase · inferred draw date ${nextDate}`,
-  );
-  await panel
-    .getByRole('button', { name: `Next draw · ${nextDate}`, exact: true })
-    .click();
-  await expect(panel.getByLabel('View', { exact: true })).toHaveValue('draw');
-  await expect(panel.getByLabel('Draw date')).toHaveValue(nextDate);
+  await expect(panel.getByLabel('View', { exact: true })).toHaveCount(0);
+  await expect(panel.getByLabel('Spin date')).toHaveValue(nextDate);
+  await expect(
+    panel.getByRole('heading', { name: /Activity for spin dated/ }),
+  ).toBeVisible();
   const board = panel.locator('.bet-board-panel');
   await expect(board).toContainText(`draw dated ${nextDate}`);
   await expect(board.locator('.bet-board')).toContainText('12 tokens');
@@ -251,18 +245,17 @@ test('draw and calendar views keep tomorrow positions and bets on the correct da
   await expect(panel.locator('.activity-timeline li')).toHaveCount(5);
   await expect(panel.locator('.activity-trend-chart')).toContainText('21 Oct');
   await expect(panel.locator('.activity-trend-chart')).toContainText('22 Oct');
-  await panel.getByRole('button', { name: 'Today', exact: true }).click();
-  await expect(panel.getByLabel('View', { exact: true })).toHaveValue('day');
-  await expect(panel.getByLabel('Activity date')).toHaveValue(date);
+  await panel
+    .getByRole('button', { name: 'Today’s spin', exact: true })
+    .click();
+  await expect(panel.getByLabel('Spin date')).toHaveValue(date);
   await expect(board).toContainText(`draw dated ${date}`);
   await expect(board.locator('.bet-board')).toHaveCount(0);
-  await expect(panel.locator('.activity-timeline li')).toHaveCount(3);
-  await expect(board.locator('.bet-board')).toHaveCount(0);
-  await expect(
-    panel.getByRole('region', { name: 'Draw influence positions' }),
-  ).toHaveCount(0);
-  await panel.getByLabel('View', { exact: true }).selectOption('draw');
-  await expect(panel.getByLabel('Draw date')).toHaveValue(nextDate);
+  await expect(panel.locator('.activity-timeline li')).toHaveCount(0);
+  await panel
+    .getByRole('button', { name: `Next spin · ${nextDate}`, exact: true })
+    .click();
+  await expect(panel.getByLabel('Spin date')).toHaveValue(nextDate);
   await expect(board.locator('.bet-board')).toContainText('12 tokens');
 });
 
@@ -283,14 +276,12 @@ test('labels historical boosts without inventing draw positions', async ({
       exact: true,
     }),
   ).toHaveCount(4);
-  await panel.getByLabel('View', { exact: true }).selectOption('draw');
   await expect(
     panel.getByText('date is inferred from draw timing', { exact: false }),
   ).toBeVisible();
   await expect(
     panel.getByRole('region', { name: 'Draw influence positions' }),
   ).not.toContainText('↑ 2');
-  await panel.getByLabel('View', { exact: true }).selectOption('day');
   await expect(
     panel.getByText('Historical purchase · draw date not recorded', {
       exact: true,
@@ -298,7 +289,7 @@ test('labels historical boosts without inventing draw positions', async ({
   ).toHaveCount(4);
 });
 
-test('pauses wheel purchases and bets after the roll and reopens at the switch time', async ({
+test('pauses wheel purchases and bets after the roll and reopens after the configured delay', async ({
   page,
   request,
 }) => {
@@ -316,11 +307,15 @@ test('pauses wheel purchases and bets after the roll and reopens at the switch t
         ...body,
         serverTime: reopened ? opensAt : `${date}T13:59:59.000Z`,
         localDate: date,
-        preferences: { ...body.preferences, wheelSwitchTime: '15:00' },
+        preferences: {
+          ...body.preferences,
+          wheelSwitchTime: '18:00',
+          postDrawDelayMinutes: 210,
+        },
         status: 'drawn',
         wheel: {
-          mode: reopened ? 'upcoming' : 'result',
-          localDate: reopened ? '2026-10-22' : date,
+          mode: 'result',
+          localDate: date,
         },
         result: {
           id: drawId,
@@ -480,7 +475,7 @@ test('shows the schedule, charts, coalitions and bet board without changing iden
   );
   await page.getByRole('tab', { name: 'Activity' }).click();
   await expect(
-    panel.getByRole('heading', { name: 'Activity room' }),
+    panel.getByRole('heading', { name: /Activity for spin dated/ }),
   ).toBeVisible();
   await expect(
     panel.getByRole('img', {
@@ -489,7 +484,6 @@ test('shows the schedule, charts, coalitions and bet board without changing iden
   ).toBeVisible();
   await expect(panel.locator('.activity-summary')).toContainText('15');
   await expect(panel.locator('.activity-summary')).toContainText('5');
-  await panel.getByLabel('View', { exact: true }).selectOption('draw');
   const healthBonus = panel.getByRole('region', {
     name: 'Automatic health bonus',
   });
@@ -598,13 +592,13 @@ test('retries failures and rejects a delayed response for a previous date', asyn
     'Sushi',
   );
   delay = true;
-  await panel.getByLabel('Activity date').fill('2026-10-20');
+  await panel.getByLabel('Spin date').fill('2026-10-20');
   await expect.poll(() => Boolean(release)).toBe(true);
-  await panel.getByLabel('Activity date').fill('2026-10-19');
+  await panel.getByLabel('Spin date').fill('2026-10-19');
   await expect(
     panel.getByText('No bets are recorded for this draw date.'),
   ).toBeVisible();
   release?.();
-  await expect(panel.getByLabel('Activity date')).toHaveValue('2026-10-19');
+  await expect(panel.getByLabel('Spin date')).toHaveValue('2026-10-19');
   await expect(panel.locator('.bet-board-panel .bet-board')).toHaveCount(0);
 });

@@ -97,10 +97,9 @@ test('dark mode covers the name picker, wheel, admin forms and removal dialog on
     'background-color',
     'rgb(27, 34, 37)',
   );
-  await expect(page.getByLabel('Wheel switch time')).toHaveCSS(
-    'color-scheme',
-    'dark',
-  );
+  await expect(
+    page.getByLabel('Reopen activity this many minutes after the roll'),
+  ).toHaveCSS('color-scheme', 'dark');
   await page.screenshot({
     path: 'test-results/dark-desktop.png',
     fullPage: true,

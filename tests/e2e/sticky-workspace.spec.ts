@@ -116,7 +116,7 @@ test('desktop activity and admin scroll independently without moving the wheel o
   await activityTab.click();
   const activity = page.getByRole('tabpanel', { name: 'Activity' });
   await expect(
-    activity.getByRole('heading', { name: 'Activity room' }),
+    activity.getByRole('heading', { name: /Activity for spin dated/ }),
   ).toBeVisible();
   await expect(activity.locator('.activity-summary')).toBeVisible();
 
@@ -271,7 +271,7 @@ test('mobile scrolls the document with a compact sticky wheel and accessible con
 
   await page.getByRole('tab', { name: 'Activity' }).click();
   await expect(
-    page.getByRole('heading', { name: 'Activity room' }),
+    page.getByRole('heading', { name: /Activity for spin dated/ }),
   ).toBeVisible();
   expect(
     await page.evaluate(

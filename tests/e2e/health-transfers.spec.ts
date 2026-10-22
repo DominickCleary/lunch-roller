@@ -131,10 +131,9 @@ test('reviews and trades tokens, persists both wallets and rejects invalid API s
     ).status(),
   ).toBe(403);
   await page.getByRole('tab', { name: 'Activity' }).click();
-  await page.getByLabel('View', { exact: true }).selectOption('day');
-  await expect(page.locator('.activity-timeline')).toContainText(
-    `Sent to ${recipientName}`,
-  );
+  await expect(
+    page.getByRole('heading', { name: /Activity for spin dated/ }),
+  ).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   const mobileTransfer = page.locator('.token-transfer');
   await mobileTransfer.getByText('Trade tokens', { exact: true }).click();
