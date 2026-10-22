@@ -36,42 +36,42 @@ GET/PUT `/admin/preferences` reads/replaces `{wheelSwitchTime:'HH:mm',checkInPle
 
 GET `/setup` returns `{ completed, participantCount, placeCount }`. POST `/admin/setup/complete` requires the existing administrator session and matching Origin, requires at least one active person/place, and completes first-run setup atomically. It returns the same status shape with 200; incomplete configuration is 409 `SETUP_INCOMPLETE`. Until completion, public/member game endpoints return 403 `SETUP_REQUIRED`; administrator configuration, setup status, health and push configuration remain available. Runtime initialization creates no sample people or places. Existing populated installations are marked complete by migration.
 
-| Method / path                  | Request schema         | Response                                                   | Access                                         |
-| ------------------------------ | ---------------------- | ---------------------------------------------------------- | ---------------------------------------------- |
-| GET /participants              | —                      | `{ participants: participant[] }` (active only)            | Public                                         |
-| GET /suggestions               | —                      | `{ suggestions: Suggestion[] }`                            | Public; optional identity personalizes vote   |
-| POST /suggestions              | `createSuggestionRequest` | Suggestion                                                | Participant; creates an open request           |
-| PUT /suggestions/:id/vote      | `suggestionVoteRequest` | `{ suggestion: Suggestion }`                              | Participant; one up/down vote per request     |
-| POST /identity/select          | participantSelection   | participant                                                | Public; validates selection, browser stores ID |
-| GET /today                     | —                      | todayResponse                                              | Public                                         |
-| GET /push-config               | —                      | `{ publicKey: string or null }`                            | Public; only configured public VAPID key       |
-| GET /wallet                    | —                      | walletResponse                                             | Participant                                    |
-| POST /attendance               | attendanceRequest      | attendanceResponse                                         | Participant                                    |
-| POST /purchases                | purchaseRequest        | purchaseResponse                                           | Participant                                    |
-| GET /influence/current         | —                      | currentInfluenceResponse                                   | Participant; team and personal unit counts     |
-| POST /influence/current        | changeInfluenceRequest | influenceMutationResponse                                  | Participant; stage or withdraw own unit        |
-| GET /bets/current              | —                      | currentBetsResponse                                        | Participant; own bet and recent outcomes       |
-| PUT /bets/current              | setBetRequest          | betMutationResponse                                        | Participant; place/edit one next-draw bet      |
-| DELETE /bets/current           | cancelBetRequest       | betMutationResponse                                        | Participant; cancel and refund before cutoff   |
-| POST /places                   | createPlace            | purchaseResponse (20-token charge)                         | Participant                                    |
-| POST /push-subscriptions       | pushSubscription       | `{ id: UUID }`                                             | Participant                                    |
-| DELETE /push-subscriptions/:id | —                      | 204, empty body                                            | Owning participant                             |
-| POST /admin/session            | adminLogin             | 204 + session cookie                                       | Password                                       |
-| GET /admin/session             | —                      | 204                                                         | Admin session probe; otherwise 401             |
-| PATCH /admin/suggestions/:id   | `suggestionStatusRequest` | `{ suggestion: Suggestion }`                             | Admin; mark approved or denied                 |
-| DELETE /admin/session          | —                      | 204 + expired cookie                                       | Admin                                          |
-| GET /admin/participants        | —                      | `{ participants: participant[] }` (including inactive)     | Admin                                          |
-| POST /admin/participants       | createParticipant      | participant                                                | Admin                                          |
-| PATCH /admin/participants/:id  | updateParticipant      | participant                                                | Admin                                          |
-| DELETE /admin/participants/:id | —                      | `{ participantId: UUID, action: 'deleted' or 'archived' }` | Admin                                          |
-| GET /admin/places              | —                      | `{ places: place[] }` (including inactive)                 | Admin                                          |
-| POST /admin/places             | createPlace            | place, mean weight, no charge                              | Admin                                          |
-| PATCH /admin/places/:id        | updatePlace            | place                                                      | Admin                                          |
-| GET /admin/schedule            | —                      | schedule                                                   | Admin                                          |
-| PUT /admin/schedule            | schedule               | schedule                                                   | Admin                                          |
-| GET /admin/draw-skip           | —                      | `{ localDate: date or null, cancellable: boolean }`        | Admin                                          |
-| PUT /admin/draw-skip           | `{ skip: boolean }`    | `{ localDate: date or null, cancellable: boolean }`        | Admin; marks or cancels the one-time skip      |
-| POST /admin/token-corrections  | tokenCorrection        | walletResponse                                             | Admin                                          |
+| Method / path                  | Request schema            | Response                                                   | Access                                         |
+| ------------------------------ | ------------------------- | ---------------------------------------------------------- | ---------------------------------------------- |
+| GET /participants              | —                         | `{ participants: participant[] }` (active only)            | Public                                         |
+| GET /suggestions               | —                         | `{ suggestions: Suggestion[] }`                            | Public; optional identity personalizes vote    |
+| POST /suggestions              | `createSuggestionRequest` | Suggestion                                                 | Participant; creates an open request           |
+| PUT /suggestions/:id/vote      | `suggestionVoteRequest`   | `{ suggestion: Suggestion }`                               | Participant; one up/down vote per request      |
+| POST /identity/select          | participantSelection      | participant                                                | Public; validates selection, browser stores ID |
+| GET /today                     | —                         | todayResponse                                              | Public                                         |
+| GET /push-config               | —                         | `{ publicKey: string or null }`                            | Public; only configured public VAPID key       |
+| GET /wallet                    | —                         | walletResponse                                             | Participant                                    |
+| POST /attendance               | attendanceRequest         | attendanceResponse                                         | Participant                                    |
+| POST /purchases                | purchaseRequest           | purchaseResponse                                           | Participant                                    |
+| GET /influence/current         | —                         | currentInfluenceResponse                                   | Participant; team and personal unit counts     |
+| POST /influence/current        | changeInfluenceRequest    | influenceMutationResponse                                  | Participant; stage or withdraw own unit        |
+| GET /bets/current              | —                         | currentBetsResponse                                        | Participant; own bet and recent outcomes       |
+| PUT /bets/current              | setBetRequest             | betMutationResponse                                        | Participant; place/edit one next-draw bet      |
+| DELETE /bets/current           | cancelBetRequest          | betMutationResponse                                        | Participant; cancel and refund before cutoff   |
+| POST /places                   | createPlace               | purchaseResponse (20-token charge)                         | Participant                                    |
+| POST /push-subscriptions       | pushSubscription          | `{ id: UUID }`                                             | Participant                                    |
+| DELETE /push-subscriptions/:id | —                         | 204, empty body                                            | Owning participant                             |
+| POST /admin/session            | adminLogin                | 204 + session cookie                                       | Password                                       |
+| GET /admin/session             | —                         | 204                                                        | Admin session probe; otherwise 401             |
+| PATCH /admin/suggestions/:id   | `suggestionStatusRequest` | `{ suggestion: Suggestion }`                               | Admin; mark approved or denied                 |
+| DELETE /admin/session          | —                         | 204 + expired cookie                                       | Admin                                          |
+| GET /admin/participants        | —                         | `{ participants: participant[] }` (including inactive)     | Admin                                          |
+| POST /admin/participants       | createParticipant         | participant                                                | Admin                                          |
+| PATCH /admin/participants/:id  | updateParticipant         | participant                                                | Admin                                          |
+| DELETE /admin/participants/:id | —                         | `{ participantId: UUID, action: 'deleted' or 'archived' }` | Admin                                          |
+| GET /admin/places              | —                         | `{ places: place[] }` (including inactive)                 | Admin                                          |
+| POST /admin/places             | createPlace               | place, mean weight, no charge                              | Admin                                          |
+| PATCH /admin/places/:id        | updatePlace               | place                                                      | Admin                                          |
+| GET /admin/schedule            | —                         | schedule                                                   | Admin                                          |
+| PUT /admin/schedule            | schedule                  | schedule                                                   | Admin                                          |
+| GET /admin/draw-skip           | —                         | `{ localDate: date or null, cancellable: boolean }`        | Admin                                          |
+| PUT /admin/draw-skip           | `{ skip: boolean }`       | `{ localDate: date or null, cancellable: boolean }`        | Admin; marks or cancels the one-time skip      |
+| POST /admin/token-corrections  | tokenCorrection           | walletResponse                                             | Admin                                          |
 
 Participant calls use `X-Participant-Id`; no member authentication is claimed. Admin calls use a separate server-verified cookie. Do not implement admin authorization through the name picker.
 
