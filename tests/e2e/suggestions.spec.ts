@@ -111,12 +111,22 @@ test('submits suggestions, permits one vote per request, and lets admins review 
     .click();
   await expect(
     firstVoterCard.getByRole('button', {
+      name: new RegExp(`Upvote ${firstTitle}`),
+    }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await expect(
+    firstVoterCard.getByRole('button', {
       name: new RegExp(`Downvote ${firstTitle}`),
     }),
   ).toBeDisabled();
   await secondVoterCard
     .getByRole('button', { name: new RegExp(`Downvote ${secondTitle}`) })
     .click();
+  await expect(
+    secondVoterCard.getByRole('button', {
+      name: new RegExp(`Downvote ${secondTitle}`),
+    }),
+  ).toHaveAttribute('aria-pressed', 'true');
 
   const voteHeaders = { Origin: origin, 'X-Participant-Id': voterId };
   const duplicateVote = await request.put(
