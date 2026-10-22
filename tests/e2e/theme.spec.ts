@@ -28,7 +28,7 @@ test('follows system theme until a choice is saved, persists it and syncs tabs',
     'background-color',
     'rgb(246, 240, 226)',
   );
-  await expect(page.locator('.brand-title')).toHaveCSS(
+  await expect(page.locator('.topbar .brand-title')).toHaveCSS(
     'font-family',
     /Georgia/,
   );
@@ -48,7 +48,7 @@ test('follows system theme until a choice is saved, persists it and syncs tabs',
     'rgb(17, 23, 25)',
   );
   await expect(page.locator('html')).toHaveCSS('color', 'rgb(217, 217, 202)');
-  await expect(page.locator('.brand-title')).toHaveCSS(
+  await expect(page.locator('.topbar .brand-title')).toHaveCSS(
     'color',
     'rgb(239, 231, 211)',
   );
