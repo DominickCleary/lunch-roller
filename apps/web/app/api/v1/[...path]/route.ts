@@ -39,6 +39,10 @@ import {
   setPlaceWeightRequest,
   drawSkip,
   drawSkipRequest,
+  createSuggestionRequest,
+  suggestionListResponse,
+  suggestionVoteRequest,
+  suggestionStatusRequest,
 } from '@lunch/contracts';
 import {
   createHash,
@@ -225,6 +229,15 @@ async function dispatch(request: NextRequest, context: Context) {
   if (method !== 'GET' && !verifyOrigin(request))
     return error(403, 'ORIGIN_REJECTED', 'Request origin is not allowed.');
   try {
+    if (route === '/admin/session' && method === 'GET') {
+      if (!isAdmin(request))
+        return error(
+          401,
+          'ADMIN_SESSION_REQUIRED',
+          'Administrator session required.',
+        );
+      return response(undefined, 204);
+    }
     if (route === '/push-config' && method === 'GET') {
       const configured = Boolean(
         process.env.VAPID_PUBLIC_KEY &&
@@ -269,6 +282,39 @@ async function dispatch(request: NextRequest, context: Context) {
       );
     if (route === '/participants' && method === 'GET')
       return response({ participants: await game.listParticipants() });
+    if (route === '/suggestions' && method === 'GET') {
+      const viewerId = request.headers.get('x-participant-id');
+      const selectedId = viewerId
+        ? participantSelection.safeParse({ participantId: viewerId })
+        : undefined;
+      return response(
+        suggestionListResponse.parse(
+          await game.listSuggestions(
+            selectedId?.success ? selectedId.data.participantId : undefined,
+          ),
+        ),
+      );
+    }
+    if (route === '/suggestions' && method === 'POST')
+      return response(
+        await game.createSuggestion(
+          participantId(request),
+          parse(createSuggestionRequest, await body(request)),
+        ),
+        201,
+      );
+    const suggestionVote = route.match(/^\/suggestions\/([^/]+)\/vote$/i);
+    if (suggestionVote && method === 'PUT') {
+      const suggestionId = parse(id, suggestionVote[1]);
+      const input = parse(suggestionVoteRequest, await body(request));
+      return response({
+        suggestion: await game.voteSuggestion(
+          participantId(request),
+          suggestionId,
+          input.value,
+        ),
+      });
+    }
     if (route === '/identity/select' && method === 'POST') {
       const input = parse(participantSelection, await body(request));
       return response(await game.selectParticipant(input.participantId));
@@ -405,6 +451,16 @@ async function dispatch(request: NextRequest, context: Context) {
       return response(undefined, 204);
     }
     if (route.startsWith('/admin/')) requireAdmin(request);
+    const adminSuggestion = route.match(/^\/admin\/suggestions\/([^/]+)$/i);
+    if (adminSuggestion && method === 'PATCH') {
+      const input = parse(suggestionStatusRequest, await body(request));
+      return response({
+        suggestion: await game.setSuggestionStatus(
+          parse(id, adminSuggestion[1]),
+          input.status,
+        ),
+      });
+    }
     if (route === '/admin/health-rule' && method === 'GET')
       return response(healthRuleSettings.parse(await game.getHealthRule()));
     if (route === '/admin/health-rule' && method === 'PUT')

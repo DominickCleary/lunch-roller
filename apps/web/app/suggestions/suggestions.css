@@ -1,0 +1,495 @@
+.suggestions-shell {
+  width: min(100%, 1900px);
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: 0 22px;
+  display: flex;
+  flex-direction: column;
+}
+
+.suggestions-topbar {
+  flex: 0 0 var(--header-height);
+}
+
+.suggestions-page {
+  grid-column: 1 / -1;
+  width: min(100%, 1020px);
+  margin: 0 auto;
+  padding: clamp(24px, 5vw, 58px) 0 64px;
+}
+
+.suggestions-intro {
+  max-width: 700px;
+  margin-bottom: 30px;
+}
+
+.suggestions-eyebrow {
+  color: var(--accent-bright);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.suggestions-intro h1 {
+  margin: 7px 0 9px;
+  color: var(--text-strong);
+  font-family: var(--font-display);
+  font-size: clamp(32px, 5vw, 46px);
+  letter-spacing: -0.025em;
+  line-height: 1.08;
+}
+
+.suggestions-intro p,
+.suggestion-compose-heading p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.suggestion-compose {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--panel-shadow);
+}
+
+.suggestion-compose-heading {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 19px 23px 16px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(105deg, var(--surface-soft), var(--surface));
+}
+
+.suggestion-compose-mark {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  color: var(--accent-bright);
+  font-size: 19px;
+}
+
+.suggestion-compose-heading h2,
+.suggestion-list-heading h2 {
+  margin: 0 0 3px;
+  color: var(--text-strong);
+  font-family: var(--font-display);
+  font-size: 21px;
+  line-height: 1.2;
+}
+
+.suggestion-compose-heading p {
+  font-size: 12px;
+}
+
+.suggestion-form {
+  display: grid;
+  gap: 16px;
+  padding: 20px 23px 22px;
+}
+
+.suggestion-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.suggestion-form input,
+.suggestion-form textarea {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  padding: 11px 12px;
+  background: var(--page-bg);
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  outline: none;
+  transition:
+    border-color 130ms ease,
+    box-shadow 130ms ease;
+}
+
+.suggestion-form textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.suggestion-form input:focus,
+.suggestion-form textarea:focus {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 22%, transparent);
+}
+
+.suggestion-field-hint {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.suggestion-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.suggestion-submit,
+.suggestion-error button {
+  min-height: 38px;
+  border: 1px solid var(--primary-bg);
+  border-radius: 7px;
+  padding: 0 17px;
+  background: var(--primary-bg);
+  color: var(--primary-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.suggestion-submit:hover:not(:disabled),
+.suggestion-error button:hover {
+  filter: brightness(1.08);
+}
+
+.suggestion-submit:disabled,
+.suggestion-admin-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.suggestion-submit:focus-visible,
+.suggestion-error button:focus-visible,
+.suggestion-vote-button:focus-visible,
+.suggestion-admin-actions button:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--focus) 50%, transparent);
+  outline-offset: 2px;
+}
+
+.suggestion-identity-note {
+  margin: 0;
+  padding: 18px 23px 21px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.suggestion-list-section {
+  margin-top: 34px;
+}
+
+.suggestion-list-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 13px;
+}
+
+.suggestion-list-heading h2 {
+  margin-top: 4px;
+  font-size: 25px;
+}
+
+.suggestion-count {
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.suggestion-list {
+  display: grid;
+  gap: 12px;
+}
+
+.suggestion-card {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--panel-shadow);
+}
+
+.suggestion-votes {
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  gap: 5px;
+  padding: 7px 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.suggestion-votes strong {
+  color: var(--text-strong);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.suggestion-vote-button {
+  display: grid;
+  width: 34px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.suggestion-vote-button:hover:not(:disabled),
+.suggestion-vote-button.is-selected {
+  background: var(--accent-soft);
+  color: var(--accent-bright);
+}
+
+.suggestion-vote-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.suggestion-card-content {
+  min-width: 0;
+}
+
+.suggestion-card-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.suggestion-card-topline time {
+  color: var(--text-muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.suggestion-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  padding: 2px 8px;
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.suggestion-status.status-approved {
+  border-color: color-mix(in srgb, var(--success) 40%, var(--line));
+  background: color-mix(in srgb, var(--success) 10%, var(--surface));
+  color: var(--success);
+}
+
+.suggestion-status.status-denied {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--line));
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+  color: var(--danger);
+}
+
+.suggestion-card-content h3 {
+  margin: 0 0 6px;
+  color: var(--text-strong);
+  font-family: var(--font-display);
+  font-size: 19px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.suggestion-description {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.suggestion-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 16px;
+  padding-top: 11px;
+  border-top: 1px solid var(--line);
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.suggestion-admin-actions {
+  display: flex;
+  gap: 7px;
+}
+
+.suggestion-admin-actions button {
+  min-height: 29px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  padding: 0 9px;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.suggestion-admin-actions .suggestion-approve:hover:not(:disabled) {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.suggestion-admin-actions .suggestion-deny:hover:not(:disabled) {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.suggestion-error,
+.suggestion-notice,
+.suggestion-state,
+.suggestion-empty {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.suggestion-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 12px 0;
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+  padding: 12px 14px;
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.suggestion-error button {
+  flex: 0 0 auto;
+  min-height: 32px;
+  font-size: 11px;
+}
+
+.suggestion-notice,
+.suggestion-state {
+  margin: 12px 0;
+  padding: 12px 14px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.suggestion-notice {
+  border-color: color-mix(in srgb, var(--success) 45%, var(--line));
+  color: var(--success);
+}
+
+.suggestion-empty {
+  padding: 32px 20px;
+  text-align: center;
+}
+
+.suggestion-empty > span {
+  color: var(--accent-bright);
+  font-size: 27px;
+}
+
+.suggestion-empty h3 {
+  margin: 7px 0 5px;
+  color: var(--text-strong);
+  font-family: var(--font-display);
+  font-size: 20px;
+}
+
+.suggestion-empty p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+@media (max-width: 600px) {
+  .suggestions-shell {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .suggestions-page {
+    padding-top: 25px;
+  }
+
+  .suggestion-compose-heading,
+  .suggestion-form {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .suggestion-form-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .suggestion-submit {
+    width: 100%;
+  }
+
+  .suggestion-card {
+    grid-template-columns: 47px minmax(0, 1fr);
+    gap: 11px;
+    padding: 12px;
+  }
+
+  .suggestion-votes {
+    padding: 5px 2px;
+  }
+
+  .suggestion-card-topline {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .suggestion-card-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .suggestion-form input,
+  .suggestion-form textarea {
+    transition: none;
+  }
+}

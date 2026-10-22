@@ -6,6 +6,14 @@ Base: `/api/v1`. Zod schemas in `@lunch/contracts` are the source of wire shapes
 
 `GET /health` → `healthResponse`: `{ status: 'ok' | 'unavailable', database: 'ok' | 'unavailable', service: 'web' }`. HTTP 200 when initialized and reachable, otherwise 503. No credentials/details and no caching.
 
+## Suggestion board
+
+`GET /suggestions` returns `{suggestions: Suggestion[]}` ordered newest first. Each suggestion includes its title, description, author, `status` (`open`, `approved`, or `denied`), upvote/downvote totals, the selected viewer's `yourVote` (or null), and creation timestamp. The optional `X-Participant-Id` header only personalizes the displayed vote. `POST /suggestions` requires an active `X-Participant-Id` and `{title,description}` (title 1–120 characters; description 1–2000) and creates an open request. Browser identity remains trust-based.
+
+`PUT /suggestions/:id/vote` requires an active participant and `{value:1|-1}`. A participant may cast one vote per suggestion; the vote cannot be changed or removed. PostgreSQL enforces vote uniqueness. Admins use `PATCH /admin/suggestions/:id` with `{status:'approved'|'denied'}`; only the separate administrator session authorizes status changes. Suggestions and votes remain visible after status changes, and referenced participants are archived rather than deleted.
+
+`GET /admin/session` returns 204 when the administrator cookie is valid and 401 otherwise; it does not expose session data.
+
 ## Shared wheel presentation
 
 Draw responses include optional `animation: {version:1,rotation,turns,durationMs,startsAt}`. Current server responses always include it; it remains optional in parsing for older DTOs/test fixtures. Rotation is the final clockwise CSS wheel angle in [0,360), aligning a point inside the committed winning segment with the right-hand pointer. StartsAt is saved drawnAt plus three seconds; turns is 9–12 and durationMs is 18,000–21,000. The metadata derives deterministically from the persisted sample, snapshot, draw ID and timestamp and never changes on reread/replay. It cannot select or reroll a winner. Legacy records need no migration or historical rewrite.
@@ -31,6 +39,9 @@ GET `/setup` returns `{ completed, participantCount, placeCount }`. POST `/admin
 | Method / path                  | Request schema         | Response                                                   | Access                                         |
 | ------------------------------ | ---------------------- | ---------------------------------------------------------- | ---------------------------------------------- |
 | GET /participants              | —                      | `{ participants: participant[] }` (active only)            | Public                                         |
+| GET /suggestions               | —                      | `{ suggestions: Suggestion[] }`                            | Public; optional identity personalizes vote   |
+| POST /suggestions              | `createSuggestionRequest` | Suggestion                                                | Participant; creates an open request           |
+| PUT /suggestions/:id/vote      | `suggestionVoteRequest` | `{ suggestion: Suggestion }`                              | Participant; one up/down vote per request     |
 | POST /identity/select          | participantSelection   | participant                                                | Public; validates selection, browser stores ID |
 | GET /today                     | —                      | todayResponse                                              | Public                                         |
 | GET /push-config               | —                      | `{ publicKey: string or null }`                            | Public; only configured public VAPID key       |
@@ -46,6 +57,8 @@ GET `/setup` returns `{ completed, participantCount, placeCount }`. POST `/admin
 | POST /push-subscriptions       | pushSubscription       | `{ id: UUID }`                                             | Participant                                    |
 | DELETE /push-subscriptions/:id | —                      | 204, empty body                                            | Owning participant                             |
 | POST /admin/session            | adminLogin             | 204 + session cookie                                       | Password                                       |
+| GET /admin/session             | —                      | 204                                                         | Admin session probe; otherwise 401             |
+| PATCH /admin/suggestions/:id   | `suggestionStatusRequest` | `{ suggestion: Suggestion }`                             | Admin; mark approved or denied                 |
 | DELETE /admin/session          | —                      | 204 + expired cookie                                       | Admin                                          |
 | GET /admin/participants        | —                      | `{ participants: participant[] }` (including inactive)     | Admin                                          |
 | POST /admin/participants       | createParticipant      | participant                                                | Admin                                          |

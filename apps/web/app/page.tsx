@@ -1794,6 +1794,12 @@ export default function Home() {
           />
           <h1 className="brand-title">Gambling about lunch</h1>
         </a>
+        <nav className="top-nav" aria-label="Primary navigation">
+          <Link href="/" aria-current="page">
+            Wheel
+          </Link>
+          <Link href="/suggestions">Suggestion board</Link>
+        </nav>
         <div className="top-actions">
           <ThemeToggle />
           <RulesHelp

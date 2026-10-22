@@ -97,6 +97,34 @@ export const transferResponse = z.object({
 });
 export type TransferRequest = z.infer<typeof transferRequest>;
 export type TransferResponse = z.infer<typeof transferResponse>;
+export const suggestionStatus = z.enum(['open', 'approved', 'denied']);
+export const suggestionVoteValue = z.union([z.literal(-1), z.literal(1)]);
+export const suggestion = z.object({
+  id,
+  title: z.string().trim().min(1).max(120),
+  description: z.string().trim().min(1).max(2000),
+  authorName: name,
+  status: suggestionStatus,
+  upvotes: z.number().int().nonnegative(),
+  downvotes: z.number().int().nonnegative(),
+  yourVote: suggestionVoteValue.nullable(),
+  createdAt: z.iso.datetime(),
+});
+export type Suggestion = z.infer<typeof suggestion>;
+export const suggestionListResponse = z.object({
+  suggestions: z.array(suggestion),
+});
+export const createSuggestionRequest = z.object({
+  title: z.string().trim().min(1).max(120),
+  description: z.string().trim().min(1).max(2000),
+});
+export type CreateSuggestionRequest = z.infer<typeof createSuggestionRequest>;
+export const suggestionVoteRequest = z.object({
+  value: suggestionVoteValue,
+});
+export const suggestionStatusRequest = z.object({
+  status: z.enum(['approved', 'denied']),
+});
 export const place = z.object({
   id,
   name,

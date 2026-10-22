@@ -63,6 +63,8 @@ import type {
   TransferRequest,
   TransferResponse,
   DrawSkip,
+  Suggestion,
+  CreateSuggestionRequest,
 } from '@lunch/contracts';
 import {
   gamePreferences,
@@ -78,6 +80,10 @@ import {
   transferRequest,
   refundInfluenceRequest,
   setPlaceWeightRequest,
+  createSuggestionRequest,
+  id as idSchema,
+  suggestionVoteRequest,
+  suggestionStatusRequest,
 } from '@lunch/contracts';
 import type { createDatabase } from './index';
 import {
@@ -92,6 +98,8 @@ import {
   places,
   pushSubscriptions,
   settings,
+  suggestions,
+  suggestionVotes,
   tokenLedger,
 } from './schema';
 
@@ -192,6 +200,8 @@ function mapDatabaseError(error: unknown): never {
   const candidate = current;
   if (candidate?.code === '23505') {
     const constraint = candidate.constraint_name ?? candidate.constraint ?? '';
+    if (constraint.includes('suggestion_vote_once'))
+      fail(409, 'ALREADY_VOTED', 'You have already voted on this request.');
     if (constraint.includes('name'))
       fail(409, 'DUPLICATE_NAME', 'That name is already in use.');
     if (constraint.includes('attendance'))
@@ -647,6 +657,8 @@ async function participantHasReferences(tx: Tx, id: string): Promise<boolean> {
       exists(select 1 from bets where participant_id = ${id}::uuid) or
       exists(select 1 from bet_requests where participant_id = ${id}::uuid) or
       exists(select 1 from influence_lots where participant_id = ${id}::uuid) or
+      exists(select 1 from suggestions where participant_id = ${id}::uuid) or
+      exists(select 1 from suggestion_votes where participant_id = ${id}::uuid) or
       exists(select 1 from push_subscriptions where participant_id = ${id}::uuid)
       as referenced
   `);
@@ -840,6 +852,169 @@ export class GameService {
       (tx) => setupStatusInTransaction(tx as Tx),
       { isolationLevel: 'repeatable read', accessMode: 'read only' },
     );
+  }
+
+  async listSuggestions(
+    viewerId?: string,
+  ): Promise<{ suggestions: Suggestion[] }> {
+    const rows = await this.database.db
+      .select({
+        id: suggestions.id,
+        title: suggestions.title,
+        description: suggestions.description,
+        status: suggestions.status,
+        createdAt: suggestions.createdAt,
+        authorName: participants.name,
+      })
+      .from(suggestions)
+      .innerJoin(participants, eq(participants.id, suggestions.participantId))
+      .orderBy(desc(suggestions.createdAt));
+    const ids = rows.map((row) => row.id);
+    const votes = ids.length
+      ? await this.database.db
+          .select({
+            suggestionId: suggestionVotes.suggestionId,
+            participantId: suggestionVotes.participantId,
+            value: suggestionVotes.value,
+          })
+          .from(suggestionVotes)
+          .where(inArray(suggestionVotes.suggestionId, ids))
+      : [];
+    return {
+      suggestions: rows.map((row) => {
+        const requestVotes = votes.filter(
+          (vote) => vote.suggestionId === row.id,
+        );
+        return {
+          ...row,
+          status: row.status,
+          createdAt: row.createdAt.toISOString(),
+          upvotes: requestVotes.filter((vote) => vote.value === 1).length,
+          downvotes: requestVotes.filter((vote) => vote.value === -1).length,
+          yourVote: viewerId
+            ? ((requestVotes.find((vote) => vote.participantId === viewerId)
+                ?.value as -1 | 1 | undefined) ?? null)
+            : null,
+        };
+      }),
+    };
+  }
+
+  async createSuggestion(
+    participantId: string,
+    input: CreateSuggestionRequest,
+  ): Promise<Suggestion> {
+    const parsed = createSuggestionRequest.safeParse(input);
+    if (!parsed.success)
+      fail(400, 'INVALID_SUGGESTION', 'Provide a title and description.');
+    return transaction(this.database, async (tx) => {
+      await activeParticipant(tx, participantId);
+      const [created] = await tx
+        .insert(suggestions)
+        .values({ participantId, ...parsed.data })
+        .returning({ id: suggestions.id });
+      return (await this.suggestionInTransaction(
+        tx,
+        created!.id,
+        participantId,
+      ))!;
+    });
+  }
+
+  async voteSuggestion(
+    participantId: string,
+    suggestionId: string,
+    value: number,
+  ): Promise<Suggestion> {
+    const parsedId = idSchema.safeParse(suggestionId);
+    const parsedVote = suggestionVoteRequest.safeParse({ value });
+    if (!parsedId.success || !parsedVote.success)
+      fail(400, 'INVALID_VOTE', 'Choose an upvote or downvote.');
+    return transaction(this.database, async (tx) => {
+      await activeParticipant(tx, participantId);
+      const [request] = await tx
+        .select({ id: suggestions.id })
+        .from(suggestions)
+        .where(eq(suggestions.id, suggestionId));
+      if (!request)
+        fail(404, 'SUGGESTION_NOT_FOUND', 'Suggestion was not found.');
+      const [existingVote] = await tx
+        .select({ id: suggestionVotes.id })
+        .from(suggestionVotes)
+        .where(
+          and(
+            eq(suggestionVotes.suggestionId, suggestionId),
+            eq(suggestionVotes.participantId, participantId),
+          ),
+        );
+      if (existingVote)
+        fail(409, 'ALREADY_VOTED', 'You have already voted on this request.');
+      await tx
+        .insert(suggestionVotes)
+        .values({ suggestionId, participantId, value });
+      return (await this.suggestionInTransaction(
+        tx,
+        suggestionId,
+        participantId,
+      ))!;
+    });
+  }
+
+  async setSuggestionStatus(
+    suggestionId: string,
+    status: string,
+  ): Promise<Suggestion> {
+    const parsed = suggestionStatusRequest.safeParse({ status });
+    if (!parsed.success)
+      fail(400, 'INVALID_SUGGESTION_STATUS', 'Choose approved or denied.');
+    return transaction(this.database, async (tx) => {
+      const [updated] = await tx
+        .update(suggestions)
+        .set({ status: parsed.data.status })
+        .where(eq(suggestions.id, suggestionId))
+        .returning({ id: suggestions.id });
+      if (!updated)
+        fail(404, 'SUGGESTION_NOT_FOUND', 'Suggestion was not found.');
+      return (await this.suggestionInTransaction(tx, suggestionId))!;
+    });
+  }
+
+  private async suggestionInTransaction(
+    tx: Tx,
+    suggestionId: string,
+    viewerId?: string,
+  ): Promise<Suggestion | null> {
+    const [row] = await tx
+      .select({
+        id: suggestions.id,
+        title: suggestions.title,
+        description: suggestions.description,
+        status: suggestions.status,
+        createdAt: suggestions.createdAt,
+        authorName: participants.name,
+      })
+      .from(suggestions)
+      .innerJoin(participants, eq(participants.id, suggestions.participantId))
+      .where(eq(suggestions.id, suggestionId));
+    if (!row) return null;
+    const votes = await tx
+      .select({
+        participantId: suggestionVotes.participantId,
+        value: suggestionVotes.value,
+      })
+      .from(suggestionVotes)
+      .where(eq(suggestionVotes.suggestionId, suggestionId));
+    return {
+      ...row,
+      status: row.status,
+      createdAt: row.createdAt.toISOString(),
+      upvotes: votes.filter((vote) => vote.value === 1).length,
+      downvotes: votes.filter((vote) => vote.value === -1).length,
+      yourVote: viewerId
+        ? ((votes.find((vote) => vote.participantId === viewerId)?.value as
+            -1 | 1 | undefined) ?? null)
+        : null,
+    };
   }
 
   async completeSetup(): Promise<SetupStatus> {

@@ -19,6 +19,11 @@ Use `docs/task-template.md`. Specify goal, owned files, dependencies and frozen 
 
 Report behavior changed, files touched, commands and results, unresolved issues, and migration/environment effects. Include branch and commit when available. Coordinator reviews the diff, integrates dependencies first, then runs `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build`; run database/browser/container checks for affected behavior.
 
+## End-to-end coverage
+
+- Every user-visible feature or behavior change must add or update Playwright E2E coverage in `tests/e2e` for the affected user flow. Include persistence, identity/authorization, and failure behavior when relevant; unit or API tests alone do not replace browser coverage for UI behavior.
+- Run the affected E2E tests against `TEST_DATABASE_URL`, which must be a disposable database. Never use a production or shared database. If the required browser/database environment is unavailable, report the exact blocker and leave the E2E result explicitly unverified; do not omit the test update.
+
 ## Invariants
 
 - Server owns draws, odds, and token balances. Name selection is deliberately trust-based and never grants admin rights.

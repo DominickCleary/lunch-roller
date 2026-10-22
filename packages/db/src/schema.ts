@@ -37,6 +37,56 @@ export const participants = pgTable(
   ],
 );
 
+export const suggestions = pgTable(
+  'suggestions',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    participantId: uuid('participant_id')
+      .notNull()
+      .references(() => participants.id),
+    title: text().notNull(),
+    description: text().notNull(),
+    status: text({ enum: ['open', 'approved', 'denied'] })
+      .default('open')
+      .notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check(
+      'suggestion_title_length',
+      sql`length(btrim(${t.title})) between 1 and 120`,
+    ),
+    check(
+      'suggestion_description_length',
+      sql`length(btrim(${t.description})) between 1 and 2000`,
+    ),
+    check(
+      'suggestion_status',
+      sql`${t.status} in ('open','approved','denied')`,
+    ),
+    index('suggestions_created').on(t.createdAt),
+  ],
+);
+
+export const suggestionVotes = pgTable(
+  'suggestion_votes',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    suggestionId: uuid('suggestion_id')
+      .notNull()
+      .references(() => suggestions.id),
+    participantId: uuid('participant_id')
+      .notNull()
+      .references(() => participants.id),
+    value: integer().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('suggestion_vote_once').on(t.suggestionId, t.participantId),
+    check('suggestion_vote_value', sql`${t.value} in (-1,1)`),
+  ],
+);
+
 export const places = pgTable(
   'places',
   {
