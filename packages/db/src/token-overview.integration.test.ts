@@ -207,3 +207,37 @@ it('ranks total tokens with ties and counts only outstanding commitments without
     (await read()).rows.find((row) => row.participantId === alpha!.id),
   ).toMatchObject({ balance: 97, totalBalance: 97, rank: 2 });
 });
+
+it('shows same-day check-in rewards and bet payouts in local-day token gains', async () => {
+  const [person] = await database.db
+    .insert(participants)
+    .values({ name: `Today-${crypto.randomUUID()}` })
+    .returning();
+  personIds.push(person!.id);
+  const now = new Date('2298-01-02T11:00:00.000Z');
+  for (const [delta, kind, minutesAgo] of [
+    [10, 'attendance', 55],
+    [100, 'bet-payout', 45],
+    [-5, 'bet-stake', 35],
+    [1000, 'attendance', 26 * 60],
+  ] as const) {
+    await database.db.insert(tokenLedger).values({
+      participantId: person!.id,
+      delta,
+      kind,
+      reason: 'Today standings fixture',
+      idempotencyKey: crypto.randomUUID(),
+      requestHash: crypto.randomUUID(),
+      createdAt: new Date(now.getTime() - minutesAgo * 60_000),
+    });
+  }
+  const overview = tokenOverviewResponse.parse(
+    await game.tokenOverview(person!.id, now),
+  );
+  expect(
+    overview.rows.find((row) => row.participantId === person!.id),
+  ).toMatchObject({
+    balance: 1105,
+    todayDelta: 105,
+  });
+});

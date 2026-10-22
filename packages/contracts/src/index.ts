@@ -259,6 +259,7 @@ export const tokenOverviewResponse = z.object({
       totalBalance: z.number().int().nonnegative(),
       rank: z.number().int().positive(),
       spinDelta: z.number().int(),
+      todayDelta: z.number().int(),
     }),
   ),
 });

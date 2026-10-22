@@ -1692,6 +1692,18 @@ export class GameService {
             entry.participantId,
             (spinDeltas.get(entry.participantId) ?? 0) + entry.delta,
           );
+        const todayActivity = await tokenLedgerActivity(
+          typedTx,
+          undefined,
+          localDate,
+          configuration.timezone,
+        );
+        const todayDeltas = new Map<string, number>();
+        for (const entry of todayActivity)
+          todayDeltas.set(
+            entry.participantId,
+            (todayDeltas.get(entry.participantId) ?? 0) + entry.delta,
+          );
         const balances = await typedTx
           .select({
             participantId: participants.id,
@@ -1741,6 +1753,7 @@ export class GameService {
           .map((row) => ({
             ...row,
             spinDelta: spinDeltas.get(row.participantId) ?? 0,
+            todayDelta: todayDeltas.get(row.participantId) ?? 0,
             totalBalance:
               row.balance +
               (betTokens.get(row.participantId) ?? 0) +
@@ -1766,7 +1779,8 @@ export class GameService {
             row.balance < 0 ||
             !Number.isSafeInteger(row.totalBalance) ||
             row.totalBalance < row.balance ||
-            !Number.isSafeInteger(row.spinDelta)
+            !Number.isSafeInteger(row.spinDelta) ||
+            !Number.isSafeInteger(row.todayDelta)
           )
             fail(
               409,

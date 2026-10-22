@@ -74,8 +74,9 @@ export function TokenOverview({ participantId }: { participantId: string }) {
           </p>
           <p>
             Total includes tokens reserved in open bets and pending boosts or
-            reductions. This spin shows net token actions for that spin,
-            including actions made on earlier days.
+            reductions. Today shows your net token change since local midnight;
+            this includes rewards, payouts and spending. This spin shows net
+            token actions for that draw, including actions made on earlier days.
           </p>
         </div>
         <span className="activity-live-indicator">Live · 30 sec</span>
@@ -112,6 +113,7 @@ export function TokenOverview({ participantId }: { participantId: string }) {
                 <th scope="col">Member</th>
                 <th scope="col">Total</th>
                 <th scope="col">Uncommitted</th>
+                <th scope="col">Today</th>
                 <th scope="col">This spin</th>
               </tr>
             </thead>
@@ -126,6 +128,24 @@ export function TokenOverview({ participantId }: { participantId: string }) {
                     {tokenCount(row.totalBalance)}
                   </td>
                   <td>{tokenCount(row.balance)}</td>
+                  <td>
+                    <span
+                      className={`token-overview-change ${row.todayDelta > 0 ? 'positive' : row.todayDelta < 0 ? 'negative' : 'neutral'}`}
+                      aria-label={
+                        row.todayDelta > 0
+                          ? `Gained ${tokenCount(row.todayDelta)} tokens today`
+                          : row.todayDelta < 0
+                            ? `Lost ${tokenCount(Math.abs(row.todayDelta))} tokens today`
+                            : 'No net token change today'
+                      }
+                    >
+                      {row.todayDelta > 0
+                        ? `↑ +${tokenCount(row.todayDelta)}`
+                        : row.todayDelta < 0
+                          ? `↓ −${tokenCount(Math.abs(row.todayDelta))}`
+                          : '—'}
+                    </span>
+                  </td>
                   <td>
                     <span
                       className={`token-overview-change ${row.spinDelta > 0 ? 'positive' : row.spinDelta < 0 ? 'negative' : 'neutral'}`}

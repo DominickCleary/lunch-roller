@@ -126,6 +126,7 @@ const tokenOverview: TokenOverviewResponse = {
       balance: 40,
       totalBalance: 50,
       rank: 1,
+      todayDelta: 10,
       spinDelta: 5,
     },
     {
@@ -134,6 +135,7 @@ const tokenOverview: TokenOverviewResponse = {
       balance: 26,
       totalBalance: 50,
       rank: 1,
+      todayDelta: -2,
       spinDelta: -2,
     },
     {
@@ -142,6 +144,7 @@ const tokenOverview: TokenOverviewResponse = {
       balance: 20,
       totalBalance: 20,
       rank: 3,
+      todayDelta: 0,
       spinDelta: 0,
     },
   ],
@@ -414,6 +417,7 @@ test('shows the schedule, charts, coalitions and bet board without changing iden
         participantId,
         participantName: expect.any(String),
         balance: expect.any(Number),
+        todayDelta: expect.any(Number),
         spinDelta: expect.any(Number),
       }),
     ]),
@@ -459,20 +463,24 @@ test('shows the schedule, charts, coalitions and bet board without changing iden
   ).toBeVisible();
   await expect(
     standings.getByRole('columnheader', { name: 'Today', exact: true }),
-  ).toHaveCount(0);
+  ).toBeVisible();
   await expect(standings).toContainText(`Spin dated ${date}`);
   const standingsRows = standings.locator('.token-overview-table tbody tr');
   await expect(standingsRows.locator('th')).toHaveText(['1', '1', '3']);
+  await expect(standings.getByLabel('Gained 10 tokens today')).toBeVisible();
   await expect(standingsRows.nth(0).locator('td')).toHaveText([
     'Alex',
     '50',
     '40',
+    '↑ +10',
     '↑ +5',
   ]);
+  await expect(standings.getByLabel('Lost 2 tokens today')).toBeVisible();
   await expect(standingsRows.nth(1).locator('td')).toHaveText([
     'Sam',
     '50',
     '26',
+    '↓ −2',
     '↓ −2',
   ]);
   await expect(standings.locator('.token-overview-table')).toContainText(
@@ -668,6 +676,6 @@ test('standings refresh their spin date and change when the target advances', as
   ).toHaveCount(3);
   await expect(
     standings.locator('.token-overview-table tbody tr').nth(0).locator('td'),
-  ).toHaveText(['Alex', '50', '40', '—']);
+  ).toHaveText(['Alex', '50', '40', '↑ +10', '—']);
   await page.unrouteAll({ behavior: 'wait' });
 });
