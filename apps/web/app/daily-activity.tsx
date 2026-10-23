@@ -370,21 +370,24 @@ function ActivityTrend({
   );
 }
 
-function RestaurantChart({ entries }: { entries: ActionEntry[] }) {
+function RestaurantChart({
+  positions,
+}: {
+  positions: NonNullable<DailyActivityResponse['positions']>;
+}) {
   const totals = new Map<
     string,
     { name: string; boost: number; reduce: number }
   >();
-  for (const entry of entries) {
-    if ((entry.kind !== 'boost' && entry.kind !== 'reduce') || !entry.placeId)
-      continue;
-    const current = totals.get(entry.placeId) ?? {
-      name: entry.placeName ?? 'Archived restaurant',
+  for (const position of positions) {
+    const current = totals.get(position.placeId) ?? {
+      name: position.placeName,
       boost: 0,
       reduce: 0,
     };
-    current[entry.kind] += Math.abs(entry.delta);
-    totals.set(entry.placeId, current);
+    current.boost += position.boostTokens;
+    current.reduce += position.reductionTokens;
+    totals.set(position.placeId, current);
   }
   const rows = [...totals.entries()]
     .map(([placeId, totals]) => ({ placeId, ...totals }))
@@ -393,14 +396,14 @@ function RestaurantChart({ entries }: { entries: ActionEntry[] }) {
   if (!rows.length)
     return (
       <p className="activity-empty">
-        No restaurant influence purchases for this day.
+        No active restaurant positions for this draw.
       </p>
     );
   return (
     <div
       className="restaurant-chart"
       role="group"
-      aria-label="Boost and anti-boost tokens spent by restaurant"
+      aria-label="Current boost and anti-boost tokens by restaurant"
     >
       {rows.map((row) => (
         <div className="restaurant-chart-row" key={row.placeId}>
@@ -433,7 +436,7 @@ function RestaurantChart({ entries }: { entries: ActionEntry[] }) {
         </span>
       </div>
       <table className="visually-hidden">
-        <caption>Influence tokens spent per restaurant</caption>
+        <caption>Current influence tokens per restaurant</caption>
         <thead>
           <tr>
             <th>Restaurant</th>
@@ -855,11 +858,12 @@ export function DailyActivity({
                 <div>
                   <h3>Restaurants in the crossfire</h3>
                   <p>
-                    Purchases before refunds; current positions are shown above
+                    Current boost and anti-boost positions; withdrawn and
+                    refunded requests are excluded
                   </p>
                 </div>
               </div>
-              <RestaurantChart entries={entries} />
+              <RestaurantChart positions={data.positions ?? []} />
             </section>
           </div>
           <section className="activity-panel activity-coalition-panel">

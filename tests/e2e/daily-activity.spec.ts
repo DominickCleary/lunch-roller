@@ -438,9 +438,23 @@ test('coalition cells show active anti-boosts and omit refunded positions', asyn
   );
   await page.goto('/');
   await page.getByRole('tab', { name: 'Activity' }).click();
-  const coalition = page
-    .getByRole('tabpanel', { name: 'Activity' })
-    .locator('.activity-coalition-panel');
+  const activity = page.getByRole('tabpanel', { name: 'Activity' });
+  const chart = activity.getByRole('group', {
+    name: 'Current boost and anti-boost tokens by restaurant',
+  });
+  await expect(
+    chart
+      .locator('.restaurant-chart-row')
+      .filter({ hasText: 'Sushi' })
+      .locator('.restaurant-values'),
+  ).toHaveText('+10 / −5');
+  await expect(
+    chart
+      .locator('.restaurant-chart-row')
+      .filter({ hasText: 'Pizza' })
+      .locator('.restaurant-values'),
+  ).toHaveText('+5 / −0');
+  const coalition = activity.locator('.activity-coalition-panel');
   await expect(
     coalition.getByRole('cell', {
       name: 'Morgan at Sushi: 0 boost tokens, 5 anti-boost tokens',
