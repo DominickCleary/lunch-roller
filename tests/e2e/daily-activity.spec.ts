@@ -38,8 +38,6 @@ const sample: DailyActivityResponse = {
     [sam, 'Sam', sushi, 'Sushi', 'boost', 5, '09:00'],
     [morgan, 'Morgan', sushi, 'Sushi', 'reduce', 5, '10:00'],
     [morgan, 'Morgan', pizza, 'Pizza', 'boost', 5, '11:00'],
-    [alex, 'Alex', pizza, 'Pizza', 'boost', 5, '11:30'],
-    [alex, 'Alex', pizza, 'Pizza', 'boost-refund', 5, '11:45'],
   ].map(
     ([
       participantId,
@@ -125,6 +123,34 @@ const sample: DailyActivityResponse = {
       boostTokens: 5,
       reductionTokens: 0,
       status: 'staged',
+    },
+  ],
+};
+const canceledBoostSample: DailyActivityResponse = {
+  ...sample,
+  entries: [
+    ...sample.entries,
+    {
+      ...sample.entries[0]!,
+      id: randomUUID(),
+      participantId: alex,
+      participantName: 'Alex',
+      placeId: pizza,
+      placeName: 'Pizza',
+      kind: 'boost',
+      delta: -5,
+      createdAt: `${date}T11:30:00.000Z`,
+    },
+    {
+      ...sample.entries[0]!,
+      id: randomUUID(),
+      participantId: alex,
+      participantName: 'Alex',
+      placeId: pizza,
+      placeName: 'Pizza',
+      kind: 'boost-refund',
+      delta: 5,
+      createdAt: `${date}T11:45:00.000Z`,
     },
   ],
 };
@@ -404,6 +430,29 @@ test('pauses wheel purchases and bets after the roll and reopens after the confi
   await page.unrouteAll({ behavior: 'ignoreErrors' });
 });
 
+test('coalition cells show active anti-boosts and omit refunded positions', async ({
+  page,
+}) => {
+  await page.route('**/api/v1/activity?*', (route) =>
+    route.fulfill({ json: canceledBoostSample }),
+  );
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Activity' }).click();
+  const coalition = page
+    .getByRole('tabpanel', { name: 'Activity' })
+    .locator('.activity-coalition-panel');
+  await expect(
+    coalition.getByRole('cell', {
+      name: 'Morgan at Sushi: 0 boost tokens, 5 anti-boost tokens',
+    }),
+  ).toBeVisible();
+  await expect(
+    coalition.getByRole('cell', {
+      name: 'Alex at Pizza: no active position',
+    }),
+  ).toBeVisible();
+});
+
 test('shows the schedule, charts, coalitions and bet board without changing identity', async ({
   page,
   request,
@@ -511,7 +560,7 @@ test('shows the schedule, charts, coalitions and bet board without changing iden
       name: 'Cumulative boost and anti-boost tokens spent',
     }),
   ).toBeVisible();
-  await expect(panel.locator('.activity-summary')).toContainText('20');
+  await expect(panel.locator('.activity-summary')).toContainText('15');
   await expect(panel.locator('.activity-summary')).toContainText('5');
   const healthBonus = panel.getByRole('region', {
     name: 'Automatic health bonus',
@@ -543,16 +592,6 @@ test('shows the schedule, charts, coalitions and bet board without changing iden
   await expect(coalition).toContainText('Sam');
   await expect(coalition).toContainText('Morgan');
   await expect(coalition).toContainText('Sushi');
-  await expect(
-    coalition.getByRole('cell', {
-      name: 'Morgan at Sushi: 0 boost tokens, 5 anti-boost tokens',
-    }),
-  ).toBeVisible();
-  await expect(
-    coalition.getByRole('cell', {
-      name: 'Alex at Pizza: no active position',
-    }),
-  ).toBeVisible();
   await panel.getByLabel('Person', { exact: true }).selectOption(morgan);
   await expect(panel.locator('.activity-timeline li')).toHaveCount(2);
   await panel.getByLabel('Restaurant', { exact: true }).selectOption(sushi);
