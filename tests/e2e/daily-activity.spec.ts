@@ -38,6 +38,8 @@ const sample: DailyActivityResponse = {
     [sam, 'Sam', sushi, 'Sushi', 'boost', 5, '09:00'],
     [morgan, 'Morgan', sushi, 'Sushi', 'reduce', 5, '10:00'],
     [morgan, 'Morgan', pizza, 'Pizza', 'boost', 5, '11:00'],
+    [alex, 'Alex', pizza, 'Pizza', 'boost', 5, '11:30'],
+    [alex, 'Alex', pizza, 'Pizza', 'boost-refund', 5, '11:45'],
   ].map(
     ([
       participantId,
@@ -111,6 +113,17 @@ const sample: DailyActivityResponse = {
       reductions: 1,
       boostTokens: 0,
       reductionTokens: 5,
+      status: 'staged',
+    },
+    {
+      participantId: morgan,
+      participantName: 'Morgan',
+      placeId: pizza,
+      placeName: 'Pizza',
+      boosts: 1,
+      reductions: 0,
+      boostTokens: 5,
+      reductionTokens: 0,
       status: 'staged',
     },
   ],
@@ -498,7 +511,7 @@ test('shows the schedule, charts, coalitions and bet board without changing iden
       name: 'Cumulative boost and anti-boost tokens spent',
     }),
   ).toBeVisible();
-  await expect(panel.locator('.activity-summary')).toContainText('15');
+  await expect(panel.locator('.activity-summary')).toContainText('20');
   await expect(panel.locator('.activity-summary')).toContainText('5');
   const healthBonus = panel.getByRole('region', {
     name: 'Automatic health bonus',
@@ -530,6 +543,16 @@ test('shows the schedule, charts, coalitions and bet board without changing iden
   await expect(coalition).toContainText('Sam');
   await expect(coalition).toContainText('Morgan');
   await expect(coalition).toContainText('Sushi');
+  await expect(
+    coalition.getByRole('cell', {
+      name: 'Morgan at Sushi: 0 boost tokens, 5 anti-boost tokens',
+    }),
+  ).toBeVisible();
+  await expect(
+    coalition.getByRole('cell', {
+      name: 'Alex at Pizza: no active position',
+    }),
+  ).toBeVisible();
   await panel.getByLabel('Person', { exact: true }).selectOption(morgan);
   await expect(panel.locator('.activity-timeline li')).toHaveCount(2);
   await panel.getByLabel('Restaurant', { exact: true }).selectOption(sushi);

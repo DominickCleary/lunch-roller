@@ -455,18 +455,21 @@ function RestaurantChart({ entries }: { entries: ActionEntry[] }) {
   );
 }
 
-function CoalitionMatrix({ entries }: { entries: ActionEntry[] }) {
+function CoalitionMatrix({
+  positions,
+}: {
+  positions: NonNullable<DailyActivityResponse['positions']>;
+}) {
   const restaurants = new Map<string, string>();
   const people = new Map<string, string>();
   const cells = new Map<string, { boost: number; reduce: number }>();
-  for (const entry of entries) {
-    if ((entry.kind !== 'boost' && entry.kind !== 'reduce') || !entry.placeId)
-      continue;
-    restaurants.set(entry.placeId, entry.placeName ?? 'Archived restaurant');
-    people.set(entry.participantId, entry.participantName);
-    const key = `${entry.participantId}:${entry.placeId}`;
+  for (const position of positions) {
+    restaurants.set(position.placeId, position.placeName);
+    people.set(position.participantId, position.participantName);
+    const key = `${position.participantId}:${position.placeId}`;
     const cell = cells.get(key) ?? { boost: 0, reduce: 0 };
-    cell[entry.kind] += Math.abs(entry.delta);
+    cell.boost += position.boostTokens;
+    cell.reduce += position.reductionTokens;
     cells.set(key, cell);
   }
   const restaurantRows = [...restaurants.entries()]
@@ -507,10 +510,17 @@ function CoalitionMatrix({ entries }: { entries: ActionEntry[] }) {
               <th scope="row">{name}</th>
               {restaurantRows.map((restaurant) => {
                 const cell = cells.get(`${personId}:${restaurant.id}`);
+                const boostTokens = cell ? tokenCount(cell.boost) : '0';
+                const reductionTokens = cell ? tokenCount(cell.reduce) : '0';
                 return (
                   <td
                     key={restaurant.id}
                     className={cell ? 'matrix-active' : ''}
+                    aria-label={
+                      cell
+                        ? `${name} at ${restaurant.name}: ${boostTokens} boost tokens, ${reductionTokens} anti-boost tokens`
+                        : `${name} at ${restaurant.name}: no active position`
+                    }
                   >
                     {cell ? (
                       <>
@@ -857,12 +867,12 @@ export function DailyActivity({
               <div>
                 <h3>Who backed each restaurant?</h3>
                 <p>
-                  Compare purchase activity before refunds; outstanding
-                  positions are shown above
+                  Current positions by person; withdrawn and refunded requests
+                  are excluded
                 </p>
               </div>
             </div>
-            <CoalitionMatrix entries={entries} />
+            <CoalitionMatrix positions={data.positions ?? []} />
           </section>
 
           <section className="activity-panel bet-board-panel">
