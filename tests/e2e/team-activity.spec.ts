@@ -150,6 +150,12 @@ test('views team balances and history without changing identity or wallets', asy
 test('handles failed reads, retry and stale selection without switching identity', async ({
 	page,
 }) => {
+	await page.addLocatorHandler(
+		page.getByRole('button', { name: 'Praise the Wheel', exact: true }),
+		async (button) => {
+			await button.click()
+		},
+	)
 	await page.addInitScript(
 		(id) => localStorage.setItem('lunch-roller.participant-id', id),
 		viewerId,
