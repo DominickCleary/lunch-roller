@@ -51,6 +51,7 @@ import {
   WalletBets,
 } from './token-history'
 import { TokenTransfer } from './token-transfer'
+import { useGameStateEvents } from './use-game-state-events'
 import { useWheelAnimation } from './use-wheel-animation'
 import { WinnerCelebration } from './winner-celebration'
 import './countdown-banner.css'
@@ -701,71 +702,67 @@ export default function Home() {
     }
   }, [loadSetupStatus, refresh, refreshAdmin])
 
-  useEffect(() => {
-    if (entryStage !== 'game') return
-    const interval = window.setInterval(
-      () => void refresh(participantId).catch(() => undefined),
-      30000,
-    )
-    return () => window.clearInterval(interval)
-  }, [entryStage, participantId, refresh])
+	useEffect(() => {
+		if (entryStage !== 'game' || !today) return
+		let loading = false
+		const tick = async (wake = false) => {
+			if (document.hidden || loading) return
+			const now = getServerNow()
+			const dueAt = scheduledInstant(
+				today.localDate,
+				today.schedule.time,
+				today.schedule.timezone,
+			).getTime()
+			const nearDraw = today.status === 'pending' && now >= dueAt - 60000
+			const live = today.result && spinIsLive(animationPlan(today.result), now)
+			if (!wake && !nearDraw && !live) return
+			loading = true
+			try {
+				await loadToday()
+			} catch {
+				/* The normal refresh reports connection failures. */
+			} finally {
+				loading = false
+			}
+		}
+		const timer = window.setInterval(() => void tick(), 1000)
+		const wake = () => {
+			if (!document.hidden) void tick(true)
+		}
+		document.addEventListener('visibilitychange', wake)
+		return () => {
+			clearInterval(timer)
+			document.removeEventListener('visibilitychange', wake)
+		}
+	}, [entryStage, today, getServerNow, loadToday])
 
-  useEffect(() => {
-    if (entryStage !== 'game' || !today) return
-    let loading = false
-    const tick = async (wake = false) => {
-      if (document.hidden || loading) return
-      const now = getServerNow()
-      const dueAt = scheduledInstant(
-        today.localDate,
-        today.schedule.time,
-        today.schedule.timezone,
-      ).getTime()
-      const nearDraw = today.status === 'pending' && now >= dueAt - 60000
-      const live = today.result && spinIsLive(animationPlan(today.result), now)
-      if (!wake && !nearDraw && !live) return
-      loading = true
-      try {
-        await loadToday()
-      } catch {
-        /* The normal refresh reports connection failures. */
-      } finally {
-        loading = false
-      }
-    }
-    const timer = window.setInterval(() => void tick(), 1000)
-    const wake = () => {
-      if (!document.hidden) void tick(true)
-    }
-    document.addEventListener('visibilitychange', wake)
-    return () => {
-      clearInterval(timer)
-      document.removeEventListener('visibilitychange', wake)
-    }
-  }, [entryStage, today, getServerNow, loadToday])
-
-  const refreshBets = useCallback(async (selected: string) => {
-    const requestId = ++latestBetRequest.current
-    if (!selected) {
-      setCurrentBets(null)
-      return
-    }
-    try {
-      const data = await request<CurrentBets>('/bets/current', {}, selected)
-      if (requestId !== latestBetRequest.current) return
-      setCurrentBets(data)
-      setBetError('')
-      setBetStakeDraft(data.bet ? String(data.bet.stake) : '1')
-      setBetPlaceDraft(data.bet?.placeId ?? '')
-    } catch (caught) {
-      if (requestId !== latestBetRequest.current) return
-      setBetError(
-        caught instanceof Error
-          ? caught.message
-          : 'Could not load your bet. Please retry.',
-      )
-    }
-  }, [])
+	const refreshBets = useCallback(async (selected: string) => {
+		const requestId = ++latestBetRequest.current
+		if (!selected) {
+			setCurrentBets(null)
+			return
+		}
+		try {
+			const data = await request<CurrentBets>('/bets/current', {}, selected)
+			if (requestId !== latestBetRequest.current) return
+			setCurrentBets(data)
+			setBetError('')
+			setBetStakeDraft(data.bet ? String(data.bet.stake) : '1')
+			setBetPlaceDraft(data.bet?.placeId ?? '')
+		} catch (caught) {
+			if (requestId !== latestBetRequest.current) return
+			setBetError(
+				caught instanceof Error
+					? caught.message
+					: 'Could not load your bet. Please retry.',
+			)
+		}
+	}, [])
+	const refreshSharedGameState = useCallback(async () => {
+		if (entryStage !== 'game') return
+		await Promise.all([refresh(participantId), refreshBets(participantId)])
+	}, [entryStage, participantId, refresh, refreshBets])
+	useGameStateEvents(entryStage === 'game', refreshSharedGameState)
 
   const betCutoffAt = currentBets?.window.cutoffAt
   const betOpensAt = currentBets?.window.opensAt

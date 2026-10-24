@@ -6,6 +6,8 @@ Base: `/api/v1`. Zod schemas in `@lunch/contracts` are the source of wire shapes
 
 `GET /health` → `healthResponse`: `{ status: 'ok' | 'unavailable', database: 'ok' | 'unavailable', service: 'web' }`. HTTP 200 when initialized and reachable, otherwise 503. No credentials/details and no caching.
 
+`GET /events` opens an unauthenticated, read-only `text/event-stream`. It sends `retry: 3000`, 25-second comment heartbeats, and `game-state-changed` events with exactly `{}` as the data. The event is only a prompt to refetch through the existing HTTP APIs; it carries no game state or identity and grants no privileges. A PostgreSQL `LISTEN/NOTIFY` signal fans committed changes to streams in each web process. Browsers refresh on connection/reconnection and visibility resume, with a slower fallback poll if a signal is missed.
+
 ## Suggestion board
 
 `GET /suggestions` returns `{suggestions: Suggestion[]}` ordered newest first. Each suggestion includes its title, description, author, `status` (`open`, `approved`, or `denied`), upvote/downvote totals, the selected viewer's `yourVote` (or null), and creation timestamp. The optional `X-Participant-Id` header only personalizes the displayed vote. `POST /suggestions` requires an active `X-Participant-Id` and `{title,description}` (title 1–120 characters; description 1–2000) and creates an open request. Browser identity remains trust-based.
