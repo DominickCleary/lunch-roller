@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Lunch Roller</title>
   <rect width="64" height="64" rx="18" fill="#263c2e"/>
   <circle cx="32" cy="32" r="23" fill="#f4c85b" stroke="#f7f5ed" stroke-width="3"/>
   <path d="M32 9v23l17 16M32 32l-21 8M32 32l13-19M32 32l-3 23" fill="none" stroke="#263c2e" stroke-width="3"/>

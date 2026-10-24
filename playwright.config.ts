@@ -1,64 +1,64 @@
-import { defineConfig } from '@playwright/test';
-import './tests/disposable-database';
+import { defineConfig } from '@playwright/test'
+import './tests/disposable-database'
 export default defineConfig({
-  testDir: './tests/e2e',
-  // Browser scenarios mutate one workplace's singleton schedule/economy.
-  workers: 1,
-  projects: [
-    { name: 'first-run', testMatch: '**/setup.spec.ts' },
-    {
-      name: 'fixtures',
-      testMatch: '**/fixture-setup.ts',
-      dependencies: ['first-run'],
-    },
-    {
-      name: 'chromium',
-      testIgnore: [
-        '**/rate-limit.spec.ts',
-        '**/setup.spec.ts',
-        '**/fixture-setup.ts',
-        '**/wheel-rollover.spec.ts',
-        '**/preferences.spec.ts',
-        '**/push-gesture.spec.ts',
-        '**/economy.spec.ts',
-      ],
-      dependencies: ['fixtures'],
-    },
-    {
-      name: 'wheel-rollover',
-      testMatch: '**/wheel-rollover.spec.ts',
-      dependencies: ['chromium'],
-    },
-    {
-      name: 'preferences',
-      testMatch: ['**/preferences.spec.ts', '**/push-gesture.spec.ts'],
-      dependencies: ['wheel-rollover'],
-      workers: 1,
-    },
-    {
-      name: 'economy',
-      testMatch: '**/economy.spec.ts',
-      dependencies: ['preferences'],
-      workers: 1,
-    },
-    {
-      name: 'login-throttle',
-      testMatch: '**/rate-limit.spec.ts',
-      dependencies: ['economy'],
-    },
-  ],
-  use: { baseURL: process.env.APP_ORIGIN ?? 'http://localhost:3000' },
-  webServer: {
-    env: {
-      DATABASE_URL: process.env.TEST_DATABASE_URL!,
-      ADMIN_PASSWORD: process.env.ADMIN_PASSWORD ?? 'integration-only-password',
-      SESSION_SECRET:
-        process.env.SESSION_SECRET ??
-        'integration-only-session-secret-at-least-32-characters',
-      APP_ORIGIN: process.env.APP_ORIGIN ?? 'http://localhost:3000',
-    },
-    command: `pnpm --filter @lunch/web start --port ${new URL(process.env.APP_ORIGIN ?? 'http://localhost:3000').port || '3000'}`,
-    url: process.env.APP_ORIGIN ?? 'http://localhost:3000',
-    reuseExistingServer: false,
-  },
-});
+	testDir: './tests/e2e',
+	// Browser scenarios mutate one workplace's singleton schedule/economy.
+	workers: 1,
+	projects: [
+		{ name: 'first-run', testMatch: '**/setup.spec.ts' },
+		{
+			name: 'fixtures',
+			testMatch: '**/fixture-setup.ts',
+			dependencies: ['first-run'],
+		},
+		{
+			name: 'chromium',
+			testIgnore: [
+				'**/rate-limit.spec.ts',
+				'**/setup.spec.ts',
+				'**/fixture-setup.ts',
+				'**/wheel-rollover.spec.ts',
+				'**/preferences.spec.ts',
+				'**/push-gesture.spec.ts',
+				'**/economy.spec.ts',
+			],
+			dependencies: ['fixtures'],
+		},
+		{
+			name: 'wheel-rollover',
+			testMatch: '**/wheel-rollover.spec.ts',
+			dependencies: ['chromium'],
+		},
+		{
+			name: 'preferences',
+			testMatch: ['**/preferences.spec.ts', '**/push-gesture.spec.ts'],
+			dependencies: ['wheel-rollover'],
+			workers: 1,
+		},
+		{
+			name: 'economy',
+			testMatch: '**/economy.spec.ts',
+			dependencies: ['preferences'],
+			workers: 1,
+		},
+		{
+			name: 'login-throttle',
+			testMatch: '**/rate-limit.spec.ts',
+			dependencies: ['economy'],
+		},
+	],
+	use: { baseURL: process.env.APP_ORIGIN ?? 'http://localhost:3000' },
+	webServer: {
+		env: {
+			DATABASE_URL: process.env.TEST_DATABASE_URL!,
+			ADMIN_PASSWORD: process.env.ADMIN_PASSWORD ?? 'integration-only-password',
+			SESSION_SECRET:
+				process.env.SESSION_SECRET ??
+				'integration-only-session-secret-at-least-32-characters',
+			APP_ORIGIN: process.env.APP_ORIGIN ?? 'http://localhost:3000',
+		},
+		command: `pnpm --filter @lunch/web start --port ${new URL(process.env.APP_ORIGIN ?? 'http://localhost:3000').port || '3000'}`,
+		url: process.env.APP_ORIGIN ?? 'http://localhost:3000',
+		reuseExistingServer: false,
+	},
+})

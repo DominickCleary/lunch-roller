@@ -1,168 +1,168 @@
 /* Compact, signed positions: the action icons stay legible without adding copy. */
 .influence-controls {
-  display: contents;
+	display: contents;
 }
 
 .odds-row {
-  position: relative;
-  grid-template-columns: 9px minmax(0, 1fr) auto auto auto;
-  gap: 5px;
-  min-height: 39px;
-  padding: 4px 0;
-  align-items: center;
+	position: relative;
+	grid-template-columns: 9px minmax(0, 1fr) auto auto auto;
+	gap: 5px;
+	min-height: 39px;
+	padding: 4px 0;
+	align-items: center;
 }
 
 .odds-row .odds-color {
-  grid-column: 1;
-  grid-row: 1;
+	grid-column: 1;
+	grid-row: 1;
 }
 
 .influence-place-heading {
-  grid-column: 2;
-  grid-row: 1;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px 5px;
-  min-width: 0;
+	grid-column: 2;
+	grid-row: 1;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 2px 5px;
+	min-width: 0;
 }
 
 .influence-controls .influence-place-title {
-  display: contents;
+	display: contents;
 }
 
 .influence-controls .influence-place-heading .odds-name {
-  flex: 1 1 100%;
-  min-width: 0;
-  line-height: 1.15;
+	flex: 1 1 100%;
+	min-width: 0;
+	line-height: 1.15;
 }
 
 .influence-place-heading .health-badge {
-  padding: 1px 4px;
-  border-radius: 3px;
-  font-size: 8px;
-  line-height: 1.2;
+	padding: 1px 4px;
+	border-radius: 3px;
+	font-size: 8px;
+	line-height: 1.2;
 }
 
 .influence-market-counts {
-  display: inline-flex;
-  margin-left: auto;
-  font-variant-numeric: tabular-nums;
+	display: inline-flex;
+	margin-left: auto;
+	font-variant-numeric: tabular-nums;
 }
 
 .market-count {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  color: var(--text-muted);
-  font-size: 8px;
-  white-space: nowrap;
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	color: var(--text-muted);
+	font-size: 8px;
+	white-space: nowrap;
 }
 
 .market-count span:first-child {
-  color: var(--success);
+	color: var(--success);
 }
 
 .market-count span:last-child {
-  color: var(--danger);
+	color: var(--danger);
 }
 
 .odds-row > strong {
-  grid-column: 3;
-  grid-row: 1;
-  min-width: 35px;
-  color: var(--accent, #80612c);
-  font-variant-numeric: tabular-nums;
+	grid-column: 3;
+	grid-row: 1;
+	min-width: 35px;
+	color: var(--accent, #80612c);
+	font-variant-numeric: tabular-nums;
 }
 
 .influence-stepper {
-  grid-column: 4;
-  grid-row: 1;
+	grid-column: 4;
+	grid-row: 1;
 }
 
 .influence-position-buttons {
-  display: flex;
-  align-items: center;
-  gap: 2px;
+	display: flex;
+	align-items: center;
+	gap: 2px;
 }
 
 .influence-position-control {
-  display: inline-grid;
-  place-items: center;
-  width: 25px;
-  height: 25px;
-  padding: 3px;
-  border: 1px solid var(--line-strong);
-  border-radius: 4px;
-  background: var(--surface);
-  color: var(--text-secondary);
-  cursor: pointer;
+	display: inline-grid;
+	place-items: center;
+	width: 25px;
+	height: 25px;
+	padding: 3px;
+	border: 1px solid var(--line-strong);
+	border-radius: 4px;
+	background: var(--surface);
+	color: var(--text-secondary);
+	cursor: pointer;
 }
 
 .influence-position-control svg {
-  width: 13px;
-  height: 13px;
+	width: 13px;
+	height: 13px;
 }
 
 .influence-position-control.boost {
-  color: var(--success);
+	color: var(--success);
 }
 
 .influence-position-control.reduce {
-  color: var(--danger);
+	color: var(--danger);
 }
 
 .influence-position-control.refund {
-  color: var(--accent, #80612c);
+	color: var(--accent, #80612c);
 }
 
 .influence-position-control:hover:not(:disabled) {
-  border-color: var(--accent, #80612c);
-  background: var(--accent-soft, #eee4ce);
+	border-color: var(--accent, #80612c);
+	background: var(--accent-soft, #eee4ce);
 }
 
 .influence-position-control:disabled {
-  opacity: 0.48;
-  cursor: not-allowed;
+	opacity: 0.48;
+	cursor: not-allowed;
 }
 
 .influence-net {
-  display: inline-grid;
-  place-items: center;
-  min-width: 19px;
-  height: 25px;
-  padding: 0 2px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
+	display: inline-grid;
+	place-items: center;
+	min-width: 19px;
+	height: 25px;
+	padding: 0 2px;
+	text-align: center;
+	font-variant-numeric: tabular-nums;
 }
 
 .influence-net-value {
-  font-size: 11px;
-  line-height: 1;
+	font-size: 11px;
+	line-height: 1;
 }
 
 .influence-stepper.positive .influence-net-value {
-  color: var(--success);
+	color: var(--success);
 }
 
 .influence-stepper.negative .influence-net-value {
-  color: var(--danger);
+	color: var(--danger);
 }
 
 .odds-row > .influence-buttons {
-  grid-column: 5;
-  grid-row: 1;
+	grid-column: 5;
+	grid-row: 1;
 }
 
 .influence-position-control:focus-visible,
 .rules-help-button:focus-visible,
 .rules-close:focus-visible {
-  outline: 2px solid var(--accent-bright, #a9884a);
-  outline-offset: 2px;
+	outline: 2px solid var(--accent-bright, #a9884a);
+	outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .influence-position-control {
-    transition: none;
-  }
+	.influence-position-control {
+		transition: none;
+	}
 }
