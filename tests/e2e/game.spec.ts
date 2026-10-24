@@ -63,13 +63,16 @@ async function exerciseAdminUiAndGame(
   const addPlaceName = `${fixturePrefix} Member Place`
   const correctionReason = `${fixturePrefix} test grant`
 
-  await page.setViewportSize({ width: 1440, height: 1000 })
-  await page.emulateMedia({ reducedMotion: 'reduce' })
-  await page.goto(appOrigin)
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-    'Gambling about lunch',
-  )
-  await signIn(page)
+	// This broad admin flow tests forms and persistence. SSE delivery is covered
+	// separately in sse.spec.ts; keep asynchronous refreshes out of this flow.
+	await page.route('**/api/v1/events', (route) => route.abort())
+	await page.setViewportSize({ width: 1440, height: 1000 })
+	await page.emulateMedia({ reducedMotion: 'reduce' })
+	await page.goto(appOrigin)
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+		'Gambling about lunch',
+	)
+	await signIn(page)
 
   const peopleCard = page
     .locator('.admin-tool-card')
@@ -374,56 +377,57 @@ async function exerciseAdminUiAndGame(
     true,
   )
 
-  const secondContext = await browser.newContext({
-    baseURL: appOrigin,
-    reducedMotion: 'reduce',
-    viewport: { width: 390, height: 844 },
-  })
-  try {
-    await secondContext.addInitScript(() => {
-      Reflect.deleteProperty(window, 'Notification')
-    })
-    const secondPage = await secondContext.newPage()
-    await secondPage.goto(appOrigin)
-    await expect(secondPage.getByRole('heading', { level: 1 })).toHaveText(
-      'Gambling about lunch',
-    )
-    await expect(secondPage.getByTestId('name-picker')).toBeVisible()
-    await expect(secondPage.getByLabel('Your name')).toBeVisible()
-    await expect(
-      secondPage.getByRole('button', { name: 'Enter lunch wheel' }),
-    ).toBeVisible()
-    await expect(
-      secondPage.locator('.top-actions').getByText('Admin'),
-    ).toBeVisible()
-    expect(
-      await secondPage.evaluate(
-        () => document.documentElement.scrollWidth <= window.innerWidth,
-      ),
-    ).toBe(true)
-    expect(
-      await secondPage.evaluate(
-        () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-      ),
-    ).toBe(true)
-    expect(await secondPage.evaluate(() => 'Notification' in window)).toBe(
-      false,
-    )
-    await expect(
-      secondPage.getByRole('button', {
-        name: /Get lunch and token alerts/,
-      }),
-    ).toHaveCount(0)
-    await secondPage.getByLabel('Your name').selectOption({ label: memberName })
-    await secondPage.getByRole('button', { name: 'Enter lunch wheel' }).click()
-    await expect(secondPage.getByTestId('today-result')).toHaveCount(0)
-    const reducedTransition = await secondPage
-      .locator('.wheel')
-      .evaluate((element) => getComputedStyle(element).transitionDuration)
-    expect(Number.parseFloat(reducedTransition)).toBeLessThan(0.01)
-  } finally {
-    await secondContext.close()
-  }
+	const secondContext = await browser.newContext({
+		baseURL: appOrigin,
+		reducedMotion: 'reduce',
+		viewport: { width: 390, height: 844 },
+	})
+	try {
+		await secondContext.addInitScript(() => {
+			Reflect.deleteProperty(window, 'Notification')
+		})
+		const secondPage = await secondContext.newPage()
+		await secondPage.route('**/api/v1/events', (route) => route.abort())
+		await secondPage.goto(appOrigin)
+		await expect(secondPage.getByRole('heading', { level: 1 })).toHaveText(
+			'Gambling about lunch',
+		)
+		await expect(secondPage.getByTestId('name-picker')).toBeVisible()
+		await expect(secondPage.getByLabel('Your name')).toBeVisible()
+		await expect(
+			secondPage.getByRole('button', { name: 'Enter lunch wheel' }),
+		).toBeVisible()
+		await expect(
+			secondPage.locator('.top-actions').getByText('Admin'),
+		).toBeVisible()
+		expect(
+			await secondPage.evaluate(
+				() => document.documentElement.scrollWidth <= window.innerWidth,
+			),
+		).toBe(true)
+		expect(
+			await secondPage.evaluate(
+				() => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+			),
+		).toBe(true)
+		expect(await secondPage.evaluate(() => 'Notification' in window)).toBe(
+			false,
+		)
+		await expect(
+			secondPage.getByRole('button', {
+				name: /Get lunch and token alerts/,
+			}),
+		).toHaveCount(0)
+		await secondPage.getByLabel('Your name').selectOption({ label: memberName })
+		await secondPage.getByRole('button', { name: 'Enter lunch wheel' }).click()
+		await expect(secondPage.getByTestId('today-result')).toHaveCount(0)
+		const reducedTransition = await secondPage
+			.locator('.wheel')
+			.evaluate((element) => getComputedStyle(element).transitionDuration)
+		expect(Number.parseFloat(reducedTransition)).toBeLessThan(0.01)
+	} finally {
+		await secondContext.close()
+	}
 
   await page.getByRole('button', { name: 'Lock admin tools' }).click()
   await expect(page.getByLabel('Administrator password')).toBeVisible()
@@ -535,6 +539,6 @@ test('admin forms manage the game and members see the same committed draw', asyn
   browser,
   request,
 }) => {
-	test.setTimeout(90000)
+	test.setTimeout(60000)
 	await exerciseAdminUiAndGame(page, browser, request)
 })
