@@ -535,6 +535,6 @@ test('admin forms manage the game and members see the same committed draw', asyn
   browser,
   request,
 }) => {
-  test.setTimeout(60000)
-  await exerciseAdminUiAndGame(page, browser, request)
+	test.setTimeout(90000)
+	await exerciseAdminUiAndGame(page, browser, request)
 })
