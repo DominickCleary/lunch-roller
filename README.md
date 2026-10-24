@@ -58,7 +58,7 @@ CI can deploy passing pushes to `main` through a Linux Actions runner installed 
 
 ## Local development
 
-Requires Node **24.x**, pnpm **11.21.0**, and PostgreSQL (Compose supplies PostgreSQL 17). Install pnpm with `npm install --global pnpm@11.21.0` if needed. Copy the environment example before running database commands.
+Requires Node **24.x**, pnpm **12.15.0**, and PostgreSQL (Compose supplies PostgreSQL 17). Install pnpm with `npm install --global pnpm@12.15.0` if needed. Copy the environment example before running database commands.
 
 ```sh
 pnpm install --frozen-lockfile

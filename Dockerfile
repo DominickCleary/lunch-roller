@@ -1,7 +1,7 @@
 FROM node:24.19.0-bookworm-slim AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
-RUN npm install --global pnpm@11.21.0
+RUN npm install --global pnpm@12.15.0
 WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/web/package.json apps/web/package.json
