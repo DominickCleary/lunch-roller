@@ -177,8 +177,13 @@ test('shared changes refresh another page over SSE and reconnect recovers a miss
 
 	// Saved bets still initialize on reload; cancelling discards unfinished edits.
 	const savedBetForm = page.locator('.bet-form')
+	const praiseWheel = page.getByRole('button', {
+		name: 'Praise the Wheel',
+		exact: true,
+	})
 	await savedBetForm.getByLabel('Lunch place').selectOption(placeId)
 	await savedBetForm.getByLabel('Stake').fill('17')
+	if (await praiseWheel.isVisible()) await praiseWheel.click()
 	await savedBetForm
 		.getByRole('button', { name: 'Place bet', exact: true })
 		.click()
@@ -186,10 +191,6 @@ test('shared changes refresh another page over SSE and reconnect recovers a miss
 		savedBetForm.getByRole('button', { name: 'Update bet' }),
 	).toBeEnabled()
 	await page.reload()
-	const praiseWheel = page.getByRole('button', {
-		name: 'Praise the Wheel',
-		exact: true,
-	})
 	if (await praiseWheel.isVisible()) await praiseWheel.click()
 	await expect(savedBetForm.getByLabel('Lunch place')).toHaveValue(placeId)
 	await expect(savedBetForm.getByLabel('Stake')).toHaveValue('17')
