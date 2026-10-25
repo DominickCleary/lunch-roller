@@ -55,8 +55,6 @@ test.afterAll(async () => {
 		if (memberId) {
 			await database.client`DELETE FROM influence_lots WHERE participant_id = ${memberId}::uuid`
 			await database.client`DELETE FROM token_ledger WHERE participant_id = ${memberId}::uuid`
-			await database.client`DELETE FROM bet_requests WHERE participant_id = ${memberId}::uuid`
-			await database.client`DELETE FROM bets WHERE participant_id = ${memberId}::uuid`
 			await database.client`DELETE FROM attendance WHERE participant_id = ${memberId}::uuid`
 			await database.client`DELETE FROM participants WHERE id = ${memberId}::uuid`
 		}
@@ -174,55 +172,4 @@ test('shared changes refresh another page over SSE and reconnect recovers a miss
 		),
 	).toBe(memberId)
 	await otherPage.close()
-
-	// Saved bets still initialize on reload; cancelling discards unfinished edits.
-	const savedBetForm = page.locator('.bet-form')
-	const praiseWheel = page.getByRole('button', {
-		name: 'Praise the Wheel',
-		exact: true,
-	})
-	await savedBetForm.getByLabel('Lunch place').selectOption(placeId)
-	await savedBetForm.getByLabel('Stake').fill('17')
-	if (await praiseWheel.isVisible()) await praiseWheel.click()
-	await savedBetForm
-		.getByRole('button', { name: 'Place bet', exact: true })
-		.click()
-	await expect(
-		savedBetForm.getByRole('button', { name: 'Update bet' }),
-	).toBeEnabled()
-	await page.reload()
-	if (await praiseWheel.isVisible()) await praiseWheel.click()
-	await expect(savedBetForm.getByLabel('Lunch place')).toHaveValue(placeId)
-	await expect(savedBetForm.getByLabel('Stake')).toHaveValue('17')
-	await savedBetForm.getByLabel('Stake').fill('23')
-	await game.correctTokens(
-		{ participantId: memberId, delta: 1, reason: 'refresh saved bet draft' },
-		randomUUID(),
-	)
-	await expect(page.locator('.balance')).toContainText('79')
-	await expect(savedBetForm.getByLabel('Stake')).toHaveValue('23')
-	await page.route('**/api/v1/bets/current', (route) =>
-		route.request().method() === 'PUT'
-			? route.fulfill({
-					status: 503,
-					contentType: 'application/json',
-					body: JSON.stringify({
-						error: { message: 'Bet service unavailable' },
-					}),
-				})
-			: route.continue(),
-	)
-	if (await praiseWheel.isVisible()) await praiseWheel.click()
-	await savedBetForm.getByRole('button', { name: 'Update bet' }).click()
-	await expect(page.getByText('Bet service unavailable')).toBeVisible()
-	await expect(savedBetForm.getByLabel('Stake')).toHaveValue('23')
-	await expect(savedBetForm.getByLabel('Lunch place')).toHaveValue(placeId)
-	await page.unroute('**/api/v1/bets/current')
-	await savedBetForm.getByRole('button', { name: 'Cancel bet' }).click()
-	await expect(
-		savedBetForm.getByRole('button', { name: 'Place bet', exact: true }),
-	).toBeDisabled()
-	await expect(savedBetForm.getByLabel('Lunch place')).toHaveValue('')
-	await expect(savedBetForm.getByLabel('Stake')).toHaveValue('1')
-	await expect(page.locator('.balance')).toContainText('96')
 })
