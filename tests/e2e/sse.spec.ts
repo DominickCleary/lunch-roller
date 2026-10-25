@@ -55,6 +55,8 @@ test.afterAll(async () => {
 		if (memberId) {
 			await database.client`DELETE FROM influence_lots WHERE participant_id = ${memberId}::uuid`
 			await database.client`DELETE FROM token_ledger WHERE participant_id = ${memberId}::uuid`
+			await database.client`DELETE FROM bet_requests WHERE participant_id = ${memberId}::uuid`
+			await database.client`DELETE FROM bets WHERE participant_id = ${memberId}::uuid`
 			await database.client`DELETE FROM attendance WHERE participant_id = ${memberId}::uuid`
 			await database.client`DELETE FROM participants WHERE id = ${memberId}::uuid`
 		}
@@ -77,6 +79,7 @@ test.afterAll(async () => {
 test('shared changes refresh another page over SSE and reconnect recovers a missed change', async ({
 	page,
 }) => {
+	test.setTimeout(60_000)
 	await page.addInitScript((id) => {
 		localStorage.setItem('lunch-roller.participant-id', id)
 	}, memberId)
@@ -102,6 +105,9 @@ test('shared changes refresh another page over SSE and reconnect recovers a miss
 	const otherRow = otherPage.locator('.odds-row').filter({ hasText: placeName })
 	const chanceLabel = otherRow.locator('strong[title*=" chance."]')
 	const initialChance = await chanceLabel.getAttribute('title')
+	const betForm = otherPage.locator('.bet-form')
+	await betForm.getByLabel('Lunch place').selectOption(placeId)
+	await betForm.getByLabel('Stake').fill('17')
 	await row.getByRole('button', { name: `Boost ${placeName}` }).click()
 	await expect(page.locator('.balance')).toContainText('95')
 	await expect(otherPage.locator('.balance')).toContainText('95', {
@@ -112,6 +118,8 @@ test('shared changes refresh another page over SSE and reconnect recovers a miss
 			timeout: 10_000,
 		})
 		.not.toBe(initialChance)
+	await expect(betForm.getByLabel('Lunch place')).toHaveValue(placeId)
+	await expect(betForm.getByLabel('Stake')).toHaveValue('17')
 	await expect(otherPage.locator('.member-status')).toContainText(memberName)
 	expect(
 		await otherPage.evaluate(() =>
@@ -133,8 +141,18 @@ test('shared changes refresh another page over SSE and reconnect recovers a miss
 			timeout: 10_000,
 		})
 		.toBe(initialChance)
+	await expect(betForm.getByLabel('Lunch place')).toHaveValue(placeId)
+	await expect(betForm.getByLabel('Stake')).toHaveValue('17')
 
-	await otherPage.route('**/api/v1/events', (route) => route.abort())
+	// A listener startup failure returns an SSE response that ends after retry.
+	// EventSource must reconnect even though the HTTP response succeeded.
+	await otherPage.route('**/api/v1/events', (route) =>
+		route.fulfill({
+			status: 200,
+			contentType: 'text/event-stream',
+			body: 'retry: 3000\n\n',
+		}),
+	)
 	const blockedStreamRequest = otherPage.waitForRequest((request) =>
 		request.url().endsWith('/api/v1/events'),
 	)
@@ -156,4 +174,48 @@ test('shared changes refresh another page over SSE and reconnect recovers a miss
 		),
 	).toBe(memberId)
 	await otherPage.close()
+
+	// Saved bets still initialize on reload; cancelling discards unfinished edits.
+	const savedBetForm = page.locator('.bet-form')
+	await savedBetForm.getByLabel('Lunch place').selectOption(placeId)
+	await savedBetForm.getByLabel('Stake').fill('17')
+	await savedBetForm
+		.getByRole('button', { name: 'Place bet', exact: true })
+		.click()
+	await expect(
+		savedBetForm.getByRole('button', { name: 'Update bet' }),
+	).toBeEnabled()
+	await page.reload()
+	await expect(savedBetForm.getByLabel('Lunch place')).toHaveValue(placeId)
+	await expect(savedBetForm.getByLabel('Stake')).toHaveValue('17')
+	await savedBetForm.getByLabel('Stake').fill('23')
+	await game.correctTokens(
+		{ participantId: memberId, delta: 1, reason: 'refresh saved bet draft' },
+		randomUUID(),
+	)
+	await expect(page.locator('.balance')).toContainText('79')
+	await expect(savedBetForm.getByLabel('Stake')).toHaveValue('23')
+	await page.route('**/api/v1/bets/current', (route) =>
+		route.request().method() === 'PUT'
+			? route.fulfill({
+					status: 503,
+					contentType: 'application/json',
+					body: JSON.stringify({
+						error: { message: 'Bet service unavailable' },
+					}),
+				})
+			: route.continue(),
+	)
+	await savedBetForm.getByRole('button', { name: 'Update bet' }).click()
+	await expect(page.getByText('Bet service unavailable')).toBeVisible()
+	await expect(savedBetForm.getByLabel('Stake')).toHaveValue('23')
+	await expect(savedBetForm.getByLabel('Lunch place')).toHaveValue(placeId)
+	await page.unroute('**/api/v1/bets/current')
+	await savedBetForm.getByRole('button', { name: 'Cancel bet' }).click()
+	await expect(
+		savedBetForm.getByRole('button', { name: 'Place bet', exact: true }),
+	).toBeDisabled()
+	await expect(savedBetForm.getByLabel('Lunch place')).toHaveValue('')
+	await expect(savedBetForm.getByLabel('Stake')).toHaveValue('1')
+	await expect(page.locator('.balance')).toContainText('96')
 })

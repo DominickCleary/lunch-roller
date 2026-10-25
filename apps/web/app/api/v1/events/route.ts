@@ -27,8 +27,7 @@ function ensureListener(): Promise<Listener> {
 				}
 			}
 		}).catch((error: unknown) => {
-			// Leave the stream open for fallback polling; let a later connection
-			// retry listener startup if the database was temporarily unavailable.
+			// Failed streams close below so EventSource retries listener startup.
 			listenerPromise = undefined
 			throw error
 		})
@@ -83,7 +82,9 @@ export async function GET(request: Request) {
 			}, HEARTBEAT_MS)
 			clients.set(controller, cleanup)
 			void ensureListener().catch(() => {
-				// SSE remains connected; the browser's slower HTTP polling recovers.
+				if (closed) return
+				cleanup()
+				controller.close()
 			})
 		},
 		cancel() {

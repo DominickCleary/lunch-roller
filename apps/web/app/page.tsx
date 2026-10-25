@@ -375,6 +375,8 @@ export default function Home() {
   const [influenceError, setInfluenceError] = useState('')
   const [betStakeDraft, setBetStakeDraft] = useState('1')
   const [betPlaceDraft, setBetPlaceDraft] = useState('')
+	const betDraftDirty = useRef(false)
+	const betDraftScope = useRef('')
   const [betBusy, setBetBusy] = useState(false)
   const [betError, setBetError] = useState('')
   const [betNotice, setBetNotice] = useState('')
@@ -747,8 +749,13 @@ export default function Home() {
 			if (requestId !== latestBetRequest.current) return
 			setCurrentBets(data)
 			setBetError('')
+			const scope = `${selected}:${data.window.localDate}`
+			if (!betDraftDirty.current || betDraftScope.current !== scope) {
+				betDraftScope.current = scope
+				betDraftDirty.current = false
 			setBetStakeDraft(data.bet ? String(data.bet.stake) : '1')
 			setBetPlaceDraft(data.bet?.placeId ?? '')
+			}
 		} catch (caught) {
 			if (requestId !== latestBetRequest.current) return
 			setBetError(
@@ -847,6 +854,7 @@ export default function Home() {
         },
         participantId,
       )
+			betDraftDirty.current = false
       await Promise.all([refresh(participantId), refreshBets(participantId)])
       setBetNotice('Your bet is saved. You can change it until betting closes.')
     } catch (caught) {
@@ -873,6 +881,7 @@ export default function Home() {
         },
         participantId,
       )
+			betDraftDirty.current = false
       await Promise.all([refresh(participantId), refreshBets(participantId)])
       setBetNotice('Your bet was cancelled and the tokens were returned.')
     } catch (caught) {
@@ -979,6 +988,8 @@ export default function Home() {
   }
 
   function changeName() {
+		betDraftDirty.current = false
+		betDraftScope.current = ''
     latestAttendanceRequest.current += 1
     latestBetRequest.current += 1
     latestInfluenceRequest.current += 1
@@ -2220,9 +2231,10 @@ export default function Home() {
                       Lunch place
                       <select
                         value={betPlaceDraft}
-                        onChange={(event) =>
+												onChange={(event) => {
+													betDraftDirty.current = true
                           setBetPlaceDraft(event.target.value)
-                        }
+												}}
                         disabled={
                           betBusy || !betWindowOpen || !today?.odds.length
                         }
@@ -2249,9 +2261,10 @@ export default function Home() {
                           step="1"
                           inputMode="numeric"
                           value={betStakeDraft}
-                          onChange={(event) =>
+													onChange={(event) => {
+														betDraftDirty.current = true
                             setBetStakeDraft(event.target.value)
-                          }
+													}}
                           disabled={betBusy || !betWindowOpen}
                           aria-describedby="bet-balance-help"
                         />
