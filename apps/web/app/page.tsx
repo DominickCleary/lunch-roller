@@ -2561,7 +2561,8 @@ export default function Home() {
 							<div className="ledger">
 								<div className="ledger-heading">
 									<h3>Recent token activity</h3>
-									{wallet && combineInfluenceEntries(wallet.ledger).length > 5 ? (
+					{wallet &&
+					combineInfluenceEntries(wallet.ledger).length > 5 ? (
 										<button
 											type="button"
 											className="ledger-toggle"

@@ -143,7 +143,7 @@ export function TeamActivity({
 												{wallet.ledger.length ? (
 													<>
 														<div id="team-token-ledger">
-													{combineInfluenceEntries(wallet.ledger)
+									{combineInfluenceEntries(wallet.ledger)
 																.slice(0, showAll ? undefined : 5)
 																.map((entry) => (
 																	<div
@@ -173,7 +173,8 @@ export function TeamActivity({
 																	</div>
 																))}
 														</div>
-												{combineInfluenceEntries(wallet.ledger).length > 5 && (
+								{combineInfluenceEntries(wallet.ledger).length >
+									5 && (
 															<button
 																type="button"
 																className="ledger-toggle"
