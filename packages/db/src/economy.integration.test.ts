@@ -102,7 +102,8 @@ it('uses configured rewards and prices, replays original responses, and preserve
   }
   expect(await service.setEconomy(economy)).toEqual(economy)
 
-  const drawAt = new Date(Date.now() + 1_000 * 24 * 60 * 60 * 1000)
+  const drawAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)
+  drawAt.setUTCHours(8, 0, 0, 0)
   const draw = remember(await service.drawIfDue(drawAt))
   influenceAt = drawAt
   expect(draw).not.toBeNull()
