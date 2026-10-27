@@ -1922,7 +1922,7 @@ export default function Home() {
                   </button>
                 ))}
               </div>
-              {celebration && (
+              {celebration && mainView === 'wheel' && (
                 <WinnerCelebration
                   key={celebration.id}
                   winner={celebration.placeName}
