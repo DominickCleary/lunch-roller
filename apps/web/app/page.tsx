@@ -1850,6 +1850,18 @@ export default function Home() {
         </div>
       </header>
 
+      {entryStage === 'game' && today?.result && !liveReveal && (
+        <section className="draw-winner-card" aria-label="Winning restaurant">
+          <span className="draw-winner-mark" aria-hidden="true">
+            ✦
+          </span>
+          <div>
+            <p>WINNER · {today.result.localDate}</p>
+            <h2>{today.result.placeName}</h2>
+            <span>Chosen by the Wheel</span>
+          </div>
+        </section>
+      )}
       {entryStage === 'game' && today?.wheel.localDate && (
         <CountdownBanner
           localDate={today.wheel.localDate}
@@ -2432,79 +2444,84 @@ export default function Home() {
                 </p>
               )}
               <div className="odds-list">
-                {odds.map((option, index) => {
-                  const placeId = 'placeId' in option ? option.placeId : ''
-                  const fairOdds = approximateOdds(option.probability)
-                  const influencePosition = currentInfluence?.places.find(
-                    (position) => position.placeId === placeId,
-                  )
-                  return (
-                    <div className="odds-row" key={placeId}>
-                      <span
-                        className="odds-color"
-                        style={{
-                          background: wheelColors[index % wheelColors.length],
-                        }}
-                      />
-                      <InfluenceControls
-                        placeId={placeId}
-                        placeName={option.name}
-                        healthLevel={option.healthLevel}
-                        position={influencePosition}
-                        window={currentInfluence?.window ?? null}
-                        balance={wallet?.balance ?? 0}
-                        boostCost={currentEconomy.boostCost}
-                        reduceCost={currentEconomy.reduceCost}
-                        busy={busy || influenceBusy || Boolean(influenceError)}
-                        identityReady={
-                          Boolean(participantId) && !wheelActivityPaused
-                        }
-                        onChange={changeInfluence}
-                        onRefund={refundSpot}
-                      />
-                      <span className="odds-bar">
+                {[...odds]
+                  .sort((a, b) => b.probability - a.probability)
+                  .map((option, index) => {
+                    const placeId = 'placeId' in option ? option.placeId : ''
+                    const fairOdds = approximateOdds(option.probability)
+                    const influencePosition = currentInfluence?.places.find(
+                      (position) => position.placeId === placeId,
+                    )
+                    return (
+                      <div className="odds-row" key={placeId}>
                         <span
+                          className="odds-color"
                           style={{
-                            width: `${Math.max(option.probability * 100, option.probability > 0 ? 0.5 : 0)}%`,
                             background: wheelColors[index % wheelColors.length],
                           }}
                         />
-                      </span>
-                      <strong
-                        title={`${(option.probability * 100).toPrecision(6)}% chance. Odds show approximate net winnings per token staked; payouts use the exact final chance.`}
-                      >
-                        {showFairOdds
-                          ? fairOdds
-                          : `${(option.probability * 100).toFixed(1)}%`}
-                      </strong>
-                      <div className="influence-buttons">
-                        <button
-                          type="button"
-                          className="remove-place-control"
-                          aria-label={`Banish ${option.name} from the wheel for ${currentEconomy.removePlaceCost} tokens`}
-                          title={`Banish ${option.name} for ${currentEconomy.removePlaceCost} tokens`}
-                          disabled={
-                            busy || !participantId || wheelActivityPaused
+                        <InfluenceControls
+                          placeId={placeId}
+                          placeName={option.name}
+                          healthLevel={option.healthLevel}
+                          position={influencePosition}
+                          window={currentInfluence?.window ?? null}
+                          balance={wallet?.balance ?? 0}
+                          boostCost={currentEconomy.boostCost}
+                          reduceCost={currentEconomy.reduceCost}
+                          busy={
+                            busy || influenceBusy || Boolean(influenceError)
                           }
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                `Banish ${option.name} from the wheel for ${currentEconomy.removePlaceCost} tokens? This is final for this restaurant; pending boosts, reductions, and bets will be refunded. You can restore it later by adding the same name.`,
-                              )
-                            )
-                              void mutate(
-                                '/purchases',
-                                { placeId, action: 'remove' },
-                                'Restaurant banished.',
-                              )
-                          }}
+                          identityReady={
+                            Boolean(participantId) && !wheelActivityPaused
+                          }
+                          onChange={changeInfluence}
+                          onRefund={refundSpot}
+                        />
+                        <span className="odds-bar">
+                          <span
+                            style={{
+                              width: `${Math.max(option.probability * 100, option.probability > 0 ? 0.5 : 0)}%`,
+                              background:
+                                wheelColors[index % wheelColors.length],
+                            }}
+                          />
+                        </span>
+                        <strong
+                          title={`${(option.probability * 100).toPrecision(6)}% chance. Odds show approximate net winnings per token staked; payouts use the exact final chance.`}
                         >
-                          ×
-                        </button>
+                          {showFairOdds
+                            ? fairOdds
+                            : `${(option.probability * 100).toFixed(1)}%`}
+                        </strong>
+                        <div className="influence-buttons">
+                          <button
+                            type="button"
+                            className="remove-place-control"
+                            aria-label={`Banish ${option.name} from the wheel for ${currentEconomy.removePlaceCost} tokens`}
+                            title={`Banish ${option.name} for ${currentEconomy.removePlaceCost} tokens`}
+                            disabled={
+                              busy || !participantId || wheelActivityPaused
+                            }
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  `Banish ${option.name} from the wheel for ${currentEconomy.removePlaceCost} tokens? This is final for this restaurant; pending boosts, reductions, and bets will be refunded. You can restore it later by adding the same name.`,
+                                )
+                              )
+                                void mutate(
+                                  '/purchases',
+                                  { placeId, action: 'remove' },
+                                  'Restaurant banished.',
+                                )
+                            }}
+                          >
+                            ×
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })}
                 {!odds.length && (
                   <p className="empty-note">
                     The admin can add places to get the wheel rolling.

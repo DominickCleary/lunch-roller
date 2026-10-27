@@ -1090,7 +1090,8 @@ export function DailyActivity({
                         )}
                     </div>
                     <time dateTime={entry.createdAt}>
-                      {oldestAt !== entry.createdAt &&
+                      {formatInstant(oldestAt, timezone) !==
+                        formatInstant(entry.createdAt, timezone) &&
                         `${formatInstant(oldestAt, timezone)} – `}
                       {formatInstant(entry.createdAt, timezone)}
                     </time>
