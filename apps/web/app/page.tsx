@@ -2442,6 +2442,9 @@ export default function Home() {
                       )
                       return (
                         <div className="odds-row" key={placeId}>
+                          {mostCheckedIn.has(placeId) && (
+                            <span className="overgoated-badge">overgoated</span>
+                          )}
                           <span
                             className="odds-color"
                             style={{
@@ -2484,11 +2487,6 @@ export default function Home() {
                               : `${(option.probability * 100).toFixed(1)}%`}
                           </strong>
                           <div className="influence-buttons">
-                            {mostCheckedIn.has(placeId) && (
-                              <span className="overgoated-badge">
-                                overgoated
-                              </span>
-                            )}
                             <button
                               type="button"
                               className="remove-place-control"
