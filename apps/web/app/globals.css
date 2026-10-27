@@ -776,6 +776,12 @@ button:disabled {
   min-height: 35px;
   border-top: 1px solid var(--line);
 }
+.odds-row-most-checkins {
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding-right: 5px;
+  padding-left: 5px;
+}
 .odds-color {
   width: 9px;
   height: 9px;
@@ -816,19 +822,6 @@ button:disabled {
   color: var(--danger);
   font-size: 14px;
   font-weight: 700;
-}
-.overgoated-badge {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  padding: 1px 4px;
-  border: 1px solid var(--accent);
-  border-radius: 999px;
-  color: var(--accent);
-  font-size: 8px;
-  font-weight: 700;
-  line-height: 1;
-  white-space: nowrap;
 }
 .add-place {
   padding-top: 10px;

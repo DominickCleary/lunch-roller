@@ -13,7 +13,6 @@ type InfluenceAction = 'boost' | 'reduce'
 type Props = {
   placeId: string
   placeName: string
-  overgoated?: boolean
   healthLevel?: HealthLevel
   position: InfluencePosition | undefined
   window: BettingWindow | null
@@ -44,7 +43,6 @@ function localMinute(now: Date, timezone: string): string {
 export function InfluenceControls({
   placeId,
   placeName,
-  overgoated = false,
   healthLevel,
   position,
   window,
@@ -114,7 +112,6 @@ export function InfluenceControls({
           <span className="odds-name" title={placeName}>
             {placeName}
           </span>
-          {overgoated && <span className="overgoated-badge">overgoated</span>}
           <HealthBadge level={healthLevel} />
         </div>
         <section

@@ -76,7 +76,6 @@ import {
 import {
   and,
   asc,
-  count,
   desc,
   eq,
   gte,
@@ -3080,7 +3079,10 @@ export class GameService {
           probability: item.probability,
         }))
         const restaurantCheckIns = await tx
-          .select({ placeId: draws.placeId, count: count(attendance.id) })
+          .select({
+            placeId: draws.placeId,
+            count: sql<number>`count(${attendance.id})::int`,
+          })
           .from(attendance)
           .innerJoin(draws, eq(attendance.drawId, draws.id))
           .groupBy(draws.placeId)

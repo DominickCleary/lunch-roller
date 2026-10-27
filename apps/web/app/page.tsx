@@ -2419,17 +2419,17 @@ export default function Home() {
               )}
               <div className="odds-list">
                 {(() => {
-                  const highestCheckIns = Math.max(
+                  const maxCheckIns = Math.max(
                     0,
                     ...(today?.restaurantCheckIns ?? []).map(
-                      (item) => item.count,
+                      (entry) => entry.count,
                     ),
                   )
-                  const mostCheckedIn = new Set(
-                    highestCheckIns > 0
+                  const topCheckInPlaces = new Set(
+                    maxCheckIns > 0
                       ? today?.restaurantCheckIns
-                          .filter((item) => item.count === highestCheckIns)
-                          .map((item) => item.placeId)
+                          .filter((entry) => entry.count === maxCheckIns)
+                          .map((entry) => entry.placeId)
                       : [],
                   )
                   return [...odds]
@@ -2441,7 +2441,10 @@ export default function Home() {
                         (position) => position.placeId === placeId,
                       )
                       return (
-                        <div className="odds-row" key={placeId}>
+                        <div
+                          className={`odds-row${topCheckInPlaces.has(placeId) ? ' odds-row-most-checkins' : ''}`}
+                          key={placeId}
+                        >
                           <span
                             className="odds-color"
                             style={{
@@ -2452,7 +2455,6 @@ export default function Home() {
                           <InfluenceControls
                             placeId={placeId}
                             placeName={option.name}
-                            overgoated={mostCheckedIn.has(placeId)}
                             healthLevel={option.healthLevel}
                             position={influencePosition}
                             window={currentInfluence?.window ?? null}
