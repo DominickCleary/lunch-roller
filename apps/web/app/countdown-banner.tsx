@@ -13,6 +13,7 @@ type Props = {
   fallbackCutoffMinutes: number
   getServerNow: () => number
   spinning: boolean
+  winner?: { placeName: string; localDate: string } | null
 }
 
 export function CountdownBanner({
@@ -23,6 +24,7 @@ export function CountdownBanner({
   fallbackCutoffMinutes,
   getServerNow,
   spinning,
+  winner,
 }: Props) {
   const [, setTick] = useState(0)
   useEffect(() => {
@@ -70,6 +72,17 @@ export function CountdownBanner({
       aria-label="Next lunch draw countdown"
       data-testid="countdown-banner"
     >
+      {winner && !spinning && (
+        <div className="countdown-winner" aria-label="Winning restaurant">
+          <span aria-hidden="true">✦</span>
+          <div>
+            <span className="countdown-eyebrow">
+              LAST WINNER · {winner.localDate}
+            </span>
+            <strong>{winner.placeName}</strong>
+          </div>
+        </div>
+      )}
       <div className="countdown-banner-heading">
         <span className="countdown-eyebrow">NEXT LUNCH DRAW</span>
         <strong>

@@ -205,6 +205,7 @@ button.quiet-link {
 .hero-wheel {
   position: static;
   align-self: stretch;
+  overflow: hidden;
 }
 .wheel-card {
   width: 100%;
@@ -849,50 +850,6 @@ button:disabled {
 }
 .result-note p {
   margin: 0;
-}
-.draw-winner-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: min(100%, 440px);
-  margin: 0 auto 12px;
-  padding: 14px 18px;
-  border: 1px solid var(--accent);
-  border-radius: 8px;
-  color: var(--text-strong);
-  text-align: left;
-  background: linear-gradient(
-    120deg,
-    var(--surface),
-    color-mix(in srgb, var(--accent) 14%, var(--surface))
-  );
-  box-shadow: 0 5px 22px color-mix(in srgb, var(--accent) 16%, transparent);
-}
-.draw-winner-mark {
-  color: var(--accent);
-  font-size: 32px;
-  line-height: 1;
-}
-.draw-winner-card p,
-.draw-winner-card h2,
-.draw-winner-card div > span {
-  margin: 0;
-}
-.draw-winner-card p {
-  color: var(--accent);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-}
-.draw-winner-card h2 {
-  margin: 2px 0;
-  font-family: Georgia, serif;
-  font-size: clamp(20px, 4vw, 30px);
-  line-height: 1.12;
-}
-.draw-winner-card div > span {
-  color: var(--text-muted);
-  font-size: 12px;
 }
 .rules-strip {
   display: none;

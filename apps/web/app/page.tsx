@@ -1850,18 +1850,6 @@ export default function Home() {
         </div>
       </header>
 
-      {entryStage === 'game' && today?.result && !liveReveal && (
-        <section className="draw-winner-card" aria-label="Winning restaurant">
-          <span className="draw-winner-mark" aria-hidden="true">
-            ✦
-          </span>
-          <div>
-            <p>WINNER · {today.result.localDate}</p>
-            <h2>{today.result.placeName}</h2>
-            <span>Chosen by the Wheel</span>
-          </div>
-        </section>
-      )}
       {entryStage === 'game' && today?.wheel.localDate && (
         <CountdownBanner
           localDate={today.wheel.localDate}
@@ -1871,6 +1859,9 @@ export default function Home() {
           fallbackCutoffMinutes={today.preferences.bettingCloseMinutes}
           getServerNow={getServerNow}
           spinning={liveReveal}
+          winner={
+            today.status === 'drawn' && today.result ? today.result : null
+          }
         />
       )}
 
