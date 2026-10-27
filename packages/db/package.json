@@ -1,27 +1,27 @@
 {
-	"name": "@lunch/db",
-	"version": "0.1.0",
-	"private": true,
-	"type": "module",
-	"exports": {
-		".": "./src/index.ts",
-		"./env": "./src/env.ts",
-		"./schema": "./src/schema.ts"
-	},
-	"scripts": {
-		"typecheck": "tsc --noEmit",
-		"generate": "drizzle-kit generate",
-		"migrate": "tsx src/migrate.ts",
-		"seed": "tsx src/seed.ts"
-	},
-	"dependencies": {
-		"@lunch/contracts": "workspace:*",
-		"@lunch/domain": "workspace:*",
-		"dotenv": "18.0.8",
-		"drizzle-orm": "0.45.4",
-		"postgres": "3.4.9"
-	},
-	"devDependencies": {
-		"drizzle-kit": "0.31.11"
-	}
+  "name": "@lunch/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./env": "./src/env.ts",
+    "./schema": "./src/schema.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "generate": "drizzle-kit generate",
+    "migrate": "tsx src/migrate.ts",
+    "seed": "tsx src/seed.ts"
+  },
+  "dependencies": {
+    "@lunch/contracts": "workspace:*",
+    "@lunch/domain": "workspace:*",
+    "dotenv": "18.0.8",
+    "drizzle-orm": "0.45.4",
+    "postgres": "3.4.9"
+  },
+  "devDependencies": {
+    "drizzle-kit": "0.31.11"
+  }
 }

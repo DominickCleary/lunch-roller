@@ -1,147 +1,147 @@
 .site-shell:has(.countdown-banner) {
-	grid-template-rows: var(--header-height) auto minmax(0, 1fr) auto auto;
+  grid-template-rows: var(--header-height) auto minmax(0, 1fr) auto auto;
 }
 .site-shell:has(.countdown-banner):has(.admin-disclosure[open]) {
-	grid-template-rows:
-		var(--header-height) auto minmax(0, 1fr) minmax(0, 38dvh)
-		auto;
+  grid-template-rows:
+    var(--header-height) auto minmax(0, 1fr) minmax(0, 38dvh)
+    auto;
 }
 .countdown-banner {
-	grid-column: 2;
-	grid-row: 2;
-	display: flex;
-	flex-direction: column;
-	align-items: stretch;
-	gap: 8px;
-	min-width: 0;
-	min-height: 0;
-	margin: 12px 0 0;
-	padding: 12px;
-	border: 2px solid var(--accent);
-	border-radius: 12px;
-	background: linear-gradient(110deg, var(--surface-soft), var(--surface));
-	box-shadow:
-		0 6px 20px #0002,
-		inset 0 0 0 1px var(--line);
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+  margin: 12px 0 0;
+  padding: 12px;
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  background: linear-gradient(110deg, var(--surface-soft), var(--surface));
+  box-shadow:
+    0 6px 20px #0002,
+    inset 0 0 0 1px var(--line);
 }
 .countdown-banner-heading,
 .countdown-timer {
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .countdown-banner-heading strong {
-	color: var(--text-strong);
-	font-family: var(--font-display);
-	font-size: clamp(18px, 2vw, 26px);
+  color: var(--text-strong);
+  font-family: var(--font-display);
+  font-size: clamp(18px, 2vw, 26px);
 }
 .countdown-eyebrow {
-	color: var(--text-secondary);
-	font-size: 11px;
-	font-weight: 800;
-	letter-spacing: 0.12em;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
 }
 .countdown-timer {
-	width: 100%;
-	min-width: 0;
-	padding: 10px 12px;
-	border: 1px solid var(--line-strong);
-	border-radius: 8px;
-	background: var(--surface);
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
 }
 .countdown-spin {
-	border-color: var(--accent);
-	background: var(--accent-soft);
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
 .countdown-value {
-	color: var(--text-strong);
-	font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-	font-size: clamp(27px, 3.2vw, 42px);
-	font-variant-numeric: tabular-nums;
-	line-height: 1;
+  color: var(--text-strong);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: clamp(27px, 3.2vw, 42px);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 .countdown-banner.is-spinning {
-	border-color: var(--danger);
-	box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 22%, transparent);
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 22%, transparent);
 }
 .countdown-banner.is-spinning .countdown-spin {
-	border-color: var(--danger);
-	background: color-mix(in srgb, var(--danger) 13%, var(--surface));
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 13%, var(--surface));
 }
 .countdown-banner.is-spinning .countdown-spin .countdown-value {
-	color: var(--danger);
+  color: var(--danger);
 }
 .site-shell:has(.countdown-banner) .hero {
-	grid-row: 2 / 4;
+  grid-row: 2 / 4;
 }
 .site-shell:has(.countdown-banner) .play-grid {
-	grid-row: 3;
+  grid-row: 3;
 }
 .site-shell:has(.countdown-banner) .admin-disclosure {
-	grid-row: 4;
+  grid-row: 4;
 }
 .site-shell:has(.countdown-banner) .footer {
-	grid-row: 5;
+  grid-row: 5;
 }
 @media (max-width: 850px) {
-	.countdown-banner {
-		gap: 7px;
-		padding: 10px;
-	}
-	.countdown-timer {
-		padding: 9px 10px;
-	}
-	.countdown-value {
-		font-size: clamp(22px, 3vw, 34px);
-	}
+  .countdown-banner {
+    gap: 7px;
+    padding: 10px;
+  }
+  .countdown-timer {
+    padding: 9px 10px;
+  }
+  .countdown-value {
+    font-size: clamp(22px, 3vw, 34px);
+  }
 }
 @media (max-width: 620px) {
-	.countdown-banner {
-		order: 1;
-		width: 100%;
-		min-width: 0;
-		min-height: auto;
-		align-items: stretch;
-		flex-direction: column;
-		gap: 12px;
-		margin: 8px 0 0;
-		padding: 14px;
-	}
-	.countdown-banner-heading {
-		min-width: 0;
-		gap: 3px;
-	}
-	.countdown-banner-heading strong {
-		font-size: 19px;
-	}
-	.countdown-timer {
-		padding: 9px 10px;
-	}
-	.countdown-eyebrow {
-		font-size: 9px;
-		letter-spacing: 0.08em;
-	}
-	.countdown-value {
-		font-size: clamp(22px, 7vw, 32px);
-	}
-	.site-shell:has(.countdown-banner) .hero {
-		order: 2;
-		grid-row: auto;
-	}
-	.site-shell:has(.countdown-banner) .play-grid {
-		order: 3;
-		grid-row: auto;
-	}
-	.site-shell:has(.countdown-banner) .admin-disclosure {
-		order: 4;
-	}
-	.site-shell:has(.countdown-banner) .footer {
-		order: 5;
-	}
+  .countdown-banner {
+    order: 1;
+    width: 100%;
+    min-width: 0;
+    min-height: auto;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+    margin: 8px 0 0;
+    padding: 14px;
+  }
+  .countdown-banner-heading {
+    min-width: 0;
+    gap: 3px;
+  }
+  .countdown-banner-heading strong {
+    font-size: 19px;
+  }
+  .countdown-timer {
+    padding: 9px 10px;
+  }
+  .countdown-eyebrow {
+    font-size: 9px;
+    letter-spacing: 0.08em;
+  }
+  .countdown-value {
+    font-size: clamp(22px, 7vw, 32px);
+  }
+  .site-shell:has(.countdown-banner) .hero {
+    order: 2;
+    grid-row: auto;
+  }
+  .site-shell:has(.countdown-banner) .play-grid {
+    order: 3;
+    grid-row: auto;
+  }
+  .site-shell:has(.countdown-banner) .admin-disclosure {
+    order: 4;
+  }
+  .site-shell:has(.countdown-banner) .footer {
+    order: 5;
+  }
 }
 
 @media (min-width: 1100px) {
-	.site-shell:has(.countdown-banner) .hero .wheel-wrap {
-		width: min(100%, calc(100cqh - 40px));
-	}
+  .site-shell:has(.countdown-banner) .hero .wheel-wrap {
+    width: min(100%, calc(100cqh - 40px));
+  }
 }

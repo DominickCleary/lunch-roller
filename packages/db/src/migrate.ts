@@ -5,10 +5,10 @@ import { createDatabase } from './index'
 
 const database = createDatabase()
 try {
-	await migrate(database.db, {
-		migrationsFolder: fileURLToPath(new URL('../migrations', import.meta.url)),
-	})
-	console.log('Database migrations complete')
+  await migrate(database.db, {
+    migrationsFolder: fileURLToPath(new URL('../migrations', import.meta.url)),
+  })
+  console.log('Database migrations complete')
 } finally {
-	await database.close()
+  await database.close()
 }

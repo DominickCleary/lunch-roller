@@ -1,1784 +1,1784 @@
 {
-	"id": "5a12c69b-ef6c-425a-bd85-028123360da5",
-	"prevId": "539ecc32-8aa9-4b43-a5bd-48d7405d8b73",
-	"version": "7",
-	"dialect": "postgresql",
-	"tables": {
-		"public.attendance": {
-			"name": "attendance",
-			"schema": "",
-			"columns": {
-				"id": {
-					"name": "id",
-					"type": "uuid",
-					"primaryKey": true,
-					"notNull": true,
-					"default": "gen_random_uuid()"
-				},
-				"participant_id": {
-					"name": "participant_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"draw_id": {
-					"name": "draw_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"created_at": {
-					"name": "created_at",
-					"type": "timestamp with time zone",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "now()"
-				}
-			},
-			"indexes": {
-				"attendance_once": {
-					"name": "attendance_once",
-					"columns": [
-						{
-							"expression": "participant_id",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						},
-						{
-							"expression": "draw_id",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": true,
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
-				}
-			},
-			"foreignKeys": {
-				"attendance_participant_id_participants_id_fk": {
-					"name": "attendance_participant_id_participants_id_fk",
-					"tableFrom": "attendance",
-					"tableTo": "participants",
-					"columnsFrom": ["participant_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				},
-				"attendance_draw_id_draws_id_fk": {
-					"name": "attendance_draw_id_draws_id_fk",
-					"tableFrom": "attendance",
-					"tableTo": "draws",
-					"columnsFrom": ["draw_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				}
-			},
-			"compositePrimaryKeys": {},
-			"uniqueConstraints": {},
-			"policies": {},
-			"checkConstraints": {},
-			"isRLSEnabled": false
-		},
-		"public.bet_requests": {
-			"name": "bet_requests",
-			"schema": "",
-			"columns": {
-				"id": {
-					"name": "id",
-					"type": "uuid",
-					"primaryKey": true,
-					"notNull": true,
-					"default": "gen_random_uuid()"
-				},
-				"participant_id": {
-					"name": "participant_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"idempotency_key": {
-					"name": "idempotency_key",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"request_hash": {
-					"name": "request_hash",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"response": {
-					"name": "response",
-					"type": "jsonb",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"created_at": {
-					"name": "created_at",
-					"type": "timestamp with time zone",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "now()"
-				}
-			},
-			"indexes": {
-				"bet_request_once": {
-					"name": "bet_request_once",
-					"columns": [
-						{
-							"expression": "participant_id",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						},
-						{
-							"expression": "idempotency_key",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": true,
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
-				}
-			},
-			"foreignKeys": {
-				"bet_requests_participant_id_participants_id_fk": {
-					"name": "bet_requests_participant_id_participants_id_fk",
-					"tableFrom": "bet_requests",
-					"tableTo": "participants",
-					"columnsFrom": ["participant_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				}
-			},
-			"compositePrimaryKeys": {},
-			"uniqueConstraints": {},
-			"policies": {},
-			"checkConstraints": {},
-			"isRLSEnabled": false
-		},
-		"public.bets": {
-			"name": "bets",
-			"schema": "",
-			"columns": {
-				"id": {
-					"name": "id",
-					"type": "uuid",
-					"primaryKey": true,
-					"notNull": true,
-					"default": "gen_random_uuid()"
-				},
-				"market_id": {
-					"name": "market_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"local_date": {
-					"name": "local_date",
-					"type": "date",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"participant_id": {
-					"name": "participant_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"place_id": {
-					"name": "place_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"place_name": {
-					"name": "place_name",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"stake": {
-					"name": "stake",
-					"type": "integer",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"status": {
-					"name": "status",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "'open'"
-				},
-				"payout": {
-					"name": "payout",
-					"type": "integer",
-					"primaryKey": false,
-					"notNull": false
-				},
-				"probability": {
-					"name": "probability",
-					"type": "double precision",
-					"primaryKey": false,
-					"notNull": false
-				},
-				"updated_at": {
-					"name": "updated_at",
-					"type": "timestamp with time zone",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "now()"
-				},
-				"settled_at": {
-					"name": "settled_at",
-					"type": "timestamp with time zone",
-					"primaryKey": false,
-					"notNull": false
-				}
-			},
-			"indexes": {
-				"bet_once_per_market": {
-					"name": "bet_once_per_market",
-					"columns": [
-						{
-							"expression": "market_id",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						},
-						{
-							"expression": "participant_id",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": true,
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
-				},
-				"bet_participant_recent": {
-					"name": "bet_participant_recent",
-					"columns": [
-						{
-							"expression": "participant_id",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						},
-						{
-							"expression": "updated_at",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": false,
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
-				},
-				"bet_place_open": {
-					"name": "bet_place_open",
-					"columns": [
-						{
-							"expression": "place_id",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": false,
-					"where": "\"bets\".\"status\" = 'open'",
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
-				}
-			},
-			"foreignKeys": {
-				"bets_market_id_betting_markets_id_fk": {
-					"name": "bets_market_id_betting_markets_id_fk",
-					"tableFrom": "bets",
-					"tableTo": "betting_markets",
-					"columnsFrom": ["market_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				},
-				"bets_participant_id_participants_id_fk": {
-					"name": "bets_participant_id_participants_id_fk",
-					"tableFrom": "bets",
-					"tableTo": "participants",
-					"columnsFrom": ["participant_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				},
-				"bets_place_id_places_id_fk": {
-					"name": "bets_place_id_places_id_fk",
-					"tableFrom": "bets",
-					"tableTo": "places",
-					"columnsFrom": ["place_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				}
-			},
-			"compositePrimaryKeys": {},
-			"uniqueConstraints": {},
-			"policies": {},
-			"checkConstraints": {
-				"bet_status": {
-					"name": "bet_status",
-					"value": "\"bets\".\"status\" in ('open','won','lost','cancelled','refunded')"
-				},
-				"bet_stake_positive": {
-					"name": "bet_stake_positive",
-					"value": "\"bets\".\"stake\" between 1 and 2147483647"
-				},
-				"bet_payout_valid": {
-					"name": "bet_payout_valid",
-					"value": "\"bets\".\"payout\" is null or \"bets\".\"payout\" between 0 and 2147483647"
-				},
-				"bet_probability_valid": {
-					"name": "bet_probability_valid",
-					"value": "\"bets\".\"probability\" is null or \"bets\".\"probability\" between 0 and 1"
-				}
-			},
-			"isRLSEnabled": false
-		},
-		"public.betting_markets": {
-			"name": "betting_markets",
-			"schema": "",
-			"columns": {
-				"id": {
-					"name": "id",
-					"type": "uuid",
-					"primaryKey": true,
-					"notNull": true,
-					"default": "gen_random_uuid()"
-				},
-				"local_date": {
-					"name": "local_date",
-					"type": "date",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"timezone": {
-					"name": "timezone",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"scheduled_time": {
-					"name": "scheduled_time",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"cutoff_minutes": {
-					"name": "cutoff_minutes",
-					"type": "integer",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"status": {
-					"name": "status",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "'open'"
-				},
-				"draw_id": {
-					"name": "draw_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": false
-				},
-				"created_at": {
-					"name": "created_at",
-					"type": "timestamp with time zone",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "now()"
-				}
-			},
-			"indexes": {
-				"betting_market_open_date": {
-					"name": "betting_market_open_date",
-					"columns": [
-						{
-							"expression": "local_date",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": true,
-					"where": "\"betting_markets\".\"status\" = 'open'",
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
-				}
-			},
-			"foreignKeys": {
-				"betting_markets_draw_id_draws_id_fk": {
-					"name": "betting_markets_draw_id_draws_id_fk",
-					"tableFrom": "betting_markets",
-					"tableTo": "draws",
-					"columnsFrom": ["draw_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				}
-			},
-			"compositePrimaryKeys": {},
-			"uniqueConstraints": {},
-			"policies": {},
-			"checkConstraints": {
-				"betting_market_status": {
-					"name": "betting_market_status",
-					"value": "\"betting_markets\".\"status\" in ('open','settled','void')"
-				},
-				"betting_market_cutoff": {
-					"name": "betting_market_cutoff",
-					"value": "\"betting_markets\".\"cutoff_minutes\" between 0 and 1440"
-				},
-				"betting_market_time": {
-					"name": "betting_market_time",
-					"value": "\"betting_markets\".\"scheduled_time\" ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'"
-				}
-			},
-			"isRLSEnabled": false
-		},
-		"public.draws": {
-			"name": "draws",
-			"schema": "",
-			"columns": {
-				"id": {
-					"name": "id",
-					"type": "uuid",
-					"primaryKey": true,
-					"notNull": true,
-					"default": "gen_random_uuid()"
-				},
-				"local_date": {
-					"name": "local_date",
-					"type": "date",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"timezone": {
-					"name": "timezone",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"place_id": {
-					"name": "place_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"place_name": {
-					"name": "place_name",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"snapshot": {
-					"name": "snapshot",
-					"type": "jsonb",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"health_bonus": {
-					"name": "health_bonus",
-					"type": "jsonb",
-					"primaryKey": false,
-					"notNull": false
-				},
-				"spin_duration_ms": {
-					"name": "spin_duration_ms",
-					"type": "integer",
-					"primaryKey": false,
-					"notNull": false
-				},
-				"sample": {
-					"name": "sample",
-					"type": "double precision",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"drawn_at": {
-					"name": "drawn_at",
-					"type": "timestamp with time zone",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "now()"
-				}
-			},
-			"indexes": {},
-			"foreignKeys": {
-				"draws_place_id_places_id_fk": {
-					"name": "draws_place_id_places_id_fk",
-					"tableFrom": "draws",
-					"tableTo": "places",
-					"columnsFrom": ["place_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				}
-			},
-			"compositePrimaryKeys": {},
-			"uniqueConstraints": {
-				"draws_local_date_unique": {
-					"name": "draws_local_date_unique",
-					"nullsNotDistinct": false,
-					"columns": ["local_date"]
-				}
-			},
-			"policies": {},
-			"checkConstraints": {
-				"draw_spin_duration": {
-					"name": "draw_spin_duration",
-					"value": "\"draws\".\"spin_duration_ms\" is null or \"draws\".\"spin_duration_ms\" between 5000 and 60000"
-				},
-				"draw_sample_range": {
-					"name": "draw_sample_range",
-					"value": "\"draws\".\"sample\" >= 0 and \"draws\".\"sample\" < 1"
-				}
-			},
-			"isRLSEnabled": false
-		},
-		"public.influence_lots": {
-			"name": "influence_lots",
-			"schema": "",
-			"columns": {
-				"id": {
-					"name": "id",
-					"type": "uuid",
-					"primaryKey": true,
-					"notNull": true,
-					"default": "gen_random_uuid()"
-				},
-				"market_id": {
-					"name": "market_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"participant_id": {
-					"name": "participant_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"place_id": {
-					"name": "place_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"action": {
-					"name": "action",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"token_cost": {
-					"name": "token_cost",
-					"type": "integer",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"log_multiplier": {
-					"name": "log_multiplier",
-					"type": "double precision",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"purchase_ledger_id": {
-					"name": "purchase_ledger_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"withdrawn_at": {
-					"name": "withdrawn_at",
-					"type": "timestamp with time zone",
-					"primaryKey": false,
-					"notNull": false
-				},
-				"created_at": {
-					"name": "created_at",
-					"type": "timestamp with time zone",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "now()"
-				}
-			},
-			"indexes": {
-				"influence_purchase_once": {
-					"name": "influence_purchase_once",
-					"columns": [
-						{
-							"expression": "purchase_ledger_id",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": true,
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
-				},
-				"influence_market_positions": {
-					"name": "influence_market_positions",
-					"columns": [
-						{
-							"expression": "market_id",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						},
-						{
-							"expression": "place_id",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						},
-						{
-							"expression": "participant_id",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": false,
-					"where": "\"influence_lots\".\"withdrawn_at\" is null",
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
-				}
-			},
-			"foreignKeys": {
-				"influence_lots_market_id_betting_markets_id_fk": {
-					"name": "influence_lots_market_id_betting_markets_id_fk",
-					"tableFrom": "influence_lots",
-					"tableTo": "betting_markets",
-					"columnsFrom": ["market_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				},
-				"influence_lots_participant_id_participants_id_fk": {
-					"name": "influence_lots_participant_id_participants_id_fk",
-					"tableFrom": "influence_lots",
-					"tableTo": "participants",
-					"columnsFrom": ["participant_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				},
-				"influence_lots_place_id_places_id_fk": {
-					"name": "influence_lots_place_id_places_id_fk",
-					"tableFrom": "influence_lots",
-					"tableTo": "places",
-					"columnsFrom": ["place_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				},
-				"influence_lots_purchase_ledger_id_token_ledger_id_fk": {
-					"name": "influence_lots_purchase_ledger_id_token_ledger_id_fk",
-					"tableFrom": "influence_lots",
-					"tableTo": "token_ledger",
-					"columnsFrom": ["purchase_ledger_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				}
-			},
-			"compositePrimaryKeys": {},
-			"uniqueConstraints": {},
-			"policies": {},
-			"checkConstraints": {
-				"influence_action": {
-					"name": "influence_action",
-					"value": "\"influence_lots\".\"action\" in ('boost','reduce')"
-				},
-				"influence_cost": {
-					"name": "influence_cost",
-					"value": "\"influence_lots\".\"token_cost\" between 1 and 2147483647"
-				},
-				"influence_multiplier": {
-					"name": "influence_multiplier",
-					"value": "(\"influence_lots\".\"action\" = 'boost' and \"influence_lots\".\"log_multiplier\" > 0 and \"influence_lots\".\"log_multiplier\" <= ln(100.0)) or (\"influence_lots\".\"action\" = 'reduce' and \"influence_lots\".\"log_multiplier\" < 0 and \"influence_lots\".\"log_multiplier\" >= ln(0.01))"
-				}
-			},
-			"isRLSEnabled": false
-		},
-		"public.notification_outbox": {
-			"name": "notification_outbox",
-			"schema": "",
-			"columns": {
-				"id": {
-					"name": "id",
-					"type": "uuid",
-					"primaryKey": true,
-					"notNull": true,
-					"default": "gen_random_uuid()"
-				},
-				"event_key": {
-					"name": "event_key",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"draw_id": {
-					"name": "draw_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": false
-				},
-				"subscription_id": {
-					"name": "subscription_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"payload": {
-					"name": "payload",
-					"type": "jsonb",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"attempts": {
-					"name": "attempts",
-					"type": "integer",
-					"primaryKey": false,
-					"notNull": true,
-					"default": 0
-				},
-				"available_at": {
-					"name": "available_at",
-					"type": "timestamp with time zone",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "now()"
-				},
-				"locked_until": {
-					"name": "locked_until",
-					"type": "timestamp with time zone",
-					"primaryKey": false,
-					"notNull": false
-				},
-				"lease_token": {
-					"name": "lease_token",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": false
-				},
-				"sent_at": {
-					"name": "sent_at",
-					"type": "timestamp with time zone",
-					"primaryKey": false,
-					"notNull": false
-				},
-				"last_error": {
-					"name": "last_error",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": false
-				},
-				"created_at": {
-					"name": "created_at",
-					"type": "timestamp with time zone",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "now()"
-				}
-			},
-			"indexes": {
-				"notification_once": {
-					"name": "notification_once",
-					"columns": [
-						{
-							"expression": "event_key",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						},
-						{
-							"expression": "subscription_id",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": true,
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
-				},
-				"notification_due": {
-					"name": "notification_due",
-					"columns": [
-						{
-							"expression": "available_at",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": false,
-					"where": "\"notification_outbox\".\"sent_at\" is null",
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
-				}
-			},
-			"foreignKeys": {
-				"notification_outbox_draw_id_draws_id_fk": {
-					"name": "notification_outbox_draw_id_draws_id_fk",
-					"tableFrom": "notification_outbox",
-					"tableTo": "draws",
-					"columnsFrom": ["draw_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				},
-				"notification_outbox_subscription_id_push_subscriptions_id_fk": {
-					"name": "notification_outbox_subscription_id_push_subscriptions_id_fk",
-					"tableFrom": "notification_outbox",
-					"tableTo": "push_subscriptions",
-					"columnsFrom": ["subscription_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				}
-			},
-			"compositePrimaryKeys": {},
-			"uniqueConstraints": {},
-			"policies": {},
-			"checkConstraints": {},
-			"isRLSEnabled": false
-		},
-		"public.participants": {
-			"name": "participants",
-			"schema": "",
-			"columns": {
-				"id": {
-					"name": "id",
-					"type": "uuid",
-					"primaryKey": true,
-					"notNull": true,
-					"default": "gen_random_uuid()"
-				},
-				"name": {
-					"name": "name",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"active": {
-					"name": "active",
-					"type": "boolean",
-					"primaryKey": false,
-					"notNull": true,
-					"default": true
-				},
-				"created_at": {
-					"name": "created_at",
-					"type": "timestamp with time zone",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "now()"
-				}
-			},
-			"indexes": {
-				"participant_active_name": {
-					"name": "participant_active_name",
-					"columns": [
-						{
-							"expression": "lower(btrim(\"name\"))",
-							"asc": true,
-							"isExpression": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": true,
-					"where": "\"participants\".\"active\"",
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
-				}
-			},
-			"foreignKeys": {},
-			"compositePrimaryKeys": {},
-			"uniqueConstraints": {},
-			"policies": {},
-			"checkConstraints": {
-				"participant_name_nonempty": {
-					"name": "participant_name_nonempty",
-					"value": "length(btrim(\"participants\".\"name\")) between 1 and 100"
-				}
-			},
-			"isRLSEnabled": false
-		},
-		"public.places": {
-			"name": "places",
-			"schema": "",
-			"columns": {
-				"id": {
-					"name": "id",
-					"type": "uuid",
-					"primaryKey": true,
-					"notNull": true,
-					"default": "gen_random_uuid()"
-				},
-				"name": {
-					"name": "name",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"active": {
-					"name": "active",
-					"type": "boolean",
-					"primaryKey": false,
-					"notNull": true,
-					"default": true
-				},
-				"log_weight": {
-					"name": "log_weight",
-					"type": "double precision",
-					"primaryKey": false,
-					"notNull": true,
-					"default": 0
-				},
-				"health_level": {
-					"name": "health_level",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "'balanced'"
-				},
-				"added_by": {
-					"name": "added_by",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": false
-				},
-				"created_at": {
-					"name": "created_at",
-					"type": "timestamp with time zone",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "now()"
-				}
-			},
-			"indexes": {
-				"place_active_name": {
-					"name": "place_active_name",
-					"columns": [
-						{
-							"expression": "lower(btrim(\"name\"))",
-							"asc": true,
-							"isExpression": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": true,
-					"where": "\"places\".\"active\"",
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
-				}
-			},
-			"foreignKeys": {
-				"places_added_by_participants_id_fk": {
-					"name": "places_added_by_participants_id_fk",
-					"tableFrom": "places",
-					"tableTo": "participants",
-					"columnsFrom": ["added_by"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				}
-			},
-			"compositePrimaryKeys": {},
-			"uniqueConstraints": {},
-			"policies": {},
-			"checkConstraints": {
-				"place_name_nonempty": {
-					"name": "place_name_nonempty",
-					"value": "length(btrim(\"places\".\"name\")) between 1 and 100"
-				},
-				"place_health_level": {
-					"name": "place_health_level",
-					"value": "\"places\".\"health_level\" in ('treat','balanced','healthy')"
-				},
-				"place_weight_finite": {
-					"name": "place_weight_finite",
-					"value": "\"places\".\"log_weight\" > '-Infinity'::float8 and \"places\".\"log_weight\" < 'Infinity'::float8"
-				}
-			},
-			"isRLSEnabled": false
-		},
-		"public.push_subscriptions": {
-			"name": "push_subscriptions",
-			"schema": "",
-			"columns": {
-				"id": {
-					"name": "id",
-					"type": "uuid",
-					"primaryKey": true,
-					"notNull": true,
-					"default": "gen_random_uuid()"
-				},
-				"participant_id": {
-					"name": "participant_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"endpoint": {
-					"name": "endpoint",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"p256dh": {
-					"name": "p256dh",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"auth": {
-					"name": "auth",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"active": {
-					"name": "active",
-					"type": "boolean",
-					"primaryKey": false,
-					"notNull": true,
-					"default": true
-				},
-				"created_at": {
-					"name": "created_at",
-					"type": "timestamp with time zone",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "now()"
-				}
-			},
-			"indexes": {},
-			"foreignKeys": {
-				"push_subscriptions_participant_id_participants_id_fk": {
-					"name": "push_subscriptions_participant_id_participants_id_fk",
-					"tableFrom": "push_subscriptions",
-					"tableTo": "participants",
-					"columnsFrom": ["participant_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				}
-			},
-			"compositePrimaryKeys": {},
-			"uniqueConstraints": {
-				"push_subscriptions_endpoint_unique": {
-					"name": "push_subscriptions_endpoint_unique",
-					"nullsNotDistinct": false,
-					"columns": ["endpoint"]
-				}
-			},
-			"policies": {},
-			"checkConstraints": {},
-			"isRLSEnabled": false
-		},
-		"public.settings": {
-			"name": "settings",
-			"schema": "",
-			"columns": {
-				"id": {
-					"name": "id",
-					"type": "integer",
-					"primaryKey": true,
-					"notNull": true,
-					"default": 1
-				},
-				"timezone": {
-					"name": "timezone",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "'Europe/Dublin'"
-				},
-				"setup_completed": {
-					"name": "setup_completed",
-					"type": "boolean",
-					"primaryKey": false,
-					"notNull": true,
-					"default": false
-				},
-				"spin_time": {
-					"name": "spin_time",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "'11:30'"
-				},
-				"attendance_reward": {
-					"name": "attendance_reward",
-					"type": "integer",
-					"primaryKey": false,
-					"notNull": true,
-					"default": 10
-				},
-				"add_place_cost": {
-					"name": "add_place_cost",
-					"type": "integer",
-					"primaryKey": false,
-					"notNull": true,
-					"default": 20
-				},
-				"remove_place_cost": {
-					"name": "remove_place_cost",
-					"type": "integer",
-					"primaryKey": false,
-					"notNull": true,
-					"default": 40
-				},
-				"boost_cost": {
-					"name": "boost_cost",
-					"type": "integer",
-					"primaryKey": false,
-					"notNull": true,
-					"default": 5
-				},
-				"reduce_cost": {
-					"name": "reduce_cost",
-					"type": "integer",
-					"primaryKey": false,
-					"notNull": true,
-					"default": 5
-				},
-				"boost_multiplier": {
-					"name": "boost_multiplier",
-					"type": "double precision",
-					"primaryKey": false,
-					"notNull": true,
-					"default": 1.25
-				},
-				"reduce_multiplier": {
-					"name": "reduce_multiplier",
-					"type": "double precision",
-					"primaryKey": false,
-					"notNull": true,
-					"default": 0.8
-				},
-				"new_place_multiplier": {
-					"name": "new_place_multiplier",
-					"type": "double precision",
-					"primaryKey": false,
-					"notNull": true,
-					"default": 1
-				},
-				"health_bonus_enabled": {
-					"name": "health_bonus_enabled",
-					"type": "boolean",
-					"primaryKey": false,
-					"notNull": true,
-					"default": true
-				},
-				"health_bonus_multiplier": {
-					"name": "health_bonus_multiplier",
-					"type": "double precision",
-					"primaryKey": false,
-					"notNull": true,
-					"default": 1.25
-				},
-				"post_draw_delay_minutes": {
-					"name": "post_draw_delay_minutes",
-					"type": "integer",
-					"primaryKey": false,
-					"notNull": true,
-					"default": 0
-				},
-				"wheel_spin_seconds": {
-					"name": "wheel_spin_seconds",
-					"type": "integer",
-					"primaryKey": false,
-					"notNull": true,
-					"default": 20
-				},
-				"wheel_switch_time": {
-					"name": "wheel_switch_time",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "'15:00'"
-				},
-				"check_in_pledge": {
-					"name": "check_in_pledge",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "'I pledge that I actually obeyed the wheel'"
-				},
-				"betting_close_minutes": {
-					"name": "betting_close_minutes",
-					"type": "integer",
-					"primaryKey": false,
-					"notNull": true,
-					"default": 10
-				},
-				"max_walk_minutes": {
-					"name": "max_walk_minutes",
-					"type": "integer",
-					"primaryKey": false,
-					"notNull": true,
-					"default": 15
-				},
-				"weekdays": {
-					"name": "weekdays",
-					"type": "integer[]",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "ARRAY[1,2,3,4,5]"
-				},
-				"skip_draw_date": {
-					"name": "skip_draw_date",
-					"type": "date",
-					"primaryKey": false,
-					"notNull": false
-				}
-			},
-			"indexes": {},
-			"foreignKeys": {},
-			"compositePrimaryKeys": {},
-			"uniqueConstraints": {},
-			"policies": {},
-			"checkConstraints": {
-				"settings_health_bonus_multiplier": {
-					"name": "settings_health_bonus_multiplier",
-					"value": "\"settings\".\"health_bonus_multiplier\" > 1 and \"settings\".\"health_bonus_multiplier\" <= 100"
-				},
-				"settings_wheel_spin_seconds": {
-					"name": "settings_wheel_spin_seconds",
-					"value": "\"settings\".\"wheel_spin_seconds\" between 5 and 60"
-				},
-				"settings_post_draw_delay_minutes": {
-					"name": "settings_post_draw_delay_minutes",
-					"value": "\"settings\".\"post_draw_delay_minutes\" between 0 and 1440"
-				},
-				"settings_singleton": {
-					"name": "settings_singleton",
-					"value": "\"settings\".\"id\" = 1"
-				},
-				"settings_token_amounts": {
-					"name": "settings_token_amounts",
-					"value": "\"settings\".\"attendance_reward\" > 0 and \"settings\".\"add_place_cost\" > 0 and \"settings\".\"remove_place_cost\" > 0 and \"settings\".\"boost_cost\" > 0 and \"settings\".\"reduce_cost\" > 0"
-				},
-				"settings_boost_multiplier": {
-					"name": "settings_boost_multiplier",
-					"value": "\"settings\".\"boost_multiplier\" > 1 and \"settings\".\"boost_multiplier\" <= 100"
-				},
-				"settings_reduce_multiplier": {
-					"name": "settings_reduce_multiplier",
-					"value": "\"settings\".\"reduce_multiplier\" >= 0.01 and \"settings\".\"reduce_multiplier\" < 1"
-				},
-				"settings_new_place_multiplier": {
-					"name": "settings_new_place_multiplier",
-					"value": "\"settings\".\"new_place_multiplier\" >= 0.01 and \"settings\".\"new_place_multiplier\" <= 100"
-				},
-				"settings_wheel_switch_time": {
-					"name": "settings_wheel_switch_time",
-					"value": "\"settings\".\"wheel_switch_time\" ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'"
-				},
-				"settings_check_in_pledge": {
-					"name": "settings_check_in_pledge",
-					"value": "length(btrim(\"settings\".\"check_in_pledge\")) between 1 and 500"
-				},
-				"settings_betting_close_minutes": {
-					"name": "settings_betting_close_minutes",
-					"value": "\"settings\".\"betting_close_minutes\" between 0 and 1440"
-				},
-				"settings_max_walk_minutes": {
-					"name": "settings_max_walk_minutes",
-					"value": "\"settings\".\"max_walk_minutes\" between 1 and 120"
-				},
-				"settings_time": {
-					"name": "settings_time",
-					"value": "\"settings\".\"spin_time\" ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'"
-				},
-				"settings_weekdays": {
-					"name": "settings_weekdays",
-					"value": "cardinality(\"settings\".\"weekdays\") between 1 and 7 and \"settings\".\"weekdays\" <@ ARRAY[1,2,3,4,5,6,7]"
-				}
-			},
-			"isRLSEnabled": false
-		},
-		"public.suggestion_votes": {
-			"name": "suggestion_votes",
-			"schema": "",
-			"columns": {
-				"id": {
-					"name": "id",
-					"type": "uuid",
-					"primaryKey": true,
-					"notNull": true,
-					"default": "gen_random_uuid()"
-				},
-				"suggestion_id": {
-					"name": "suggestion_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"participant_id": {
-					"name": "participant_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"value": {
-					"name": "value",
-					"type": "integer",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"created_at": {
-					"name": "created_at",
-					"type": "timestamp with time zone",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "now()"
-				}
-			},
-			"indexes": {
-				"suggestion_vote_once": {
-					"name": "suggestion_vote_once",
-					"columns": [
-						{
-							"expression": "suggestion_id",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						},
-						{
-							"expression": "participant_id",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": true,
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
-				}
-			},
-			"foreignKeys": {
-				"suggestion_votes_suggestion_id_suggestions_id_fk": {
-					"name": "suggestion_votes_suggestion_id_suggestions_id_fk",
-					"tableFrom": "suggestion_votes",
-					"tableTo": "suggestions",
-					"columnsFrom": ["suggestion_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				},
-				"suggestion_votes_participant_id_participants_id_fk": {
-					"name": "suggestion_votes_participant_id_participants_id_fk",
-					"tableFrom": "suggestion_votes",
-					"tableTo": "participants",
-					"columnsFrom": ["participant_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				}
-			},
-			"compositePrimaryKeys": {},
-			"uniqueConstraints": {},
-			"policies": {},
-			"checkConstraints": {
-				"suggestion_vote_value": {
-					"name": "suggestion_vote_value",
-					"value": "\"suggestion_votes\".\"value\" in (-1,1)"
-				}
-			},
-			"isRLSEnabled": false
-		},
-		"public.suggestions": {
-			"name": "suggestions",
-			"schema": "",
-			"columns": {
-				"id": {
-					"name": "id",
-					"type": "uuid",
-					"primaryKey": true,
-					"notNull": true,
-					"default": "gen_random_uuid()"
-				},
-				"participant_id": {
-					"name": "participant_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"title": {
-					"name": "title",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"description": {
-					"name": "description",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"status": {
-					"name": "status",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "'open'"
-				},
-				"created_at": {
-					"name": "created_at",
-					"type": "timestamp with time zone",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "now()"
-				}
-			},
-			"indexes": {
-				"suggestions_created": {
-					"name": "suggestions_created",
-					"columns": [
-						{
-							"expression": "created_at",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": false,
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
-				}
-			},
-			"foreignKeys": {
-				"suggestions_participant_id_participants_id_fk": {
-					"name": "suggestions_participant_id_participants_id_fk",
-					"tableFrom": "suggestions",
-					"tableTo": "participants",
-					"columnsFrom": ["participant_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				}
-			},
-			"compositePrimaryKeys": {},
-			"uniqueConstraints": {},
-			"policies": {},
-			"checkConstraints": {
-				"suggestion_title_length": {
-					"name": "suggestion_title_length",
-					"value": "length(btrim(\"suggestions\".\"title\")) between 1 and 120"
-				},
-				"suggestion_description_length": {
-					"name": "suggestion_description_length",
-					"value": "length(btrim(\"suggestions\".\"description\")) between 1 and 2000"
-				},
-				"suggestion_status": {
-					"name": "suggestion_status",
-					"value": "\"suggestions\".\"status\" in ('open','approved','denied')"
-				}
-			},
-			"isRLSEnabled": false
-		},
-		"public.token_ledger": {
-			"name": "token_ledger",
-			"schema": "",
-			"columns": {
-				"id": {
-					"name": "id",
-					"type": "uuid",
-					"primaryKey": true,
-					"notNull": true,
-					"default": "gen_random_uuid()"
-				},
-				"participant_id": {
-					"name": "participant_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"delta": {
-					"name": "delta",
-					"type": "integer",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"kind": {
-					"name": "kind",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"idempotency_key": {
-					"name": "idempotency_key",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"request_hash": {
-					"name": "request_hash",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"response": {
-					"name": "response",
-					"type": "jsonb",
-					"primaryKey": false,
-					"notNull": false
-				},
-				"attendance_id": {
-					"name": "attendance_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": false
-				},
-				"place_id": {
-					"name": "place_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": false
-				},
-				"bet_id": {
-					"name": "bet_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": false
-				},
-				"influence_market_id": {
-					"name": "influence_market_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": false
-				},
-				"transfer_id": {
-					"name": "transfer_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": false
-				},
-				"counterparty_id": {
-					"name": "counterparty_id",
-					"type": "uuid",
-					"primaryKey": false,
-					"notNull": false
-				},
-				"reason": {
-					"name": "reason",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": false
-				},
-				"created_at": {
-					"name": "created_at",
-					"type": "timestamp with time zone",
-					"primaryKey": false,
-					"notNull": true,
-					"default": "now()"
-				}
-			},
-			"indexes": {
-				"ledger_request_once": {
-					"name": "ledger_request_once",
-					"columns": [
-						{
-							"expression": "participant_id",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						},
-						{
-							"expression": "idempotency_key",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": true,
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
-				},
-				"ledger_transfer_direction": {
-					"name": "ledger_transfer_direction",
-					"columns": [
-						{
-							"expression": "transfer_id",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						},
-						{
-							"expression": "kind",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": true,
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
-				},
-				"ledger_attendance_once": {
-					"name": "ledger_attendance_once",
-					"columns": [
-						{
-							"expression": "attendance_id",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": true,
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
-				},
-				"ledger_balance": {
-					"name": "ledger_balance",
-					"columns": [
-						{
-							"expression": "participant_id",
-							"isExpression": false,
-							"asc": true,
-							"nulls": "last"
-						}
-					],
-					"isUnique": false,
-					"concurrently": false,
-					"method": "btree",
-					"with": {}
-				}
-			},
-			"foreignKeys": {
-				"token_ledger_participant_id_participants_id_fk": {
-					"name": "token_ledger_participant_id_participants_id_fk",
-					"tableFrom": "token_ledger",
-					"tableTo": "participants",
-					"columnsFrom": ["participant_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				},
-				"token_ledger_attendance_id_attendance_id_fk": {
-					"name": "token_ledger_attendance_id_attendance_id_fk",
-					"tableFrom": "token_ledger",
-					"tableTo": "attendance",
-					"columnsFrom": ["attendance_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				},
-				"token_ledger_place_id_places_id_fk": {
-					"name": "token_ledger_place_id_places_id_fk",
-					"tableFrom": "token_ledger",
-					"tableTo": "places",
-					"columnsFrom": ["place_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				},
-				"token_ledger_bet_id_bets_id_fk": {
-					"name": "token_ledger_bet_id_bets_id_fk",
-					"tableFrom": "token_ledger",
-					"tableTo": "bets",
-					"columnsFrom": ["bet_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				},
-				"token_ledger_influence_market_id_betting_markets_id_fk": {
-					"name": "token_ledger_influence_market_id_betting_markets_id_fk",
-					"tableFrom": "token_ledger",
-					"tableTo": "betting_markets",
-					"columnsFrom": ["influence_market_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				},
-				"token_ledger_counterparty_id_participants_id_fk": {
-					"name": "token_ledger_counterparty_id_participants_id_fk",
-					"tableFrom": "token_ledger",
-					"tableTo": "participants",
-					"columnsFrom": ["counterparty_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
-				}
-			},
-			"compositePrimaryKeys": {},
-			"uniqueConstraints": {},
-			"policies": {},
-			"checkConstraints": {
-				"ledger_transfer_valid": {
-					"name": "ledger_transfer_valid",
-					"value": "(\"token_ledger\".\"kind\" in ('transfer-sent','transfer-received') and \"token_ledger\".\"transfer_id\" is not null and \"token_ledger\".\"counterparty_id\" is not null and \"token_ledger\".\"counterparty_id\" <> \"token_ledger\".\"participant_id\" and ((\"token_ledger\".\"kind\" = 'transfer-sent' and \"token_ledger\".\"delta\" < 0) or (\"token_ledger\".\"kind\" = 'transfer-received' and \"token_ledger\".\"delta\" > 0))) or (\"token_ledger\".\"kind\" not in ('transfer-sent','transfer-received') and \"token_ledger\".\"transfer_id\" is null and \"token_ledger\".\"counterparty_id\" is null)"
-				},
-				"ledger_nonzero": {
-					"name": "ledger_nonzero",
-					"value": "\"token_ledger\".\"delta\" <> 0"
-				},
-				"ledger_kind": {
-					"name": "ledger_kind",
-					"value": "\"token_ledger\".\"kind\" in ('attendance','boost','reduce','boost-refund','reduce-refund','add-place','remove-place','correction','bet-stake','bet-release','bet-payout','transfer-sent','transfer-received')"
-				},
-				"correction_reason": {
-					"name": "correction_reason",
-					"value": "\"token_ledger\".\"kind\" <> 'correction' or length(btrim(\"token_ledger\".\"reason\")) > 0 and \"token_ledger\".\"reason\" is not null"
-				}
-			},
-			"isRLSEnabled": false
-		}
-	},
-	"enums": {},
-	"schemas": {},
-	"sequences": {},
-	"roles": {},
-	"policies": {},
-	"views": {},
-	"_meta": {
-		"columns": {},
-		"schemas": {},
-		"tables": {}
-	}
+  "id": "5a12c69b-ef6c-425a-bd85-028123360da5",
+  "prevId": "539ecc32-8aa9-4b43-a5bd-48d7405d8b73",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.attendance": {
+      "name": "attendance",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "participant_id": {
+          "name": "participant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "draw_id": {
+          "name": "draw_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "attendance_once": {
+          "name": "attendance_once",
+          "columns": [
+            {
+              "expression": "participant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "draw_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "attendance_participant_id_participants_id_fk": {
+          "name": "attendance_participant_id_participants_id_fk",
+          "tableFrom": "attendance",
+          "tableTo": "participants",
+          "columnsFrom": ["participant_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "attendance_draw_id_draws_id_fk": {
+          "name": "attendance_draw_id_draws_id_fk",
+          "tableFrom": "attendance",
+          "tableTo": "draws",
+          "columnsFrom": ["draw_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.bet_requests": {
+      "name": "bet_requests",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "participant_id": {
+          "name": "participant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_hash": {
+          "name": "request_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "response": {
+          "name": "response",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "bet_request_once": {
+          "name": "bet_request_once",
+          "columns": [
+            {
+              "expression": "participant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "idempotency_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "bet_requests_participant_id_participants_id_fk": {
+          "name": "bet_requests_participant_id_participants_id_fk",
+          "tableFrom": "bet_requests",
+          "tableTo": "participants",
+          "columnsFrom": ["participant_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.bets": {
+      "name": "bets",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "market_id": {
+          "name": "market_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "local_date": {
+          "name": "local_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "participant_id": {
+          "name": "participant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "place_id": {
+          "name": "place_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "place_name": {
+          "name": "place_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stake": {
+          "name": "stake",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "payout": {
+          "name": "payout",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "probability": {
+          "name": "probability",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "settled_at": {
+          "name": "settled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "bet_once_per_market": {
+          "name": "bet_once_per_market",
+          "columns": [
+            {
+              "expression": "market_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "participant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "bet_participant_recent": {
+          "name": "bet_participant_recent",
+          "columns": [
+            {
+              "expression": "participant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "bet_place_open": {
+          "name": "bet_place_open",
+          "columns": [
+            {
+              "expression": "place_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"bets\".\"status\" = 'open'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "bets_market_id_betting_markets_id_fk": {
+          "name": "bets_market_id_betting_markets_id_fk",
+          "tableFrom": "bets",
+          "tableTo": "betting_markets",
+          "columnsFrom": ["market_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "bets_participant_id_participants_id_fk": {
+          "name": "bets_participant_id_participants_id_fk",
+          "tableFrom": "bets",
+          "tableTo": "participants",
+          "columnsFrom": ["participant_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "bets_place_id_places_id_fk": {
+          "name": "bets_place_id_places_id_fk",
+          "tableFrom": "bets",
+          "tableTo": "places",
+          "columnsFrom": ["place_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "bet_status": {
+          "name": "bet_status",
+          "value": "\"bets\".\"status\" in ('open','won','lost','cancelled','refunded')"
+        },
+        "bet_stake_positive": {
+          "name": "bet_stake_positive",
+          "value": "\"bets\".\"stake\" between 1 and 2147483647"
+        },
+        "bet_payout_valid": {
+          "name": "bet_payout_valid",
+          "value": "\"bets\".\"payout\" is null or \"bets\".\"payout\" between 0 and 2147483647"
+        },
+        "bet_probability_valid": {
+          "name": "bet_probability_valid",
+          "value": "\"bets\".\"probability\" is null or \"bets\".\"probability\" between 0 and 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.betting_markets": {
+      "name": "betting_markets",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "local_date": {
+          "name": "local_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "timezone": {
+          "name": "timezone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scheduled_time": {
+          "name": "scheduled_time",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cutoff_minutes": {
+          "name": "cutoff_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "draw_id": {
+          "name": "draw_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "betting_market_open_date": {
+          "name": "betting_market_open_date",
+          "columns": [
+            {
+              "expression": "local_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"betting_markets\".\"status\" = 'open'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "betting_markets_draw_id_draws_id_fk": {
+          "name": "betting_markets_draw_id_draws_id_fk",
+          "tableFrom": "betting_markets",
+          "tableTo": "draws",
+          "columnsFrom": ["draw_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "betting_market_status": {
+          "name": "betting_market_status",
+          "value": "\"betting_markets\".\"status\" in ('open','settled','void')"
+        },
+        "betting_market_cutoff": {
+          "name": "betting_market_cutoff",
+          "value": "\"betting_markets\".\"cutoff_minutes\" between 0 and 1440"
+        },
+        "betting_market_time": {
+          "name": "betting_market_time",
+          "value": "\"betting_markets\".\"scheduled_time\" ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.draws": {
+      "name": "draws",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "local_date": {
+          "name": "local_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "timezone": {
+          "name": "timezone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "place_id": {
+          "name": "place_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "place_name": {
+          "name": "place_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "snapshot": {
+          "name": "snapshot",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "health_bonus": {
+          "name": "health_bonus",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "spin_duration_ms": {
+          "name": "spin_duration_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sample": {
+          "name": "sample",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "drawn_at": {
+          "name": "drawn_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "draws_place_id_places_id_fk": {
+          "name": "draws_place_id_places_id_fk",
+          "tableFrom": "draws",
+          "tableTo": "places",
+          "columnsFrom": ["place_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "draws_local_date_unique": {
+          "name": "draws_local_date_unique",
+          "nullsNotDistinct": false,
+          "columns": ["local_date"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "draw_spin_duration": {
+          "name": "draw_spin_duration",
+          "value": "\"draws\".\"spin_duration_ms\" is null or \"draws\".\"spin_duration_ms\" between 5000 and 60000"
+        },
+        "draw_sample_range": {
+          "name": "draw_sample_range",
+          "value": "\"draws\".\"sample\" >= 0 and \"draws\".\"sample\" < 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.influence_lots": {
+      "name": "influence_lots",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "market_id": {
+          "name": "market_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "participant_id": {
+          "name": "participant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "place_id": {
+          "name": "place_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token_cost": {
+          "name": "token_cost",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "log_multiplier": {
+          "name": "log_multiplier",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "purchase_ledger_id": {
+          "name": "purchase_ledger_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "withdrawn_at": {
+          "name": "withdrawn_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "influence_purchase_once": {
+          "name": "influence_purchase_once",
+          "columns": [
+            {
+              "expression": "purchase_ledger_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "influence_market_positions": {
+          "name": "influence_market_positions",
+          "columns": [
+            {
+              "expression": "market_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "place_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "participant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"influence_lots\".\"withdrawn_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "influence_lots_market_id_betting_markets_id_fk": {
+          "name": "influence_lots_market_id_betting_markets_id_fk",
+          "tableFrom": "influence_lots",
+          "tableTo": "betting_markets",
+          "columnsFrom": ["market_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "influence_lots_participant_id_participants_id_fk": {
+          "name": "influence_lots_participant_id_participants_id_fk",
+          "tableFrom": "influence_lots",
+          "tableTo": "participants",
+          "columnsFrom": ["participant_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "influence_lots_place_id_places_id_fk": {
+          "name": "influence_lots_place_id_places_id_fk",
+          "tableFrom": "influence_lots",
+          "tableTo": "places",
+          "columnsFrom": ["place_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "influence_lots_purchase_ledger_id_token_ledger_id_fk": {
+          "name": "influence_lots_purchase_ledger_id_token_ledger_id_fk",
+          "tableFrom": "influence_lots",
+          "tableTo": "token_ledger",
+          "columnsFrom": ["purchase_ledger_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "influence_action": {
+          "name": "influence_action",
+          "value": "\"influence_lots\".\"action\" in ('boost','reduce')"
+        },
+        "influence_cost": {
+          "name": "influence_cost",
+          "value": "\"influence_lots\".\"token_cost\" between 1 and 2147483647"
+        },
+        "influence_multiplier": {
+          "name": "influence_multiplier",
+          "value": "(\"influence_lots\".\"action\" = 'boost' and \"influence_lots\".\"log_multiplier\" > 0 and \"influence_lots\".\"log_multiplier\" <= ln(100.0)) or (\"influence_lots\".\"action\" = 'reduce' and \"influence_lots\".\"log_multiplier\" < 0 and \"influence_lots\".\"log_multiplier\" >= ln(0.01))"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.notification_outbox": {
+      "name": "notification_outbox",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "event_key": {
+          "name": "event_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "draw_id": {
+          "name": "draw_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subscription_id": {
+          "name": "subscription_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "available_at": {
+          "name": "available_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "locked_until": {
+          "name": "locked_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lease_token": {
+          "name": "lease_token",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sent_at": {
+          "name": "sent_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_error": {
+          "name": "last_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "notification_once": {
+          "name": "notification_once",
+          "columns": [
+            {
+              "expression": "event_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "subscription_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "notification_due": {
+          "name": "notification_due",
+          "columns": [
+            {
+              "expression": "available_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"notification_outbox\".\"sent_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "notification_outbox_draw_id_draws_id_fk": {
+          "name": "notification_outbox_draw_id_draws_id_fk",
+          "tableFrom": "notification_outbox",
+          "tableTo": "draws",
+          "columnsFrom": ["draw_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "notification_outbox_subscription_id_push_subscriptions_id_fk": {
+          "name": "notification_outbox_subscription_id_push_subscriptions_id_fk",
+          "tableFrom": "notification_outbox",
+          "tableTo": "push_subscriptions",
+          "columnsFrom": ["subscription_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.participants": {
+      "name": "participants",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "participant_active_name": {
+          "name": "participant_active_name",
+          "columns": [
+            {
+              "expression": "lower(btrim(\"name\"))",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"participants\".\"active\"",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "participant_name_nonempty": {
+          "name": "participant_name_nonempty",
+          "value": "length(btrim(\"participants\".\"name\")) between 1 and 100"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.places": {
+      "name": "places",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "log_weight": {
+          "name": "log_weight",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "health_level": {
+          "name": "health_level",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'balanced'"
+        },
+        "added_by": {
+          "name": "added_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "place_active_name": {
+          "name": "place_active_name",
+          "columns": [
+            {
+              "expression": "lower(btrim(\"name\"))",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"places\".\"active\"",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "places_added_by_participants_id_fk": {
+          "name": "places_added_by_participants_id_fk",
+          "tableFrom": "places",
+          "tableTo": "participants",
+          "columnsFrom": ["added_by"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "place_name_nonempty": {
+          "name": "place_name_nonempty",
+          "value": "length(btrim(\"places\".\"name\")) between 1 and 100"
+        },
+        "place_health_level": {
+          "name": "place_health_level",
+          "value": "\"places\".\"health_level\" in ('treat','balanced','healthy')"
+        },
+        "place_weight_finite": {
+          "name": "place_weight_finite",
+          "value": "\"places\".\"log_weight\" > '-Infinity'::float8 and \"places\".\"log_weight\" < 'Infinity'::float8"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.push_subscriptions": {
+      "name": "push_subscriptions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "participant_id": {
+          "name": "participant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "endpoint": {
+          "name": "endpoint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "p256dh": {
+          "name": "p256dh",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "auth": {
+          "name": "auth",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "push_subscriptions_participant_id_participants_id_fk": {
+          "name": "push_subscriptions_participant_id_participants_id_fk",
+          "tableFrom": "push_subscriptions",
+          "tableTo": "participants",
+          "columnsFrom": ["participant_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "push_subscriptions_endpoint_unique": {
+          "name": "push_subscriptions_endpoint_unique",
+          "nullsNotDistinct": false,
+          "columns": ["endpoint"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.settings": {
+      "name": "settings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "default": 1
+        },
+        "timezone": {
+          "name": "timezone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Europe/Dublin'"
+        },
+        "setup_completed": {
+          "name": "setup_completed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "spin_time": {
+          "name": "spin_time",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'11:30'"
+        },
+        "attendance_reward": {
+          "name": "attendance_reward",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 10
+        },
+        "add_place_cost": {
+          "name": "add_place_cost",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 20
+        },
+        "remove_place_cost": {
+          "name": "remove_place_cost",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 40
+        },
+        "boost_cost": {
+          "name": "boost_cost",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 5
+        },
+        "reduce_cost": {
+          "name": "reduce_cost",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 5
+        },
+        "boost_multiplier": {
+          "name": "boost_multiplier",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1.25
+        },
+        "reduce_multiplier": {
+          "name": "reduce_multiplier",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0.8
+        },
+        "new_place_multiplier": {
+          "name": "new_place_multiplier",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "health_bonus_enabled": {
+          "name": "health_bonus_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "health_bonus_multiplier": {
+          "name": "health_bonus_multiplier",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1.25
+        },
+        "post_draw_delay_minutes": {
+          "name": "post_draw_delay_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "wheel_spin_seconds": {
+          "name": "wheel_spin_seconds",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 20
+        },
+        "wheel_switch_time": {
+          "name": "wheel_switch_time",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'15:00'"
+        },
+        "check_in_pledge": {
+          "name": "check_in_pledge",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'I pledge that I actually obeyed the wheel'"
+        },
+        "betting_close_minutes": {
+          "name": "betting_close_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 10
+        },
+        "max_walk_minutes": {
+          "name": "max_walk_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 15
+        },
+        "weekdays": {
+          "name": "weekdays",
+          "type": "integer[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "ARRAY[1,2,3,4,5]"
+        },
+        "skip_draw_date": {
+          "name": "skip_draw_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "settings_health_bonus_multiplier": {
+          "name": "settings_health_bonus_multiplier",
+          "value": "\"settings\".\"health_bonus_multiplier\" > 1 and \"settings\".\"health_bonus_multiplier\" <= 100"
+        },
+        "settings_wheel_spin_seconds": {
+          "name": "settings_wheel_spin_seconds",
+          "value": "\"settings\".\"wheel_spin_seconds\" between 5 and 60"
+        },
+        "settings_post_draw_delay_minutes": {
+          "name": "settings_post_draw_delay_minutes",
+          "value": "\"settings\".\"post_draw_delay_minutes\" between 0 and 1440"
+        },
+        "settings_singleton": {
+          "name": "settings_singleton",
+          "value": "\"settings\".\"id\" = 1"
+        },
+        "settings_token_amounts": {
+          "name": "settings_token_amounts",
+          "value": "\"settings\".\"attendance_reward\" > 0 and \"settings\".\"add_place_cost\" > 0 and \"settings\".\"remove_place_cost\" > 0 and \"settings\".\"boost_cost\" > 0 and \"settings\".\"reduce_cost\" > 0"
+        },
+        "settings_boost_multiplier": {
+          "name": "settings_boost_multiplier",
+          "value": "\"settings\".\"boost_multiplier\" > 1 and \"settings\".\"boost_multiplier\" <= 100"
+        },
+        "settings_reduce_multiplier": {
+          "name": "settings_reduce_multiplier",
+          "value": "\"settings\".\"reduce_multiplier\" >= 0.01 and \"settings\".\"reduce_multiplier\" < 1"
+        },
+        "settings_new_place_multiplier": {
+          "name": "settings_new_place_multiplier",
+          "value": "\"settings\".\"new_place_multiplier\" >= 0.01 and \"settings\".\"new_place_multiplier\" <= 100"
+        },
+        "settings_wheel_switch_time": {
+          "name": "settings_wheel_switch_time",
+          "value": "\"settings\".\"wheel_switch_time\" ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'"
+        },
+        "settings_check_in_pledge": {
+          "name": "settings_check_in_pledge",
+          "value": "length(btrim(\"settings\".\"check_in_pledge\")) between 1 and 500"
+        },
+        "settings_betting_close_minutes": {
+          "name": "settings_betting_close_minutes",
+          "value": "\"settings\".\"betting_close_minutes\" between 0 and 1440"
+        },
+        "settings_max_walk_minutes": {
+          "name": "settings_max_walk_minutes",
+          "value": "\"settings\".\"max_walk_minutes\" between 1 and 120"
+        },
+        "settings_time": {
+          "name": "settings_time",
+          "value": "\"settings\".\"spin_time\" ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'"
+        },
+        "settings_weekdays": {
+          "name": "settings_weekdays",
+          "value": "cardinality(\"settings\".\"weekdays\") between 1 and 7 and \"settings\".\"weekdays\" <@ ARRAY[1,2,3,4,5,6,7]"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.suggestion_votes": {
+      "name": "suggestion_votes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "suggestion_id": {
+          "name": "suggestion_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "participant_id": {
+          "name": "participant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "suggestion_vote_once": {
+          "name": "suggestion_vote_once",
+          "columns": [
+            {
+              "expression": "suggestion_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "participant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "suggestion_votes_suggestion_id_suggestions_id_fk": {
+          "name": "suggestion_votes_suggestion_id_suggestions_id_fk",
+          "tableFrom": "suggestion_votes",
+          "tableTo": "suggestions",
+          "columnsFrom": ["suggestion_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "suggestion_votes_participant_id_participants_id_fk": {
+          "name": "suggestion_votes_participant_id_participants_id_fk",
+          "tableFrom": "suggestion_votes",
+          "tableTo": "participants",
+          "columnsFrom": ["participant_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "suggestion_vote_value": {
+          "name": "suggestion_vote_value",
+          "value": "\"suggestion_votes\".\"value\" in (-1,1)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.suggestions": {
+      "name": "suggestions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "participant_id": {
+          "name": "participant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "suggestions_created": {
+          "name": "suggestions_created",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "suggestions_participant_id_participants_id_fk": {
+          "name": "suggestions_participant_id_participants_id_fk",
+          "tableFrom": "suggestions",
+          "tableTo": "participants",
+          "columnsFrom": ["participant_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "suggestion_title_length": {
+          "name": "suggestion_title_length",
+          "value": "length(btrim(\"suggestions\".\"title\")) between 1 and 120"
+        },
+        "suggestion_description_length": {
+          "name": "suggestion_description_length",
+          "value": "length(btrim(\"suggestions\".\"description\")) between 1 and 2000"
+        },
+        "suggestion_status": {
+          "name": "suggestion_status",
+          "value": "\"suggestions\".\"status\" in ('open','approved','denied')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.token_ledger": {
+      "name": "token_ledger",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "participant_id": {
+          "name": "participant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "delta": {
+          "name": "delta",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_hash": {
+          "name": "request_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "response": {
+          "name": "response",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attendance_id": {
+          "name": "attendance_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "place_id": {
+          "name": "place_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bet_id": {
+          "name": "bet_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "influence_market_id": {
+          "name": "influence_market_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "transfer_id": {
+          "name": "transfer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "counterparty_id": {
+          "name": "counterparty_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "ledger_request_once": {
+          "name": "ledger_request_once",
+          "columns": [
+            {
+              "expression": "participant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "idempotency_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "ledger_transfer_direction": {
+          "name": "ledger_transfer_direction",
+          "columns": [
+            {
+              "expression": "transfer_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "ledger_attendance_once": {
+          "name": "ledger_attendance_once",
+          "columns": [
+            {
+              "expression": "attendance_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "ledger_balance": {
+          "name": "ledger_balance",
+          "columns": [
+            {
+              "expression": "participant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "token_ledger_participant_id_participants_id_fk": {
+          "name": "token_ledger_participant_id_participants_id_fk",
+          "tableFrom": "token_ledger",
+          "tableTo": "participants",
+          "columnsFrom": ["participant_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "token_ledger_attendance_id_attendance_id_fk": {
+          "name": "token_ledger_attendance_id_attendance_id_fk",
+          "tableFrom": "token_ledger",
+          "tableTo": "attendance",
+          "columnsFrom": ["attendance_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "token_ledger_place_id_places_id_fk": {
+          "name": "token_ledger_place_id_places_id_fk",
+          "tableFrom": "token_ledger",
+          "tableTo": "places",
+          "columnsFrom": ["place_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "token_ledger_bet_id_bets_id_fk": {
+          "name": "token_ledger_bet_id_bets_id_fk",
+          "tableFrom": "token_ledger",
+          "tableTo": "bets",
+          "columnsFrom": ["bet_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "token_ledger_influence_market_id_betting_markets_id_fk": {
+          "name": "token_ledger_influence_market_id_betting_markets_id_fk",
+          "tableFrom": "token_ledger",
+          "tableTo": "betting_markets",
+          "columnsFrom": ["influence_market_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "token_ledger_counterparty_id_participants_id_fk": {
+          "name": "token_ledger_counterparty_id_participants_id_fk",
+          "tableFrom": "token_ledger",
+          "tableTo": "participants",
+          "columnsFrom": ["counterparty_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "ledger_transfer_valid": {
+          "name": "ledger_transfer_valid",
+          "value": "(\"token_ledger\".\"kind\" in ('transfer-sent','transfer-received') and \"token_ledger\".\"transfer_id\" is not null and \"token_ledger\".\"counterparty_id\" is not null and \"token_ledger\".\"counterparty_id\" <> \"token_ledger\".\"participant_id\" and ((\"token_ledger\".\"kind\" = 'transfer-sent' and \"token_ledger\".\"delta\" < 0) or (\"token_ledger\".\"kind\" = 'transfer-received' and \"token_ledger\".\"delta\" > 0))) or (\"token_ledger\".\"kind\" not in ('transfer-sent','transfer-received') and \"token_ledger\".\"transfer_id\" is null and \"token_ledger\".\"counterparty_id\" is null)"
+        },
+        "ledger_nonzero": {
+          "name": "ledger_nonzero",
+          "value": "\"token_ledger\".\"delta\" <> 0"
+        },
+        "ledger_kind": {
+          "name": "ledger_kind",
+          "value": "\"token_ledger\".\"kind\" in ('attendance','boost','reduce','boost-refund','reduce-refund','add-place','remove-place','correction','bet-stake','bet-release','bet-payout','transfer-sent','transfer-received')"
+        },
+        "correction_reason": {
+          "name": "correction_reason",
+          "value": "\"token_ledger\".\"kind\" <> 'correction' or length(btrim(\"token_ledger\".\"reason\")) > 0 and \"token_ledger\".\"reason\" is not null"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
 }

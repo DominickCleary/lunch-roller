@@ -4,7 +4,7 @@ import type { NextConfig } from 'next'
 
 loadEnv({ path: resolve(process.cwd(), '../../.env'), quiet: true })
 const config: NextConfig = {
-	transpilePackages: ['@lunch/contracts', '@lunch/db', '@lunch/domain'],
-	poweredByHeader: false,
+  transpilePackages: ['@lunch/contracts', '@lunch/db', '@lunch/domain'],
+  poweredByHeader: false,
 }
 export default config

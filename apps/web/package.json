@@ -1,26 +1,26 @@
 {
-	"name": "@lunch/web",
-	"version": "0.1.0",
-	"private": true,
-	"scripts": {
-		"dev": "next dev",
-		"build": "next build",
-		"start": "next start --hostname 0.0.0.0",
-		"typecheck": "next typegen && tsc --noEmit"
-	},
-	"dependencies": {
-		"dotenv": "18.0.8",
-		"@lunch/contracts": "workspace:*",
-		"@lunch/db": "workspace:*",
-		"@lunch/domain": "workspace:*",
-		"next": "16.4.2",
-		"react": "19.3.1",
-		"react-dom": "19.3.1"
-	},
-	"devDependencies": {
-		"@tailwindcss/postcss": "4.3.3",
-		"tailwindcss": "4.3.3",
-		"@types/react": "19.3.0",
-		"@types/react-dom": "19.3.0"
-	}
+  "name": "@lunch/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0",
+    "typecheck": "next typegen && tsc --noEmit"
+  },
+  "dependencies": {
+    "dotenv": "18.0.8",
+    "@lunch/contracts": "workspace:*",
+    "@lunch/db": "workspace:*",
+    "@lunch/domain": "workspace:*",
+    "next": "16.4.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "tailwindcss": "4.3.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0"
+  }
 }

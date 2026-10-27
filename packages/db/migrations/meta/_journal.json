@@ -1,118 +1,118 @@
 {
-	"version": "7",
-	"dialect": "postgresql",
-	"entries": [
-		{
-			"idx": 0,
-			"version": "7",
-			"when": 1792529734950,
-			"tag": "0000_polite_stick",
-			"breakpoints": true
-		},
-		{
-			"idx": 1,
-			"version": "7",
-			"when": 1792530493484,
-			"tag": "0001_mushy_anthem",
-			"breakpoints": true
-		},
-		{
-			"idx": 2,
-			"version": "7",
-			"when": 1792533095767,
-			"tag": "0002_hesitant_sinister_six",
-			"breakpoints": true
-		},
-		{
-			"idx": 3,
-			"version": "7",
-			"when": 1792536684822,
-			"tag": "0003_violet_maginty",
-			"breakpoints": true
-		},
-		{
-			"idx": 4,
-			"version": "7",
-			"when": 1792538764306,
-			"tag": "0004_organic_jackpot",
-			"breakpoints": true
-		},
-		{
-			"idx": 5,
-			"version": "7",
-			"when": 1792539856956,
-			"tag": "0005_watery_amazoness",
-			"breakpoints": true
-		},
-		{
-			"idx": 6,
-			"version": "7",
-			"when": 1792569906123,
-			"tag": "0006_famous_stark_industries",
-			"breakpoints": true
-		},
-		{
-			"idx": 7,
-			"version": "7",
-			"when": 1792584481930,
-			"tag": "0007_volatile_landau",
-			"breakpoints": true
-		},
-		{
-			"idx": 8,
-			"version": "7",
-			"when": 1792587094273,
-			"tag": "0008_condemned_madripoor",
-			"breakpoints": true
-		},
-		{
-			"idx": 9,
-			"version": "7",
-			"when": 1792590384304,
-			"tag": "0009_square_sharon_ventura",
-			"breakpoints": true
-		},
-		{
-			"idx": 10,
-			"version": "7",
-			"when": 1792603319689,
-			"tag": "0010_robust_magik",
-			"breakpoints": true
-		},
-		{
-			"idx": 11,
-			"version": "7",
-			"when": 1792608119593,
-			"tag": "0011_petite_shatterstar",
-			"breakpoints": true
-		},
-		{
-			"idx": 12,
-			"version": "7",
-			"when": 1792660298032,
-			"tag": "0012_post_draw_activity_delay",
-			"breakpoints": true
-		},
-		{
-			"idx": 13,
-			"version": "7",
-			"when": 1792665453171,
-			"tag": "0013_curly_banshee",
-			"breakpoints": true
-		},
-		{
-			"idx": 14,
-			"version": "7",
-			"when": 1792674598329,
-			"tag": "0014_classy_karma",
-			"breakpoints": true
-		},
-		{
-			"idx": 15,
-			"version": "7",
-			"when": 1792677953292,
-			"tag": "0015_opposite_pestilence",
-			"breakpoints": true
-		}
-	]
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1792529734950,
+      "tag": "0000_polite_stick",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792530493484,
+      "tag": "0001_mushy_anthem",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792533095767,
+      "tag": "0002_hesitant_sinister_six",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792536684822,
+      "tag": "0003_violet_maginty",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792538764306,
+      "tag": "0004_organic_jackpot",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792539856956,
+      "tag": "0005_watery_amazoness",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792569906123,
+      "tag": "0006_famous_stark_industries",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792584481930,
+      "tag": "0007_volatile_landau",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792587094273,
+      "tag": "0008_condemned_madripoor",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792590384304,
+      "tag": "0009_square_sharon_ventura",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792603319689,
+      "tag": "0010_robust_magik",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792608119593,
+      "tag": "0011_petite_shatterstar",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792660298032,
+      "tag": "0012_post_draw_activity_delay",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792665453171,
+      "tag": "0013_curly_banshee",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792674598329,
+      "tag": "0014_classy_karma",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1792677953292,
+      "tag": "0015_opposite_pestilence",
+      "breakpoints": true
+    }
+  ]
 }
