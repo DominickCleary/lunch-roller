@@ -76,6 +76,7 @@ import {
 import {
   and,
   asc,
+  count,
   desc,
   eq,
   gte,
@@ -3078,6 +3079,11 @@ export class GameService {
             .healthLevel,
           probability: item.probability,
         }))
+        const restaurantCheckIns = await tx
+          .select({ placeId: draws.placeId, count: count(attendance.id) })
+          .from(attendance)
+          .innerJoin(draws, eq(attendance.drawId, draws.id))
+          .groupBy(draws.placeId)
         const evaluated = evaluateSchedule(now, schedule)
         const status = existing
           ? 'drawn'
@@ -3106,6 +3112,7 @@ export class GameService {
             settingsRow.skipDrawDate,
           ),
           result: existing ? drawView(existing) : null,
+          restaurantCheckIns,
           odds,
         }
       },

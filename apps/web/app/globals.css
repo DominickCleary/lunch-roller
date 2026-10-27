@@ -817,6 +817,17 @@ button:disabled {
   font-size: 14px;
   font-weight: 700;
 }
+.overgoated-badge {
+  align-self: center;
+  padding: 2px 5px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
 .add-place {
   padding-top: 10px;
   border-top: 1px solid var(--line);

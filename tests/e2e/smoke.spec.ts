@@ -53,7 +53,7 @@ test('landing page requires a saved name before showing the lunch wheel', async 
     ),
   ).toBe(true)
   await expect(page.getByTestId('change-name')).toBeVisible()
-  await expect(page.locator('.wheel-footer strong')).toBeVisible()
+  await expect(page.getByTestId('countdown-banner')).toBeVisible()
   await expect(
     page
       .locator('.top-actions')

@@ -233,6 +233,9 @@ export const todayResponse = z.object({
     'skipped',
   ]),
   result: draw.nullable(),
+  restaurantCheckIns: z
+    .array(z.object({ placeId: id, count: z.number().int().nonnegative() }))
+    .default([]),
   odds: z.array(
     z.object({
       placeId: id,
