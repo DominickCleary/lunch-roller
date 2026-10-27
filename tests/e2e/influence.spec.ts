@@ -140,6 +140,20 @@ test('edits persisted influence from the odds list without changing selected ide
 		.click()
 	await expect(row.locator('.influence-net-value')).toHaveText('0')
 	await expect(page.locator('.balance')).toContainText('100')
+	for (let count = 0; count < 7; count += 1) {
+		await row.getByRole('button', { name: `Boost ${placeName}` }).click()
+	}
+	const combinedBoost = page
+		.locator('.token-activity-panel .ledger-row')
+		.filter({ hasText: placeName })
+		.filter({ hasText: 'Boosted' })
+	await expect(combinedBoost).toHaveCount(1)
+	await expect(combinedBoost).toContainText('+35')
+	await row
+		.getByRole('button', { name: `Refund tokens for ${placeName}` })
+		.click()
+	await expect(row.locator('.influence-net-value')).toHaveText('0')
+	await expect(page.locator('.balance')).toContainText('100')
 
 	await row.getByRole('button', { name: `Boost ${placeName}` }).click()
 	await expect(row.locator('.influence-net-value')).toHaveText('+1')

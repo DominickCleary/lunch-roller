@@ -3,7 +3,11 @@
 import type { Participant, WalletResponse } from '@lunch/contracts'
 import { walletResponse } from '@lunch/contracts'
 import { useEffect, useState } from 'react'
-import { TokenEntryDescription, WalletBets } from './token-history'
+import {
+	combineInfluenceEntries,
+	TokenEntryDescription,
+	WalletBets,
+} from './token-history'
 
 type Result = {
 	participantId: string
@@ -139,7 +143,7 @@ export function TeamActivity({
 												{wallet.ledger.length ? (
 													<>
 														<div id="team-token-ledger">
-															{wallet.ledger
+													{combineInfluenceEntries(wallet.ledger)
 																.slice(0, showAll ? undefined : 5)
 																.map((entry) => (
 																	<div
@@ -169,7 +173,7 @@ export function TeamActivity({
 																	</div>
 																))}
 														</div>
-														{wallet.ledger.length > 5 && (
+												{combineInfluenceEntries(wallet.ledger).length > 5 && (
 															<button
 																type="button"
 																className="ledger-toggle"

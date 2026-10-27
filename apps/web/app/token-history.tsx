@@ -49,6 +49,29 @@ export function TokenEntryDescription({
 	)
 }
 
+/** Combine adjacent influence purchases while keeping other ledger activity ordered. */
+export function combineInfluenceEntries(entries: TokenActivityEntry[]) {
+	const combined: TokenActivityEntry[] = []
+	for (const entry of entries) {
+		const previous = combined.at(-1)
+		if (
+			previous &&
+			(previous.kind === 'boost' || previous.kind === 'reduce') &&
+			previous.kind === entry.kind &&
+			previous.placeName === entry.placeName &&
+			previous.influenceLocalDate === entry.influenceLocalDate
+		) {
+			combined[combined.length - 1] = {
+				...previous,
+				delta: previous.delta + entry.delta,
+			}
+		} else {
+			combined.push(entry)
+		}
+	}
+	return combined
+}
+
 const betStatuses: Record<BetView['status'], string> = {
 	open: 'Open',
 	won: 'Won',

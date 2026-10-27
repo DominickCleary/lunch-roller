@@ -45,7 +45,11 @@ import { Readiness } from './readiness'
 import { RulesHelp } from './rules-help'
 import { TeamActivity } from './team-activity'
 import { ThemeToggle } from './theme-toggle'
-import { TokenEntryDescription, WalletBets } from './token-history'
+import {
+	combineInfluenceEntries,
+	TokenEntryDescription,
+	WalletBets,
+} from './token-history'
 import { TokenTransfer } from './token-transfer'
 import { useWheelAnimation } from './use-wheel-animation'
 import { WinnerCelebration } from './winner-celebration'
@@ -2557,7 +2561,7 @@ export default function Home() {
 							<div className="ledger">
 								<div className="ledger-heading">
 									<h3>Recent token activity</h3>
-									{wallet && wallet.ledger.length > 5 ? (
+									{wallet && combineInfluenceEntries(wallet.ledger).length > 5 ? (
 										<button
 											type="button"
 											className="ledger-toggle"
@@ -2573,7 +2577,7 @@ export default function Home() {
 								</div>
 								{wallet?.ledger.length ? (
 									<div id="token-ledger">
-										{wallet.ledger
+										{combineInfluenceEntries(wallet.ledger)
 											.slice(0, showAllLedger ? undefined : 5)
 											.map((entry) => (
 												<div className="ledger-row" key={entry.id}>
