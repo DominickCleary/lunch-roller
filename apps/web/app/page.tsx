@@ -2442,9 +2442,6 @@ export default function Home() {
                       )
                       return (
                         <div className="odds-row" key={placeId}>
-                          {mostCheckedIn.has(placeId) && (
-                            <span className="overgoated-badge">overgoated</span>
-                          )}
                           <span
                             className="odds-color"
                             style={{
@@ -2455,6 +2452,7 @@ export default function Home() {
                           <InfluenceControls
                             placeId={placeId}
                             placeName={option.name}
+                            overgoated={mostCheckedIn.has(placeId)}
                             healthLevel={option.healthLevel}
                             position={influencePosition}
                             window={currentInfluence?.window ?? null}

@@ -32,9 +32,13 @@
 }
 
 .influence-controls .influence-place-heading .odds-name {
-  flex: 1 1 100%;
+  flex: 0 1 auto;
   min-width: 0;
   line-height: 1.15;
+}
+
+.influence-place-heading .health-badge {
+  flex-basis: 100%;
 }
 
 .influence-place-heading .health-badge {
