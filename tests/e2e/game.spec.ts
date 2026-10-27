@@ -262,8 +262,8 @@ async function exerciseAdminUiAndGame(
       .getByRole('button', { name: 'Praise the Wheel' })
       .click()
     await expect(replay).toBeEnabled({ timeout: 8000 })
-    await expect(page.locator('.wheel-state')).not.toContainText(
-      'REPLAYING TODAY',
+    await expect(page.getByTestId('wheel-target')).not.toContainText(
+      'Saved pick',
     )
     await expect(page.getByTestId('wheel-target')).toHaveAttribute(
       'data-target-date',
@@ -303,9 +303,7 @@ async function exerciseAdminUiAndGame(
     .getByRole('button', { name: 'Praise the Wheel' })
     .click()
   await expect(replay).toBeEnabled({ timeout: 8000 })
-  await expect(page.locator('.wheel-state')).not.toContainText(
-    'REPLAYING TODAY',
-  )
+  await expect(page.getByTestId('wheel-target')).not.toContainText('Saved pick')
   await expect(page.getByTestId('wheel-target')).toHaveAttribute(
     'data-target-date',
     initialToday.wheel.localDate,
