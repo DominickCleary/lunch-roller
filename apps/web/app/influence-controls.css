@@ -27,8 +27,12 @@
   min-width: 0;
 }
 
-.influence-controls .influence-place-title {
-  display: contents;
+.influence-place-title-line {
+  display: flex;
+  flex: 1 1 100%;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
 }
 
 .influence-controls .influence-place-heading .odds-name {

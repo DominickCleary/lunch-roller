@@ -110,7 +110,7 @@ export function InfluenceControls({
       aria-label={`${placeName} market positions`}
     >
       <div className="influence-place-heading">
-        <div className="influence-place-title">
+        <div className="influence-place-title-line">
           <span className="odds-name" title={placeName}>
             {placeName}
           </span>

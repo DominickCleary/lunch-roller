@@ -818,14 +818,16 @@ button:disabled {
   font-weight: 700;
 }
 .overgoated-badge {
-  align-self: center;
-  padding: 2px 5px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  padding: 1px 4px;
   border: 1px solid var(--accent);
   border-radius: 999px;
   color: var(--accent);
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1;
   white-space: nowrap;
 }
 .add-place {
