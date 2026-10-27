@@ -147,7 +147,7 @@ test('edits persisted influence from the odds list without changing selected ide
     .locator('.token-activity-panel .ledger-row')
     .filter({ hasText: placeName })
     .filter({ hasText: 'Boosted' })
-  await expect(combinedBoost.filter({ hasText: '+35' })).toHaveCount(1)
+  await expect(combinedBoost.filter({ hasText: '-35 tokens' })).toHaveCount(1)
   await row
     .getByRole('button', { name: `Refund tokens for ${placeName}` })
     .click()
