@@ -300,6 +300,72 @@ test('groups activity by spin date including earlier purchases', async ({
   await expect(board.locator('.bet-board')).toContainText('12 tokens')
 })
 
+test('combines consecutive influence actions in the activity timeline', async ({
+  page,
+}) => {
+  const base = { ...sample.entries[0]!, influenceLocalDate: date }
+  const actions = [
+    {
+      ...base,
+      id: randomUUID(),
+      kind: 'boost-refund',
+      delta: 5,
+      createdAt: `${date}T11:05:00Z`,
+    },
+    {
+      ...base,
+      id: randomUUID(),
+      kind: 'boost-refund',
+      delta: 5,
+      createdAt: `${date}T11:04:00Z`,
+    },
+    {
+      ...base,
+      id: randomUUID(),
+      kind: 'boost',
+      delta: -5,
+      createdAt: `${date}T11:03:00Z`,
+    },
+    {
+      ...base,
+      id: randomUUID(),
+      kind: 'boost',
+      delta: -5,
+      createdAt: `${date}T11:02:00Z`,
+    },
+    {
+      ...base,
+      id: randomUUID(),
+      participantId: sam,
+      participantName: 'Sam',
+      kind: 'boost',
+      delta: -5,
+      createdAt: `${date}T11:01:00Z`,
+    },
+    {
+      ...base,
+      id: randomUUID(),
+      kind: 'boost',
+      delta: -5,
+      createdAt: `${date}T11:00:00Z`,
+    },
+  ]
+  await page.route('**/api/v1/activity?*', (route) =>
+    route.fulfill({ json: { ...sample, entries: actions } }),
+  )
+  await page.goto('/')
+  await page.getByRole('tab', { name: 'Activity' }).click()
+  const panel = page.getByRole('tabpanel', { name: 'Activity' })
+  const rows = panel.locator('.activity-timeline li')
+  await expect(rows).toHaveCount(4)
+  await expect(rows.nth(0)).toContainText('2 actions combined')
+  await expect(rows.nth(0)).toContainText('+10')
+  await expect(rows.nth(1)).toContainText('−10')
+  await panel.getByLabel('Person', { exact: true }).selectOption(alex)
+  await expect(rows).toHaveCount(3)
+  await expect(rows.last()).toContainText('−5')
+})
+
 test('labels historical boosts without inventing draw positions', async ({
   page,
 }) => {

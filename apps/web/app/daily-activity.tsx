@@ -182,6 +182,36 @@ export function TokenOverview({ participantId }: { participantId: string }) {
 type ActionEntry = DailyActivityResponse['entries'][number]
 const emptyEntries: ActionEntry[] = []
 
+function combineTimelineEntries(entries: ActionEntry[]) {
+  const groups: { entry: ActionEntry; count: number; oldestAt: string }[] = []
+  for (const entry of entries) {
+    const previous = groups.at(-1)
+    if (
+      previous &&
+      ['boost', 'reduce', 'boost-refund', 'reduce-refund'].includes(
+        entry.kind,
+      ) &&
+      previous.entry.kind === entry.kind &&
+      previous.entry.participantId === entry.participantId &&
+      previous.entry.placeId === entry.placeId &&
+      previous.entry.reason === entry.reason &&
+      previous.entry.influenceLocalDate === entry.influenceLocalDate &&
+      previous.entry.inferredDrawLocalDate === entry.inferredDrawLocalDate &&
+      previous.entry.betId === entry.betId
+    ) {
+      previous.entry = {
+        ...previous.entry,
+        delta: previous.entry.delta + entry.delta,
+      }
+      previous.count += 1
+      previous.oldestAt = entry.createdAt
+    } else {
+      groups.push({ entry, count: 1, oldestAt: entry.createdAt })
+    }
+  }
+  return groups
+}
+
 function isHistoricalInfluence(entry: ActionEntry) {
   return (
     (entry.kind === 'boost' || entry.kind === 'reduce') &&
@@ -703,14 +733,13 @@ export function DailyActivity({
       ].sort((a, b) => a[1].localeCompare(b[1])),
     [entries],
   )
-  const filteredEntries = entries
-    .filter(
-      (entry) =>
-        (personFilter === 'all' || entry.participantId === personFilter) &&
-        (placeFilter === 'all' || entry.placeId === placeFilter),
-    )
-    .slice()
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  const filteredEntries = combineTimelineEntries(
+    entries.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+  ).filter(
+    ({ entry }) =>
+      (personFilter === 'all' || entry.participantId === personFilter) &&
+      (placeFilter === 'all' || entry.placeId === placeFilter),
+  )
   const drawDateLabel = data ? dateLabel(selectedDate) : selectedDate
 
   return (
@@ -1020,7 +1049,7 @@ export function DailyActivity({
             </div>
             {filteredEntries.length ? (
               <ol className="activity-timeline">
-                {filteredEntries.map((entry) => (
+                {filteredEntries.map(({ entry, count, oldestAt }) => (
                   <li key={entry.id}>
                     <span
                       className={`timeline-mark timeline-mark-${entry.kind}`}
@@ -1036,6 +1065,7 @@ export function DailyActivity({
                           </>
                         ) : null}
                       </strong>
+                      {count > 1 && <p>{count} actions combined</p>}
                       {entry.reason && <p>{entry.reason}</p>}
                       {entry.betLocalDate && (
                         <p>Bet for draw date {entry.betLocalDate}</p>
@@ -1060,6 +1090,8 @@ export function DailyActivity({
                         )}
                     </div>
                     <time dateTime={entry.createdAt}>
+                      {oldestAt !== entry.createdAt &&
+                        `${formatInstant(oldestAt, timezone)} – `}
                       {formatInstant(entry.createdAt, timezone)}
                     </time>
                     <strong
