@@ -84,6 +84,12 @@ test('edits persisted influence from the odds list without changing selected ide
   page,
   request,
 }) => {
+  await page.addLocatorHandler(
+    page.getByRole('button', { name: 'Praise the Wheel', exact: true }),
+    async (button) => {
+      await button.click()
+    },
+  )
   await page.addInitScript((id) => {
     localStorage.setItem('lunch-roller.participant-id', id)
   }, memberId)

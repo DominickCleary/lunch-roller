@@ -25,6 +25,8 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 2px 5px;
+  height: 35px;
+  overflow: hidden;
   min-width: 0;
 }
 
