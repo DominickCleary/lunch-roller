@@ -70,6 +70,10 @@ pnpm dev
 
 In another terminal run `pnpm dev:worker`. The web server uses port 3000. Database commands, API, and worker load the root `.env`; existing process environment variables take precedence. When running the full Compose stack instead, stop it before starting a second web/database on the same ports.
 
+## Component development
+
+Run `pnpm storybook` to open the isolated component workspace at http://localhost:6006. Stories live beside web components in `apps/web/app/`; the toolbar switches between the app's light and dark themes. The Restaurant sidebar stories show all three health ratings and an overboosted, high-odds favorite. Build the static Storybook with `pnpm build-storybook`.
+
 `GET /api/v1/health` returns 200 when the DB is reachable and settings are seeded, otherwise 503. The page polls readiness and today's result every 30 seconds, with lightweight one-second result checks from a minute before a pending draw through its reveal. Returning to a tab refreshes the server clock. The worker logs `started`, database `heartbeat` every 30 seconds, safe scheduling/delivery failures, and `stopped` on Ctrl+C/SIGTERM. It processes today's due draw only; no missed dates are backfilled.
 
 ## Checks
@@ -82,19 +86,18 @@ pnpm test
 pnpm build
 ```
 
-Against a fresh disposable database, configure `DATABASE_URL` for migration/seed and the same URL as `TEST_DATABASE_URL` for integration/browser tests. Tests require the explicit disposable URL and never fall back to the app database. Set `APP_ORIGIN` to the browser test origin (default `http://localhost:3000`); use a free port if an app is already running:
+The full local Playwright suite can create and remove its own isolated PostgreSQL 17 container. Install the Chromium browser once, then run:
 
 ```sh
-pnpm db:migrate
-pnpm db:migrate
-pnpm db:seed
-pnpm db:seed
-pnpm test:integration
 pnpm exec playwright install chromium
-pnpm test:e2e
+pnpm test:e2e:local
 ```
 
-Integration tests explicitly create and remove their own sample fixtures; these are separate from runtime initialization. Playwright requires the disposable database to be empty and setup incomplete: it checks first-run setup before loading fixtures for game scenarios. It starts the production web server; run `pnpm build` first. On Linux, `node scripts/check-worker.mjs` verifies DB heartbeat and graceful SIGTERM shutdown. On Windows, run `pnpm dev:worker` and check Ctrl+C shutdown manually; Windows process termination does not provide POSIX SIGTERM semantics. CI runs all these checks and a separate Compose startup/health job. Run `pnpm format` to apply formatting.
+The local runner requires Docker and Node 24. It builds the app, starts a fresh database without a persistent volume, applies migrations and settings initialization, and chooses free localhost ports for PostgreSQL and the web server. The container is removed when Playwright finishes or fails. To run a filtered subset, pass Playwright options after `--`, for example `pnpm test:e2e:local -- --grep "wheel"`.
+
+You can also run browser tests against an existing explicitly disposable database by setting `TEST_DATABASE_URL`; the test harness never falls back to the application `DATABASE_URL`. That database must be migrated, have settings initialized, and be empty with setup incomplete when the first-run suite starts. Integration tests also require an explicit disposable `TEST_DATABASE_URL` and create/remove their own sample fixtures. On Linux, `node scripts/check-worker.mjs` verifies DB heartbeat and graceful SIGTERM shutdown. On Windows, run `pnpm dev:worker` and check Ctrl+C shutdown manually; Windows process termination does not provide POSIX SIGTERM semantics. CI runs all checks and a separate Compose startup/health job. Run `pnpm format` to apply formatting.
+
+For integration tests against your own disposable PostgreSQL instance, point both `DATABASE_URL` and `TEST_DATABASE_URL` at it, then run `pnpm db:migrate`, `pnpm db:seed`, and `pnpm test:integration`.
 
 Schema changes: coordinator runs `pnpm db:generate`, reviews SQL and metadata under `packages/db/migrations`, then applies `pnpm db:migrate`. Never generate migrations concurrently. Settings initialization is repeat-safe; test fixtures must only run against a disposable database.
 

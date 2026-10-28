@@ -39,9 +39,9 @@ import { wheelColors, wheelSliceColor } from '../lib/wheel-colors'
 import { CountdownBanner } from './countdown-banner'
 import { DailyActivity, TokenOverview } from './daily-activity'
 import { HealthBadge, HealthSelect } from './health-label'
-import { InfluenceControls } from './influence-controls'
 import { PlaceActionControls, PlaceNameControl } from './place-controls'
 import { Readiness } from './readiness'
+import { RestaurantSidebar } from './restaurant-sidebar'
 import { RulesHelp } from './rules-help'
 import { TeamActivity } from './team-activity'
 import { ThemeToggle } from './theme-toggle'
@@ -358,7 +358,6 @@ export default function Home() {
     Record<string, string>
   >({})
   const [selectedOddsPlaceIds, setSelectedOddsPlaceIds] = useState<string[]>([])
-  const [showFairOdds, setShowFairOdds] = useState(false)
   const [places, setPlaces] = useState<Place[]>([])
   const [weightDrafts, setWeightDrafts] = useState<Record<string, string>>({})
   const [today, setToday] = useState<TodayResponse | null>(null)
@@ -2370,203 +2369,41 @@ export default function Home() {
               )}
             </section>
 
-            <div className="panel odds-panel">
-              <div className="section-heading">
-                <div>
-                  <p className="eyebrow">02 / THE ODDS</p>
-                  <h2>Lunch spot</h2>
-                </div>
-                <span className="odds-total">{odds.length} PLACES</span>
-              </div>
-              <p className="muted">Current chances for the next draw.</p>
-              {influenceError && (
-                <p className="refresh-error" role="status">
-                  {influenceError}{' '}
-                  <button
-                    className="ledger-toggle"
-                    type="button"
-                    onClick={() =>
-                      void refresh(participantId).catch(() => undefined)
-                    }
-                  >
-                    Retry positions
-                  </button>
-                </p>
-              )}
-              <fieldset
-                className="odds-format-toggle"
-                aria-label="Choose how restaurant odds are shown"
-              >
-                <button
-                  type="button"
-                  aria-pressed={!showFairOdds}
-                  onClick={() => setShowFairOdds(false)}
-                >
-                  Chances
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={showFairOdds}
-                  onClick={() => setShowFairOdds(true)}
-                >
-                  Odds
-                </button>
-              </fieldset>
-              {wheelActivityPaused && (
-                <p className="muted" role="status">
-                  {wheelPauseMessage}
-                </p>
-              )}
-              <div className="odds-list">
-                {(() => {
-                  const maxCheckIns = Math.max(
-                    0,
-                    ...(today?.restaurantCheckIns ?? []).map(
-                      (entry) => entry.count,
-                    ),
+            <RestaurantSidebar
+              odds={odds}
+              checkIns={today?.restaurantCheckIns ?? []}
+              positions={currentInfluence?.places ?? []}
+              window={currentInfluence?.window ?? null}
+              economy={currentEconomy}
+              balance={wallet?.balance ?? 0}
+              busy={busy}
+              influenceBusy={influenceBusy}
+              influenceError={influenceError}
+              identityReady={Boolean(participantId) && !wheelActivityPaused}
+              pausedMessage={wheelActivityPaused ? wheelPauseMessage : ''}
+              onRetry={() => void refresh(participantId).catch(() => undefined)}
+              onChangeInfluence={changeInfluence}
+              onRefund={refundSpot}
+              onBanish={(placeId, name) => {
+                if (
+                  window.confirm(
+                    `Banish ${name} from the wheel for ${currentEconomy.removePlaceCost} tokens? This is final for this restaurant; pending boosts, reductions, and bets will be refunded. You can restore it later by adding the same name.`,
                   )
-                  const topCheckInPlaces = new Set(
-                    maxCheckIns > 0
-                      ? today?.restaurantCheckIns
-                          .filter((entry) => entry.count === maxCheckIns)
-                          .map((entry) => entry.placeId)
-                      : [],
+                )
+                  void mutate(
+                    '/purchases',
+                    { placeId, action: 'remove' },
+                    'Restaurant banished.',
                   )
-                  return [...odds]
-                    .sort((a, b) => b.probability - a.probability)
-                    .map((option, index) => {
-                      const placeId = 'placeId' in option ? option.placeId : ''
-                      const fairOdds = approximateOdds(option.probability)
-                      const influencePosition = currentInfluence?.places.find(
-                        (position) => position.placeId === placeId,
-                      )
-                      return (
-                        <div
-                          className={`odds-row${topCheckInPlaces.has(placeId) ? ' odds-row-most-checkins' : ''}`}
-                          key={placeId}
-                        >
-                          <span
-                            className="odds-color"
-                            style={{
-                              background:
-                                wheelColors[index % wheelColors.length],
-                            }}
-                          />
-                          <InfluenceControls
-                            placeId={placeId}
-                            placeName={option.name}
-                            healthLevel={option.healthLevel}
-                            position={influencePosition}
-                            window={currentInfluence?.window ?? null}
-                            balance={wallet?.balance ?? 0}
-                            boostCost={currentEconomy.boostCost}
-                            reduceCost={currentEconomy.reduceCost}
-                            busy={
-                              busy || influenceBusy || Boolean(influenceError)
-                            }
-                            identityReady={
-                              Boolean(participantId) && !wheelActivityPaused
-                            }
-                            onChange={changeInfluence}
-                            onRefund={refundSpot}
-                          />
-                          <span className="odds-bar">
-                            <span
-                              style={{
-                                width: `${Math.max(option.probability * 100, option.probability > 0 ? 0.5 : 0)}%`,
-                                background:
-                                  wheelColors[index % wheelColors.length],
-                              }}
-                            />
-                          </span>
-                          <strong
-                            title={`${(option.probability * 100).toPrecision(6)}% chance. Odds show approximate net winnings per token staked; payouts use the exact final chance.`}
-                          >
-                            {showFairOdds
-                              ? fairOdds
-                              : `${(option.probability * 100).toFixed(1)}%`}
-                          </strong>
-                          <div className="influence-buttons">
-                            <button
-                              type="button"
-                              className="remove-place-control"
-                              aria-label={`Banish ${option.name} from the wheel for ${currentEconomy.removePlaceCost} tokens`}
-                              title={`Banish ${option.name} for ${currentEconomy.removePlaceCost} tokens`}
-                              disabled={
-                                busy || !participantId || wheelActivityPaused
-                              }
-                              onClick={() => {
-                                if (
-                                  window.confirm(
-                                    `Banish ${option.name} from the wheel for ${currentEconomy.removePlaceCost} tokens? This is final for this restaurant; pending boosts, reductions, and bets will be refunded. You can restore it later by adding the same name.`,
-                                  )
-                                )
-                                  void mutate(
-                                    '/purchases',
-                                    { placeId, action: 'remove' },
-                                    'Restaurant banished.',
-                                  )
-                              }}
-                            >
-                              ×
-                            </button>
-                          </div>
-                        </div>
-                      )
-                    })
-                })()}
-                {!odds.length && (
-                  <p className="empty-note">
-                    The admin can add places to get the wheel rolling.
-                  </p>
-                )}
-              </div>
-              <form
-                className="add-place"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  const form = event.currentTarget
-                  const input = new FormData(form)
-                    .get('place')
-                    ?.toString()
-                    .trim()
-                  if (input)
-                    void mutate(
-                      '/places',
-                      {
-                        name: input,
-                        healthLevel: new FormData(form).get('healthLevel'),
-                      },
-                      `New lunch place added for ${currentEconomy.addPlaceCost} tokens.`,
-                    ).then((saved) => {
-                      if (saved) form.reset()
-                    })
-                }}
-              >
-                <label htmlFor="place-name">Have a new spot in mind?</label>
-                <div className="inline-form">
-                  <input
-                    id="place-name"
-                    name="place"
-                    placeholder={`Add a lunch place · ${currentEconomy.addPlaceCost} tokens`}
-                    maxLength={100}
-                    required
-                    disabled={!participantId || busy || wheelActivityPaused}
-                  />
-                  <button
-                    type="submit"
-                    className="button button-light"
-                    disabled={!participantId || busy || wheelActivityPaused}
-                  >
-                    Add place
-                  </button>
-                  <HealthSelect
-                    label="New spot health level"
-                    disabled={!participantId || busy || wheelActivityPaused}
-                  />
-                </div>
-              </form>
-            </div>
+              }}
+              onAddPlace={(name, healthLevel) =>
+                mutate(
+                  '/places',
+                  { name, healthLevel },
+                  `New lunch place added for ${currentEconomy.addPlaceCost} tokens.`,
+                )
+              }
+            />
             <div className="panel token-activity-panel">
               <div className="ledger">
                 <div className="ledger-heading">

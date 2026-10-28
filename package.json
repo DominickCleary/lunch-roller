@@ -18,6 +18,9 @@
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "playwright test",
+    "test:e2e:local": "node scripts/test-e2e-local.mjs",
+    "storybook": "pnpm --filter @lunch/web storybook",
+    "build-storybook": "pnpm --filter @lunch/web build-storybook",
     "db:generate": "pnpm --filter @lunch/db generate",
     "db:migrate": "pnpm --filter @lunch/db migrate",
     "db:seed": "pnpm --filter @lunch/db seed"

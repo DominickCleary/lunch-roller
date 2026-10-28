@@ -10,7 +10,7 @@ Gambling about lunch requires an always-on web server, worker, PostgreSQL and a 
 - `APP_ORIGIN`: exact browser origin, including scheme and non-default port. Every mutation requires a matching Origin header. Set the public HTTPS origin behind a reverse proxy; secure session cookies follow this setting.
 - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`: optional Web Push configuration on both web and worker. The subject is a `mailto:` or HTTPS contact. Generate a matching key pair locally with `pnpm --filter @lunch/worker exec web-push generate-vapid-keys`; keep the private key secret. The public key is intentionally exposed by `/api/v1/push-config`.
 - `WORKER_HEARTBEAT_FILE`: optional freshness file, configured in Compose.
-- `TEST_DATABASE_URL`: explicit migrated/seeded disposable PostgreSQL URL required by integration/browser tests. Test tooling never falls back to the normal application database URL.
+- `TEST_DATABASE_URL`: explicit disposable PostgreSQL URL required by integration/browser tests. Test tooling never falls back to the normal application database URL. `pnpm test:e2e:local` creates an isolated container and sets this value automatically for the browser suite.
 
 The default `.env.example` credentials are development examples. Replace them before exposing the service. Do not commit `.env` or actual credentials. Set HTTPS and preserve the browser Origin through your proxy. Avoid caching API responses. No CORS access is provided.
 

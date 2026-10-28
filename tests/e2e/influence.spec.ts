@@ -23,13 +23,30 @@ let memberId = ''
 let placeId = ''
 const marketIds: string[] = []
 let originalSettings: typeof schema.settings.$inferSelect | undefined
+let originalEconomy: Awaited<ReturnType<typeof game.getEconomy>> | undefined
+let originalPlaceWeights: { placeId: string; weight: number }[] = []
 
 test.beforeAll(async () => {
   ;[originalSettings] = await database.db.select().from(schema.settings)
+  originalEconomy = await game.getEconomy()
   const member = await game.saveParticipant({ name: memberName })
   const place = await game.savePlace({ name: placeName })
   memberId = member.id
   placeId = place.id
+  originalPlaceWeights = (
+    await database.db
+      .select({
+        placeId: schema.places.id,
+        weight: schema.places.logWeight,
+        active: schema.places.active,
+      })
+      .from(schema.places)
+  )
+    .filter((place) => place.active)
+    .map(({ placeId: originalPlaceId, weight }) => ({
+      placeId: originalPlaceId,
+      weight,
+    }))
   await database.client`UPDATE settings SET setup_completed = true WHERE id = 1`
   await game.setSchedule({
     timezone: 'UTC',
@@ -57,6 +74,17 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   try {
+    if (originalEconomy) await game.setEconomy(originalEconomy)
+    for (const place of originalPlaceWeights) {
+      try {
+        await game.setPlaceWeight({
+          placeId: place.placeId,
+          weight: Math.exp(place.weight),
+        })
+      } catch {
+        // The fixture place may already have been removed by test cleanup.
+      }
+    }
     if (memberId) {
       await database.client`DELETE FROM influence_lots WHERE participant_id = ${memberId}::uuid`
       await database.client`DELETE FROM token_ledger WHERE participant_id = ${memberId}::uuid`
@@ -77,6 +105,88 @@ test.afterAll(async () => {
         WHERE id = 1`
   } finally {
     await database.close()
+  }
+})
+
+test('holds restaurant order for two seconds after changing influence', async ({
+  page,
+}) => {
+  if (!originalEconomy) throw new Error('Missing economy fixture')
+  for (const place of originalPlaceWeights) {
+    await game.setPlaceWeight({
+      placeId: place.placeId,
+      weight: place.placeId === placeId ? 1 : 10,
+    })
+  }
+  await game.setEconomy({ ...originalEconomy, boostMultiplier: 100 })
+
+  try {
+    await page.addInitScript((id) => {
+      localStorage.setItem('lunch-roller.participant-id', id)
+    }, memberId)
+    await page.goto(appOrigin)
+
+    const row = page.locator('.odds-row').filter({ hasText: placeName })
+    await expect(row).toBeVisible()
+    const getOrder = () =>
+      page
+        .locator('.odds-row')
+        .evaluateAll((rows) =>
+          rows.map((row) =>
+            row.querySelector('.odds-name')?.textContent?.trim(),
+          ),
+        )
+    const getExpectedOrder = () =>
+      page.locator('.odds-row').evaluateAll((rows) =>
+        rows
+          .map((row) => ({
+            name: row.querySelector('.odds-name')?.textContent?.trim(),
+            chance: Number.parseFloat(
+              row.querySelector(':scope > strong')?.getAttribute('title') ?? '',
+            ),
+          }))
+          .sort((left, right) => right.chance - left.chance)
+          .map((row) => row.name),
+      )
+    const initialOrder = await getOrder()
+    expect(initialOrder[initialOrder.length - 1]).toBe(placeName)
+    const getChance = async () =>
+      Number(
+        ((await row.locator(':scope > strong').textContent()) ?? '').replace(
+          '%',
+          '',
+        ),
+      )
+    const initialChance = await getChance()
+    await row.getByRole('button', { name: `Boost ${placeName}` }).click()
+    await expect(row.locator('.influence-net-value')).toHaveText('+1')
+    await expect.poll(getChance).toBeGreaterThan(initialChance)
+    await expect.poll(getOrder).toEqual(initialOrder)
+
+    await page.waitForTimeout(1900)
+    await expect.poll(getOrder).toEqual(initialOrder)
+    const expectedOrder = await getExpectedOrder()
+    await expect.poll(getOrder, { timeout: 8000 }).toEqual(expectedOrder)
+
+    await page
+      .locator('.odds-row')
+      .filter({ hasText: placeName })
+      .getByRole('button', { name: `Refund tokens for ${placeName}` })
+      .click()
+    await expect(
+      page
+        .locator('.odds-row')
+        .filter({ hasText: placeName })
+        .locator('.influence-net-value'),
+    ).toHaveText('0')
+  } finally {
+    await game.setEconomy(originalEconomy)
+    for (const place of originalPlaceWeights) {
+      await game.setPlaceWeight({
+        placeId: place.placeId,
+        weight: Math.exp(place.weight),
+      })
+    }
   }
 })
 
