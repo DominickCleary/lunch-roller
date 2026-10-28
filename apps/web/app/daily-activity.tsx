@@ -220,6 +220,12 @@ function isHistoricalInfluence(entry: ActionEntry) {
   )
 }
 
+function influenceDelta(entry: ActionEntry, action: 'boost' | 'reduce') {
+  if (entry.kind === action) return Math.abs(entry.delta)
+  if (entry.kind === `${action}-refund`) return -Math.abs(entry.delta)
+  return 0
+}
+
 const actionLabel: Record<string, string> = {
   'transfer-sent': 'Sent tokens',
   'transfer-received': 'Received tokens',
@@ -260,9 +266,14 @@ function ActivityTrend({
   timezone: string
 }) {
   const purchases = entries
-    .filter((entry) => entry.kind === 'boost' || entry.kind === 'reduce')
+    .filter((entry) =>
+      ['boost', 'reduce', 'boost-refund', 'reduce-refund'].includes(entry.kind),
+    )
     .slice()
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .sort(
+      (a, b) =>
+        a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
+    )
   if (!purchases.length)
     return (
       <p className="activity-empty">
@@ -278,9 +289,8 @@ function ActivityTrend({
   for (const entry of purchases) {
     const prior = points.at(-1) ?? { boost: 0, reduce: 0, time: start }
     points.push({
-      boost: prior.boost + (entry.kind === 'boost' ? Math.abs(entry.delta) : 0),
-      reduce:
-        prior.reduce + (entry.kind === 'reduce' ? Math.abs(entry.delta) : 0),
+      boost: Math.max(0, prior.boost + influenceDelta(entry, 'boost')),
+      reduce: Math.max(0, prior.reduce + influenceDelta(entry, 'reduce')),
       time: new Date(entry.createdAt).getTime(),
     })
   }
@@ -317,12 +327,12 @@ function ActivityTrend({
         aria-labelledby="trend-title trend-desc"
       >
         <title id="trend-title">
-          Cumulative boost and anti-boost tokens spent
+          Net boost and anti-boost tokens after refunds
         </title>
         <desc id="trend-desc">
-          The lines show tokens spent in timestamp order for this selection,
-          before refunds. They describe token actions, not restaurant odds or
-          outstanding positions.
+          The lines show net influence tokens after refunds in timestamp order
+          for this selection. They describe token actions, not restaurant odds
+          or outstanding positions.
         </desc>
         {[0, 1, 2, 3].map((step) => {
           const value = Math.round((peak * step) / 3)
@@ -364,8 +374,8 @@ function ActivityTrend({
         <path d={path('reduce')} className="trend-reduce-line" />
       </svg>
       <p className="activity-chart-note">
-        Cumulative tokens spent · workplace local time · boost and anti-boost
-        purchases before refunds
+        Net tokens committed · workplace local time · refunds reduce the
+        corresponding influence total
       </p>
       <div className="activity-trend-legend" aria-hidden="true">
         <span>
@@ -379,7 +389,7 @@ function ActivityTrend({
       </div>
       <table className="visually-hidden">
         <caption>
-          Cumulative boost and anti-boost tokens spent after each purchase
+          Net boost and anti-boost tokens after each purchase or refund
         </caption>
         <thead>
           <tr>
@@ -696,15 +706,21 @@ export function DailyActivity({
   const timezone = data?.timezone ?? 'UTC'
   const entries = data?.entries ?? emptyEntries
   const hasHistoricalInfluence = entries.some(isHistoricalInfluence)
-  const boosts = entries
-    .filter((entry) => entry.kind === 'boost')
-    .reduce((sum, entry) => sum + Math.abs(entry.delta), 0)
-  const reduces = entries
-    .filter((entry) => entry.kind === 'reduce')
-    .reduce((sum, entry) => sum + Math.abs(entry.delta), 0)
+  const boosts = entries.reduce(
+    (sum, entry) => sum + influenceDelta(entry, 'boost'),
+    0,
+  )
+  const reduces = entries.reduce(
+    (sum, entry) => sum + influenceDelta(entry, 'reduce'),
+    0,
+  )
   const activePeople = new Set(
     entries
-      .filter((entry) => ['boost', 'reduce'].includes(entry.kind))
+      .filter((entry) =>
+        ['boost', 'reduce', 'boost-refund', 'reduce-refund'].includes(
+          entry.kind,
+        ),
+      )
       .map((entry) => entry.participantId),
   ).size
   const people = useMemo(
@@ -843,14 +859,14 @@ export function DailyActivity({
               <strong>
                 {tokenCount(boosts)} <small>tokens</small>
               </strong>
-              <p>purchased before refunds</p>
+              <p>after refunds</p>
             </article>
             <article>
               <span>Anti-boosted</span>
               <strong>
                 {tokenCount(reduces)} <small>tokens</small>
               </strong>
-              <p>purchased before refunds</p>
+              <p>after refunds</p>
             </article>
             <article>
               <span>People active</span>

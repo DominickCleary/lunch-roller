@@ -531,6 +531,48 @@ test('coalition cells show active anti-boosts and omit refunded positions', asyn
   ).toBeVisible()
 })
 
+test('activity totals and trend subtract boost and anti-boost refunds', async ({
+  page,
+}) => {
+  const boostEntry = sample.entries[0]
+  const reduceEntry = sample.entries[2]
+  if (!boostEntry || !reduceEntry) throw new Error('Missing fixture entries')
+  const refunds: DailyActivityResponse['entries'] = [
+    {
+      ...boostEntry,
+      id: randomUUID(),
+      kind: 'boost-refund',
+      delta: 5,
+      createdAt: `${date}T09:30:00.000Z`,
+    },
+    {
+      ...reduceEntry,
+      id: randomUUID(),
+      kind: 'reduce-refund',
+      delta: 5,
+      createdAt: `${date}T10:30:00.000Z`,
+    },
+  ]
+  await page.route('**/api/v1/activity?*', (route) =>
+    route.fulfill({
+      json: { ...sample, entries: [...sample.entries, ...refunds] },
+    }),
+  )
+  await page.goto('/')
+  await page.getByRole('tab', { name: 'Activity' }).click()
+  const panel = page.getByRole('tabpanel', { name: 'Activity' })
+  const summary = panel.locator('.activity-summary')
+  await expect(summary.locator('article').nth(0)).toContainText('10')
+  await expect(summary.locator('article').nth(1)).toContainText('0')
+  await expect(summary.locator('article').nth(2)).toContainText('3')
+  await expect(
+    panel.getByRole('img', {
+      name: 'Net boost and anti-boost tokens after refunds',
+    }),
+  ).toBeVisible()
+  await expect(panel.locator('.activity-trend-chart')).toContainText('10')
+})
+
 test('shows the schedule, charts, coalitions and bet board without changing identity', async ({
   page,
   request,
@@ -631,7 +673,7 @@ test('shows the schedule, charts, coalitions and bet board without changing iden
   ).toBeVisible()
   await expect(
     panel.getByRole('img', {
-      name: 'Cumulative boost and anti-boost tokens spent',
+      name: 'Net boost and anti-boost tokens after refunds',
     }),
   ).toBeVisible()
   await expect(panel.locator('.activity-summary')).toContainText('15')
