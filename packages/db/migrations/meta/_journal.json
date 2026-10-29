@@ -113,6 +113,13 @@
       "when": 1792677953292,
       "tag": "0015_opposite_pestilence",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792886400000,
+      "tag": "0016_game_state_notifications",
+      "breakpoints": true
     }
   ]
 }

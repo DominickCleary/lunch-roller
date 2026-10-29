@@ -32,6 +32,8 @@ async function prepare(
     (id) => localStorage.setItem('lunch-roller.participant-id', id),
     participantId,
   )
+  // Keep server-event refreshes out of the independently clocked animation test.
+  await page.route('**/api/v1/events', (route) => route.abort())
   await page.route('**/api/v1/today', async (route) => {
     const elapsed =
       (await page.evaluate(() => performance.now())) - initialPerformance
@@ -127,9 +129,11 @@ test('shares the live phase across skewed clocks, late entry and reload, then re
       'data-spin-phase',
       'live',
     )
-    expect(Math.abs((await angle(first)) - (await angle(second)))).toBeLessThan(
-      6,
-    )
+    const [firstAngle, secondAngle] = await Promise.all([
+      angle(first),
+      angle(second),
+    ])
+    expect(Math.abs(firstAngle - secondAngle)).toBeLessThan(6)
     expect(await angle(first)).toBeGreaterThan(2000)
     await expectPointerColor(first, await angle(first))
     await second.reload()

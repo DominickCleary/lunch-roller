@@ -63,6 +63,9 @@ async function exerciseAdminUiAndGame(
   const addPlaceName = `${fixturePrefix} Member Place`
   const correctionReason = `${fixturePrefix} test grant`
 
+  // This broad admin flow tests forms and persistence. SSE delivery is covered
+  // separately in sse.spec.ts; keep asynchronous refreshes out of this flow.
+  await page.route('**/api/v1/events', (route) => route.abort())
   await page.setViewportSize({ width: 1440, height: 1000 })
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto(appOrigin)
@@ -384,6 +387,7 @@ async function exerciseAdminUiAndGame(
       Reflect.deleteProperty(window, 'Notification')
     })
     const secondPage = await secondContext.newPage()
+    await secondPage.route('**/api/v1/events', (route) => route.abort())
     await secondPage.goto(appOrigin)
     await expect(secondPage.getByRole('heading', { level: 1 })).toHaveText(
       'Gambling about lunch',
