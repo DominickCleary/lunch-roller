@@ -82,6 +82,19 @@ test('shared changes refresh another page over SSE and reconnect recovers a miss
     localStorage.setItem('lunch-roller.participant-id', id)
   }, memberId)
   const otherPage = await page.context().newPage()
+  for (const currentPage of [page, otherPage]) {
+    // A draw from an earlier scenario can finish after these pages load.
+    // Dismiss its modal whenever it blocks an action, including after reload.
+    await currentPage.addLocatorHandler(
+      currentPage.getByRole('button', {
+        name: 'Praise the Wheel',
+        exact: true,
+      }),
+      async (button) => {
+        await button.click()
+      },
+    )
+  }
   await otherPage.addInitScript((id) => {
     localStorage.setItem('lunch-roller.participant-id', id)
   }, memberId)

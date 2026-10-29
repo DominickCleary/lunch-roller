@@ -223,6 +223,12 @@ test.beforeEach(async ({ page, request }) => {
   })
 })
 
+test.afterEach(async ({ page }) => {
+  // SSE and polling can start refreshes after the final assertion. Drain route
+  // handlers before Playwright tears down their page and API request context.
+  await page.unrouteAll({ behavior: 'wait' })
+})
+
 test('groups activity by spin date including earlier purchases', async ({
   page,
 }) => {
@@ -491,7 +497,6 @@ test('pauses wheel purchases and bets after the roll and reopens after the confi
   await expect(
     page.getByRole('button', { name: /^Boost / }).first(),
   ).not.toHaveAttribute('title', /Opens at/)
-  await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
 
 test('coalition cells show active anti-boosts and omit refunded positions', async ({
@@ -853,5 +858,4 @@ test('standings refresh their spin date and change when the target advances', as
   await expect(
     standings.locator('.token-overview-table tbody tr').nth(0).locator('td'),
   ).toHaveText(['Alex', '50', '40', '↑ +10', '—'])
-  await page.unrouteAll({ behavior: 'wait' })
 })
