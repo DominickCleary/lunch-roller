@@ -121,6 +121,9 @@ test('holds restaurant order for two seconds after changing influence', async ({
   await game.setEconomy({ ...originalEconomy, boostMultiplier: 100 })
 
   try {
+    const browserTime = Date.now()
+    await page.clock.install({ time: new Date(browserTime) })
+    await page.clock.pauseAt(new Date(browserTime + 1000))
     await page.addInitScript((id) => {
       localStorage.setItem('lunch-roller.participant-id', id)
     }, memberId)
@@ -163,10 +166,13 @@ test('holds restaurant order for two seconds after changing influence', async ({
     await expect.poll(getChance).toBeGreaterThan(initialChance)
     await expect.poll(getOrder).toEqual(initialOrder)
 
-    await page.waitForTimeout(1900)
-    await expect.poll(getOrder).toEqual(initialOrder)
+    // Network and assertion time must not consume the two-second hold.
+    await page.clock.runFor(1999)
+    expect(await getOrder()).toEqual(initialOrder)
     const expectedOrder = await getExpectedOrder()
-    await expect.poll(getOrder, { timeout: 8000 }).toEqual(expectedOrder)
+    expect(expectedOrder).not.toEqual(initialOrder)
+    await page.clock.runFor(1)
+    await expect.poll(getOrder).toEqual(expectedOrder)
 
     await page
       .locator('.odds-row')
