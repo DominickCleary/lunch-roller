@@ -375,8 +375,8 @@ export default function Home() {
   const [influenceError, setInfluenceError] = useState('')
   const [betStakeDraft, setBetStakeDraft] = useState('1')
   const [betPlaceDraft, setBetPlaceDraft] = useState('')
-	const betDraftDirty = useRef(false)
-	const betDraftScope = useRef('')
+  const betDraftDirty = useRef(false)
+  const betDraftScope = useRef('')
   const [betBusy, setBetBusy] = useState(false)
   const [betError, setBetError] = useState('')
   const [betNotice, setBetNotice] = useState('')
@@ -704,72 +704,72 @@ export default function Home() {
     }
   }, [loadSetupStatus, refresh, refreshAdmin])
 
-	useEffect(() => {
-		if (entryStage !== 'game' || !today) return
-		let loading = false
-		const tick = async (wake = false) => {
-			if (document.hidden || loading) return
-			const now = getServerNow()
-			const dueAt = scheduledInstant(
-				today.localDate,
-				today.schedule.time,
-				today.schedule.timezone,
-			).getTime()
-			const nearDraw = today.status === 'pending' && now >= dueAt - 60000
-			const live = today.result && spinIsLive(animationPlan(today.result), now)
-			if (!wake && !nearDraw && !live) return
-			loading = true
-			try {
-				await loadToday()
-			} catch {
-				/* The normal refresh reports connection failures. */
-			} finally {
-				loading = false
-			}
-		}
-		const timer = window.setInterval(() => void tick(), 1000)
-		const wake = () => {
-			if (!document.hidden) void tick(true)
-		}
-		document.addEventListener('visibilitychange', wake)
-		return () => {
-			clearInterval(timer)
-			document.removeEventListener('visibilitychange', wake)
-		}
-	}, [entryStage, today, getServerNow, loadToday])
+  useEffect(() => {
+    if (entryStage !== 'game' || !today) return
+    let loading = false
+    const tick = async (wake = false) => {
+      if (document.hidden || loading) return
+      const now = getServerNow()
+      const dueAt = scheduledInstant(
+        today.localDate,
+        today.schedule.time,
+        today.schedule.timezone,
+      ).getTime()
+      const nearDraw = today.status === 'pending' && now >= dueAt - 60000
+      const live = today.result && spinIsLive(animationPlan(today.result), now)
+      if (!wake && !nearDraw && !live) return
+      loading = true
+      try {
+        await loadToday()
+      } catch {
+        /* The normal refresh reports connection failures. */
+      } finally {
+        loading = false
+      }
+    }
+    const timer = window.setInterval(() => void tick(), 1000)
+    const wake = () => {
+      if (!document.hidden) void tick(true)
+    }
+    document.addEventListener('visibilitychange', wake)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', wake)
+    }
+  }, [entryStage, today, getServerNow, loadToday])
 
-	const refreshBets = useCallback(async (selected: string) => {
-		const requestId = ++latestBetRequest.current
-		if (!selected) {
-			setCurrentBets(null)
-			return
-		}
-		try {
-			const data = await request<CurrentBets>('/bets/current', {}, selected)
-			if (requestId !== latestBetRequest.current) return
-			setCurrentBets(data)
-			setBetError('')
-			const scope = `${selected}:${data.window.localDate}`
-			if (!betDraftDirty.current || betDraftScope.current !== scope) {
-				betDraftScope.current = scope
-				betDraftDirty.current = false
-			setBetStakeDraft(data.bet ? String(data.bet.stake) : '1')
-			setBetPlaceDraft(data.bet?.placeId ?? '')
-			}
-		} catch (caught) {
-			if (requestId !== latestBetRequest.current) return
-			setBetError(
-				caught instanceof Error
-					? caught.message
-					: 'Could not load your bet. Please retry.',
-			)
-		}
-	}, [])
-	const refreshSharedGameState = useCallback(async () => {
-		if (entryStage !== 'game') return
-		await Promise.all([refresh(participantId), refreshBets(participantId)])
-	}, [entryStage, participantId, refresh, refreshBets])
-	useGameStateEvents(entryStage === 'game', refreshSharedGameState)
+  const refreshBets = useCallback(async (selected: string) => {
+    const requestId = ++latestBetRequest.current
+    if (!selected) {
+      setCurrentBets(null)
+      return
+    }
+    try {
+      const data = await request<CurrentBets>('/bets/current', {}, selected)
+      if (requestId !== latestBetRequest.current) return
+      setCurrentBets(data)
+      setBetError('')
+      const scope = `${selected}:${data.window.localDate}`
+      if (!betDraftDirty.current || betDraftScope.current !== scope) {
+        betDraftScope.current = scope
+        betDraftDirty.current = false
+        setBetStakeDraft(data.bet ? String(data.bet.stake) : '1')
+        setBetPlaceDraft(data.bet?.placeId ?? '')
+      }
+    } catch (caught) {
+      if (requestId !== latestBetRequest.current) return
+      setBetError(
+        caught instanceof Error
+          ? caught.message
+          : 'Could not load your bet. Please retry.',
+      )
+    }
+  }, [])
+  const refreshSharedGameState = useCallback(async () => {
+    if (entryStage !== 'game') return
+    await Promise.all([refresh(participantId), refreshBets(participantId)])
+  }, [entryStage, participantId, refresh, refreshBets])
+  useGameStateEvents(entryStage === 'game', refreshSharedGameState)
 
   const betCutoffAt = currentBets?.window.cutoffAt
   const betOpensAt = currentBets?.window.opensAt
@@ -854,7 +854,7 @@ export default function Home() {
         },
         participantId,
       )
-			betDraftDirty.current = false
+      betDraftDirty.current = false
       await Promise.all([refresh(participantId), refreshBets(participantId)])
       setBetNotice('Your bet is saved. You can change it until betting closes.')
     } catch (caught) {
@@ -881,7 +881,7 @@ export default function Home() {
         },
         participantId,
       )
-			betDraftDirty.current = false
+      betDraftDirty.current = false
       await Promise.all([refresh(participantId), refreshBets(participantId)])
       setBetNotice('Your bet was cancelled and the tokens were returned.')
     } catch (caught) {
@@ -988,8 +988,8 @@ export default function Home() {
   }
 
   function changeName() {
-		betDraftDirty.current = false
-		betDraftScope.current = ''
+    betDraftDirty.current = false
+    betDraftScope.current = ''
     latestAttendanceRequest.current += 1
     latestBetRequest.current += 1
     latestInfluenceRequest.current += 1
@@ -2231,10 +2231,10 @@ export default function Home() {
                       Lunch place
                       <select
                         value={betPlaceDraft}
-												onChange={(event) => {
-													betDraftDirty.current = true
+                        onChange={(event) => {
+                          betDraftDirty.current = true
                           setBetPlaceDraft(event.target.value)
-												}}
+                        }}
                         disabled={
                           betBusy || !betWindowOpen || !today?.odds.length
                         }
@@ -2261,10 +2261,10 @@ export default function Home() {
                           step="1"
                           inputMode="numeric"
                           value={betStakeDraft}
-													onChange={(event) => {
-														betDraftDirty.current = true
+                          onChange={(event) => {
+                            betDraftDirty.current = true
                             setBetStakeDraft(event.target.value)
-													}}
+                          }}
                           disabled={betBusy || !betWindowOpen}
                           aria-describedby="bet-balance-help"
                         />

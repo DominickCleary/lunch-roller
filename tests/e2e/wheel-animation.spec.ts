@@ -23,57 +23,57 @@ async function prepare(
   wallSkew: number,
   lateBy = 0,
 ) {
-	const localTime = epoch + wallSkew
-	await page.clock.install({ time: new Date(localTime) })
-	await page.clock.pauseAt(new Date(localTime + 1000))
-	const initialPerformance = await page.evaluate(() => performance.now())
-	let lastServerTime = epoch + lateBy
-	await page.addInitScript(
-		(id) => localStorage.setItem('lunch-roller.participant-id', id),
-		participantId,
-	)
-	// Keep server-event refreshes out of the independently clocked animation test.
-	await page.route('**/api/v1/events', (route) => route.abort())
-	await page.route('**/api/v1/today', async (route) => {
-		const elapsed =
-			(await page.evaluate(() => performance.now())) - initialPerformance
-		lastServerTime = Math.max(lastServerTime, epoch + lateBy + elapsed)
-		await route.fulfill({
-			json: {
-				...base,
-				serverTime: new Date(lastServerTime).toISOString(),
-				localDate: '2026-10-21',
-				wheel: { mode: 'upcoming', localDate: '2026-10-22' },
-				status: 'drawn',
-				result: {
-					id: '00000000-0000-4000-8000-000000000073',
-					localDate: '2026-10-21',
-					placeId: winnerId,
-					placeName: 'Border winner',
-					timezone: 'UTC',
-					drawnAt: new Date(epoch - 4000).toISOString(),
-					animation: plan,
-					snapshot: [
-						{
-							placeId: winnerId,
-							name: 'Border winner',
-							probability: 0.5,
-							logWeight: 0,
-						},
-						{
-							placeId: otherId,
-							name: 'Close runner-up',
-							probability: 0.5,
-							logWeight: 0,
-						},
-					],
-				},
-			} satisfies TodayResponse,
-		})
-	})
-	await page.goto('/')
-	await expect(page.getByTestId('lunch-wheel')).toBeVisible()
-	await page.clock.runFor(100)
+  const localTime = epoch + wallSkew
+  await page.clock.install({ time: new Date(localTime) })
+  await page.clock.pauseAt(new Date(localTime + 1000))
+  const initialPerformance = await page.evaluate(() => performance.now())
+  let lastServerTime = epoch + lateBy
+  await page.addInitScript(
+    (id) => localStorage.setItem('lunch-roller.participant-id', id),
+    participantId,
+  )
+  // Keep server-event refreshes out of the independently clocked animation test.
+  await page.route('**/api/v1/events', (route) => route.abort())
+  await page.route('**/api/v1/today', async (route) => {
+    const elapsed =
+      (await page.evaluate(() => performance.now())) - initialPerformance
+    lastServerTime = Math.max(lastServerTime, epoch + lateBy + elapsed)
+    await route.fulfill({
+      json: {
+        ...base,
+        serverTime: new Date(lastServerTime).toISOString(),
+        localDate: '2026-10-21',
+        wheel: { mode: 'upcoming', localDate: '2026-10-22' },
+        status: 'drawn',
+        result: {
+          id: '00000000-0000-4000-8000-000000000073',
+          localDate: '2026-10-21',
+          placeId: winnerId,
+          placeName: 'Border winner',
+          timezone: 'UTC',
+          drawnAt: new Date(epoch - 4000).toISOString(),
+          animation: plan,
+          snapshot: [
+            {
+              placeId: winnerId,
+              name: 'Border winner',
+              probability: 0.5,
+              logWeight: 0,
+            },
+            {
+              placeId: otherId,
+              name: 'Close runner-up',
+              probability: 0.5,
+              logWeight: 0,
+            },
+          ],
+        },
+      } satisfies TodayResponse,
+    })
+  })
+  await page.goto('/')
+  await expect(page.getByTestId('lunch-wheel')).toBeVisible()
+  await page.clock.runFor(100)
 }
 const angle = (page: Page) =>
   page
@@ -95,102 +95,102 @@ test('shares the live phase across skewed clocks, late entry and reload, then re
   browser,
   request,
 }) => {
-	const base = (await (
-		await request.get('/api/v1/today')
-	).json()) as TodayResponse
-	const { participants } = await (
-		await request.get('/api/v1/participants')
-	).json()
-	const participantId = participants[0].id as string
-	const walletBefore = await (
-		await request.get('/api/v1/wallet', {
-			headers: { 'X-Participant-Id': participantId },
-		})
-	).json()
-	const first = await browser.newPage({
-		baseURL: process.env.APP_ORIGIN ?? 'http://localhost:3000',
-	})
-	const second = await browser.newPage({
-		baseURL: process.env.APP_ORIGIN ?? 'http://localhost:3000',
-	})
-	try {
-		await prepare(first, base, participantId, 3600000)
-		await expect(first.getByTestId('lunch-wheel')).toHaveAttribute(
-			'data-spin-phase',
-			'live',
-		)
-		await expect(first.getByTestId('wheel-target')).not.toContainText(
-			'Border winner',
-		)
-		await expect(first.getByTestId('today-result')).toHaveCount(0)
-		await first.clock.fastForward(6000)
-		await prepare(second, base, participantId, -7200000, 6000)
-		await expect(second.getByTestId('lunch-wheel')).toHaveAttribute(
-			'data-spin-phase',
-			'live',
-		)
-		const [firstAngle, secondAngle] = await Promise.all([
-			angle(first),
-			angle(second),
-		])
-		expect(Math.abs(firstAngle - secondAngle)).toBeLessThan(6)
-		expect(await angle(first)).toBeGreaterThan(2000)
-		await expectPointerColor(first, await angle(first))
-		await second.reload()
-		await expect(second.getByTestId('lunch-wheel')).toBeVisible()
-		await second.clock.runFor(100)
-		await expect(second.getByTestId('lunch-wheel')).toHaveAttribute(
-			'data-spin-phase',
-			'live',
-		)
-		expect(await angle(second)).toBeGreaterThan(2000)
-		await first.clock.fastForward(25000)
-		await second.clock.fastForward(25000)
-		for (const page of [first, second]) {
-			await expect(page.getByTestId('lunch-wheel')).toHaveAttribute(
-				'data-spin-phase',
-				'settled',
-			)
-			expect(await angle(page)).toBeCloseTo(plan.rotation, 4)
-			await expectPointerColor(page, plan.rotation)
-			const celebration = page.getByRole('dialog', {
-				name: 'The Wheel has spoken',
-			})
-			await expect(celebration).toBeVisible()
-			await expect(celebration).toContainText('Border winner')
-			await celebration
-				.getByRole('button', { name: 'Praise the Wheel' })
-				.click()
-			await expect(page.getByTestId('wheel-target')).toContainText(
-				'Scheduled for',
-			)
-			await expect(page.getByTestId('today-result')).toHaveCount(0)
-			await page.getByRole('button', { name: "Replay today's result" }).click()
-			await page.clock.runFor(100)
-			await expect(page.getByTestId('lunch-wheel')).toHaveAttribute(
-				'data-spin-phase',
-				'replay',
-			)
-			// Canonical replay starts from zero, not from this browser's previous orientation.
-			expect(await angle(page)).toBeLessThan(100)
-			await expectPointerColor(page, await angle(page))
-			await page.clock.fastForward(25000)
-			expect(await angle(page)).toBeCloseTo(plan.rotation, 4)
-			await expectPointerColor(page, plan.rotation)
-			await expect(celebration).toBeVisible()
-			await page.keyboard.press('Escape')
-			await expect(celebration).toHaveCount(0)
-		}
-		const walletAfter = await (
-			await request.get('/api/v1/wallet', {
-				headers: { 'X-Participant-Id': participantId },
-			})
-		).json()
-		expect(walletAfter).toEqual(walletBefore)
-	} finally {
-		await first.close()
-		await second.close()
-	}
+  const base = (await (
+    await request.get('/api/v1/today')
+  ).json()) as TodayResponse
+  const { participants } = await (
+    await request.get('/api/v1/participants')
+  ).json()
+  const participantId = participants[0].id as string
+  const walletBefore = await (
+    await request.get('/api/v1/wallet', {
+      headers: { 'X-Participant-Id': participantId },
+    })
+  ).json()
+  const first = await browser.newPage({
+    baseURL: process.env.APP_ORIGIN ?? 'http://localhost:3000',
+  })
+  const second = await browser.newPage({
+    baseURL: process.env.APP_ORIGIN ?? 'http://localhost:3000',
+  })
+  try {
+    await prepare(first, base, participantId, 3600000)
+    await expect(first.getByTestId('lunch-wheel')).toHaveAttribute(
+      'data-spin-phase',
+      'live',
+    )
+    await expect(first.getByTestId('wheel-target')).not.toContainText(
+      'Border winner',
+    )
+    await expect(first.getByTestId('today-result')).toHaveCount(0)
+    await first.clock.fastForward(6000)
+    await prepare(second, base, participantId, -7200000, 6000)
+    await expect(second.getByTestId('lunch-wheel')).toHaveAttribute(
+      'data-spin-phase',
+      'live',
+    )
+    const [firstAngle, secondAngle] = await Promise.all([
+      angle(first),
+      angle(second),
+    ])
+    expect(Math.abs(firstAngle - secondAngle)).toBeLessThan(6)
+    expect(await angle(first)).toBeGreaterThan(2000)
+    await expectPointerColor(first, await angle(first))
+    await second.reload()
+    await expect(second.getByTestId('lunch-wheel')).toBeVisible()
+    await second.clock.runFor(100)
+    await expect(second.getByTestId('lunch-wheel')).toHaveAttribute(
+      'data-spin-phase',
+      'live',
+    )
+    expect(await angle(second)).toBeGreaterThan(2000)
+    await first.clock.fastForward(25000)
+    await second.clock.fastForward(25000)
+    for (const page of [first, second]) {
+      await expect(page.getByTestId('lunch-wheel')).toHaveAttribute(
+        'data-spin-phase',
+        'settled',
+      )
+      expect(await angle(page)).toBeCloseTo(plan.rotation, 4)
+      await expectPointerColor(page, plan.rotation)
+      const celebration = page.getByRole('dialog', {
+        name: 'The Wheel has spoken',
+      })
+      await expect(celebration).toBeVisible()
+      await expect(celebration).toContainText('Border winner')
+      await celebration
+        .getByRole('button', { name: 'Praise the Wheel' })
+        .click()
+      await expect(page.getByTestId('wheel-target')).toContainText(
+        'Scheduled for',
+      )
+      await expect(page.getByTestId('today-result')).toHaveCount(0)
+      await page.getByRole('button', { name: "Replay today's result" }).click()
+      await page.clock.runFor(100)
+      await expect(page.getByTestId('lunch-wheel')).toHaveAttribute(
+        'data-spin-phase',
+        'replay',
+      )
+      // Canonical replay starts from zero, not from this browser's previous orientation.
+      expect(await angle(page)).toBeLessThan(100)
+      await expectPointerColor(page, await angle(page))
+      await page.clock.fastForward(25000)
+      expect(await angle(page)).toBeCloseTo(plan.rotation, 4)
+      await expectPointerColor(page, plan.rotation)
+      await expect(celebration).toBeVisible()
+      await page.keyboard.press('Escape')
+      await expect(celebration).toHaveCount(0)
+    }
+    const walletAfter = await (
+      await request.get('/api/v1/wallet', {
+        headers: { 'X-Participant-Id': participantId },
+      })
+    ).json()
+    expect(walletAfter).toEqual(walletBefore)
+  } finally {
+    await first.close()
+    await second.close()
+  }
 })
 
 test('reduced motion skips rotation and finishes on the same saved point', async ({
