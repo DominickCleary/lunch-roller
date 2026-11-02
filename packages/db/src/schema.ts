@@ -143,6 +143,10 @@ export const settings = pgTable(
     newPlaceMultiplier: doublePrecision('new_place_multiplier')
       .default(1)
       .notNull(),
+    winnerMultiplier: doublePrecision('winner_multiplier')
+      .default(0.5)
+      .notNull(),
+    maxBetsPerPlayer: integer('max_bets_per_player').default(1).notNull(),
     healthBonusEnabled: boolean('health_bonus_enabled').default(true).notNull(),
     healthBonusMultiplier: doublePrecision('health_bonus_multiplier')
       .default(1.25)
@@ -180,6 +184,10 @@ export const settings = pgTable(
     ),
     check('settings_singleton', sql`${t.id} = 1`),
     check(
+      'settings_max_bets_per_player',
+      sql`${t.maxBetsPerPlayer} between 1 and 100`,
+    ),
+    check(
       'settings_token_amounts',
       sql`${t.attendanceReward} > 0 and ${t.addPlaceCost} > 0 and ${t.removePlaceCost} > 0 and ${t.boostCost} > 0 and ${t.reduceCost} > 0`,
     ),
@@ -194,6 +202,10 @@ export const settings = pgTable(
     check(
       'settings_new_place_multiplier',
       sql`${t.newPlaceMultiplier} >= 0.01 and ${t.newPlaceMultiplier} <= 100`,
+    ),
+    check(
+      'settings_winner_multiplier',
+      sql`${t.winnerMultiplier} >= 0 and ${t.winnerMultiplier} <= 1`,
     ),
     check(
       'settings_wheel_switch_time',
@@ -328,7 +340,7 @@ export const bets = pgTable(
     settledAt: timestamp('settled_at', { withTimezone: true }),
   },
   (t) => [
-    uniqueIndex('bet_once_per_market').on(t.marketId, t.participantId),
+    index('bet_participant_market').on(t.marketId, t.participantId),
     check(
       'bet_status',
       sql`${t.status} in ('open','won','lost','cancelled','refunded')`,

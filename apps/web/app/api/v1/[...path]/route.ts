@@ -27,6 +27,7 @@ import {
   influenceMutationResponse,
   participantRemoval,
   participantSelection,
+  placesResponse,
   purchaseRequest,
   pushSubscription,
   refundInfluenceRequest,
@@ -280,6 +281,13 @@ async function dispatch(request: NextRequest, context: Context) {
       )
     if (route === '/participants' && method === 'GET')
       return response({ participants: await game.listParticipants() })
+    if (route === '/places/archived' && method === 'GET') {
+      await game.selectParticipant(participantId(request))
+      const archived = (await game.listPlaces(true)).filter(
+        (place) => !place.active,
+      )
+      return response(placesResponse.parse({ places: archived }))
+    }
     if (route === '/suggestions' && method === 'GET') {
       const viewerId = request.headers.get('x-participant-id')
       const selectedId = viewerId

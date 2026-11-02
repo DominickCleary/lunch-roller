@@ -80,6 +80,7 @@ it('persists validated preferences and reports authoritative check-in status per
       'Serve food\nOffer a takeaway option\nOpen at lunchtime',
   })
   expect(configured).toEqual({
+    maxBetsPerPlayer: 1,
     maxWalkMinutes: 10,
     venueEligibilityCriteria:
       'Serve food\nOffer a takeaway option\nOpen at lunchtime',

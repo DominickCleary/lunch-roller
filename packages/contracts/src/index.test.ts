@@ -131,6 +131,20 @@ it('accepts enriched activity while supplying defaults for saved wallet receipts
 })
 
 it('validates betting stake and configurable close minutes', () => {
+  expect(defaultGamePreferences.maxBetsPerPlayer).toBe(1)
+  for (const maxBetsPerPlayer of [1, 2, 100])
+    expect(
+      gamePreferences.parse({ ...defaultGamePreferences, maxBetsPerPlayer })
+        .maxBetsPerPlayer,
+    ).toBe(maxBetsPerPlayer)
+  for (const maxBetsPerPlayer of [0, -1, 1.5, 101, Infinity, NaN])
+    expect(
+      gamePreferences.safeParse({ ...defaultGamePreferences, maxBetsPerPlayer })
+        .success,
+    ).toBe(false)
+  const { maxBetsPerPlayer: _limit, ...legacyPreferences } =
+    defaultGamePreferences
+  expect(gamePreferences.parse(legacyPreferences).maxBetsPerPlayer).toBe(1)
   expect(defaultGamePreferences.bettingCloseMinutes).toBe(10)
   expect(
     gamePreferences.safeParse({
@@ -190,6 +204,7 @@ it('validates the complete token economy and directional weight multipliers', ()
     ['boostMultiplier', [0, 1, 101, Infinity, NaN]],
     ['reduceMultiplier', [0, 0.001, 1, Infinity, NaN]],
     ['newPlaceMultiplier', [0, 0.001, 101, Infinity, NaN]],
+    ['winnerMultiplier', [-1, 1.01, Infinity, NaN]],
   ] as const)
     for (const value of values)
       expect(
@@ -199,6 +214,14 @@ it('validates the complete token economy and directional weight multipliers', ()
   expect(economySettings.safeParse({ attendanceReward: 10 }).success).toBe(
     false,
   )
+  for (const winnerMultiplier of [0, 0.5, 1])
+    expect(
+      economySettings.parse({ ...defaultEconomySettings, winnerMultiplier })
+        .winnerMultiplier,
+    ).toBe(winnerMultiplier)
+  const { winnerMultiplier: _winnerMultiplier, ...legacy } =
+    defaultEconomySettings
+  expect(economySettings.parse(legacy).winnerMultiplier).toBe(0.5)
 })
 it('distinguishes permanent participant deletion from history-preserving archival', () => {
   const participantId = 'ca982f50-f7c6-4eb3-8572-28fa01106ed7'

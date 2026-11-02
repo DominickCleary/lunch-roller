@@ -120,6 +120,20 @@
       "when": 1792886400000,
       "tag": "0016_game_state_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793614956402,
+      "tag": "0017_secret_captain_stacy",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793615765018,
+      "tag": "0018_curvy_praxagora",
+      "breakpoints": true
     }
   ]
 }

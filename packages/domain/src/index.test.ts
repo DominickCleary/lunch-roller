@@ -181,6 +181,30 @@ it('permanently boosts healthy alternatives only after a Treat win, preserving r
     ).toThrow()
 })
 
+it('applies a configurable winner multiplier and excludes a winner at zero', () => {
+  const options = [
+    { id: 'winner', logWeight: Math.log(4), healthLevel: 'treat' as const },
+    { id: 'healthy', logWeight: Math.log(2), healthLevel: 'healthy' as const },
+  ]
+  const healthRule = { enabled: true, multiplier: 1.25 }
+  expect(
+    postDrawWeights(options, 'winner', healthRule)[0]!.logWeight,
+  ).toBeCloseTo(Math.log(2))
+  expect(
+    postDrawWeights(options, 'winner', healthRule, 1)[0]!.logWeight,
+  ).toBeCloseTo(Math.log(4))
+  const removed = postDrawWeights(options, 'winner', healthRule, 0)
+  expect(removed.map(({ id }) => id)).toEqual(['healthy'])
+  expect(removed[0]!.logWeight).toBeCloseTo(Math.log(2) + Math.log(1.25))
+  expect(postDrawWeights(options.slice(0, 1), 'winner', healthRule, 0)).toEqual(
+    [],
+  )
+  for (const multiplier of [-0.01, 1.01, Infinity, NaN])
+    expect(() =>
+      postDrawWeights(options, 'winner', healthRule, multiplier),
+    ).toThrow('Invalid winner multiplier')
+})
+
 it('lands within the saved winning slice with varied offsets and a safe inset at exact boundaries', () => {
   const weights = [
     { id: 'a', logWeight: Math.log(2) },

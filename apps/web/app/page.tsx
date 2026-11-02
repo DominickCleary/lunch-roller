@@ -71,7 +71,13 @@ type Bet = {
   updatedAt: string
   settledAt: string | null
 }
-type CurrentBets = { window: BettingWindow; bet: Bet | null; recent: Bet[] }
+type CurrentBets = {
+  window: BettingWindow
+  bet: Bet | null
+  bets: Bet[]
+  maxBetsPerPlayer: number
+  recent: Bet[]
+}
 const oddsPrecision = 1_000_000
 const minimumOddsPercent = 1 / oddsPrecision
 function requiredMapValue<K, V>(map: ReadonlyMap<K, V>, key: K): V {
@@ -375,11 +381,16 @@ export default function Home() {
   const [influenceError, setInfluenceError] = useState('')
   const [betStakeDraft, setBetStakeDraft] = useState('1')
   const [betPlaceDraft, setBetPlaceDraft] = useState('')
+  const [editingBetId, setEditingBetId] = useState<string | null>(null)
+  const editingBetIdRef = useRef<string | null>(null)
   const betDraftDirty = useRef(false)
   const betDraftScope = useRef('')
   const [betBusy, setBetBusy] = useState(false)
   const [betError, setBetError] = useState('')
   const [betNotice, setBetNotice] = useState('')
+  const pendingBetKeyRef = useRef<{ signature: string; key: string } | null>(
+    null,
+  )
   const latestBetRequest = useRef(0)
   const latestInfluenceRequest = useRef(0)
   const [checkInConfirmOpen, setCheckInConfirmOpen] = useState(false)
@@ -738,33 +749,52 @@ export default function Home() {
     }
   }, [entryStage, today, getServerNow, loadToday])
 
-  const refreshBets = useCallback(async (selected: string) => {
-    const requestId = ++latestBetRequest.current
-    if (!selected) {
-      setCurrentBets(null)
-      return
-    }
-    try {
-      const data = await request<CurrentBets>('/bets/current', {}, selected)
-      if (requestId !== latestBetRequest.current) return
-      setCurrentBets(data)
-      setBetError('')
-      const scope = `${selected}:${data.window.localDate}`
-      if (!betDraftDirty.current || betDraftScope.current !== scope) {
-        betDraftScope.current = scope
+  const refreshBets = useCallback(
+    async (selected: string): Promise<boolean> => {
+      const requestId = ++latestBetRequest.current
+      if (!selected) {
+        setCurrentBets(null)
+        setEditingBetId(null)
+        editingBetIdRef.current = null
+        betDraftScope.current = ''
         betDraftDirty.current = false
-        setBetStakeDraft(data.bet ? String(data.bet.stake) : '1')
-        setBetPlaceDraft(data.bet?.placeId ?? '')
+        return true
       }
-    } catch (caught) {
-      if (requestId !== latestBetRequest.current) return
-      setBetError(
-        caught instanceof Error
-          ? caught.message
-          : 'Could not load your bet. Please retry.',
-      )
-    }
-  }, [])
+      try {
+        const data = await request<CurrentBets>('/bets/current', {}, selected)
+        if (requestId !== latestBetRequest.current) return false
+        setCurrentBets(data)
+        setBetError('')
+        const scope = `${selected}:${data.window.localDate}`
+        const scopeChanged = betDraftScope.current !== scope
+        if (!betDraftDirty.current || scopeChanged) {
+          betDraftScope.current = scope
+          betDraftDirty.current = false
+          const defaultBetId =
+            data.maxBetsPerPlayer === 1 &&
+            (scopeChanged || !editingBetIdRef.current)
+              ? (data.bets[0]?.id ?? null)
+              : editingBetIdRef.current
+          const selectedBet = data.bets.find((bet) => bet.id === defaultBetId)
+          const nextEditingId = selectedBet?.id ?? null
+          setEditingBetId(nextEditingId)
+          editingBetIdRef.current = nextEditingId
+          setBetStakeDraft(selectedBet ? String(selectedBet.stake) : '1')
+          setBetPlaceDraft(selectedBet?.placeId ?? '')
+        }
+        return true
+      } catch (caught) {
+        if (requestId !== latestBetRequest.current) return false
+        setBetError(
+          caught instanceof Error
+            ? caught.message
+            : 'Could not load your bet. Please retry.',
+        )
+        return false
+      }
+    },
+    [],
+  )
   const refreshSharedGameState = useCallback(async () => {
     if (entryStage !== 'game') return
     await Promise.all([refresh(participantId), refreshBets(participantId)])
@@ -819,6 +849,51 @@ export default function Home() {
     return () => window.clearTimeout(timer)
   }, [betCutoffAt, betWindowOpen, getServerNow])
 
+  function betIdempotencyKey(route: string, body: unknown) {
+    const signature = JSON.stringify([participantId, route, body])
+    if (pendingBetKeyRef.current?.signature === signature)
+      return pendingBetKeyRef.current.key
+    try {
+      const previous = window.sessionStorage.getItem(route)
+      const candidate = previous ? (JSON.parse(previous) as Pending) : null
+      if (
+        candidate &&
+        candidate.route === route &&
+        candidate.participantId === participantId &&
+        JSON.stringify(candidate.body) === JSON.stringify(body) &&
+        Date.now() - candidate.createdAt < 86400000
+      ) {
+        pendingBetKeyRef.current = { signature, key: candidate.key }
+        return candidate.key
+      }
+      const pending = {
+        key: uuid(),
+        route,
+        body,
+        participantId,
+        createdAt: Date.now(),
+      }
+      window.sessionStorage.setItem(route, JSON.stringify(pending))
+      pendingBetKeyRef.current = { signature, key: pending.key }
+      return pending.key
+    } catch {
+      const key = uuid()
+      pendingBetKeyRef.current = { signature, key }
+      return key
+    }
+  }
+
+  function clearBetIdempotencyKey(route: string, key: string) {
+    try {
+      const previous = window.sessionStorage.getItem(route)
+      if (previous && (JSON.parse(previous) as Pending).key === key)
+        window.sessionStorage.removeItem(route)
+    } catch {
+      /* A completed bet request does not depend on browser storage. */
+    }
+    if (pendingBetKeyRef.current?.key === key) pendingBetKeyRef.current = null
+  }
+
   async function saveBet(event: FormEvent) {
     event.preventDefault()
     if (
@@ -840,22 +915,47 @@ export default function Home() {
     setBetBusy(true)
     setBetError('')
     setBetNotice('')
+    const editingBet = currentBets.bets.find((bet) => bet.id === editingBetId)
+    const body = {
+      localDate: currentBets.window.localDate,
+      placeId: betPlaceDraft,
+      stake,
+      ...(editingBet ? { betId: editingBet.id } : { create: true }),
+    }
+    const keyStorageName = 'lunch-roller.bet-save-request'
+    const idempotencyKey = betIdempotencyKey(keyStorageName, body)
     try {
-      await request(
+      const saved = await request<{ bet: Bet }>(
         '/bets/current',
         {
           method: 'PUT',
-          body: json({
-            localDate: currentBets.window.localDate,
-            placeId: betPlaceDraft,
-            stake,
-          }),
-          headers: { 'Idempotency-Key': uuid() },
+          body: json(body),
+          headers: { 'Idempotency-Key': idempotencyKey },
         },
         participantId,
       )
+      if (!editingBet) {
+        editingBetIdRef.current = saved.bet.id
+        setEditingBetId(saved.bet.id)
+        setBetPlaceDraft(saved.bet.placeId)
+        setBetStakeDraft(String(saved.bet.stake))
+      }
+      const [, refreshed] = await Promise.all([
+        refresh(participantId),
+        refreshBets(participantId),
+      ])
+      if (!refreshed)
+        throw new Error(
+          'Bet saved, but the latest bets did not load. Retry to refresh safely.',
+        )
+      clearBetIdempotencyKey(keyStorageName, idempotencyKey)
       betDraftDirty.current = false
-      await Promise.all([refresh(participantId), refreshBets(participantId)])
+      if (!editingBet && currentBets.maxBetsPerPlayer > 1) {
+        editingBetIdRef.current = null
+        setEditingBetId(null)
+        setBetPlaceDraft('')
+        setBetStakeDraft('1')
+      }
       setBetNotice('Your bet is saved. You can change it until betting closes.')
     } catch (caught) {
       setBetError(
@@ -866,23 +966,38 @@ export default function Home() {
     }
   }
 
-  async function cancelBet() {
-    if (!participantId || !currentBets?.bet || !betWindowOpen || betBusy) return
+  async function cancelBet(betId: string) {
+    if (!participantId || !currentBets || !betWindowOpen || betBusy) return
     setBetBusy(true)
     setBetError('')
     setBetNotice('')
+    const body = { localDate: currentBets.window.localDate, betId }
+    const keyStorageName = 'lunch-roller.bet-cancel-request'
+    const idempotencyKey = betIdempotencyKey(keyStorageName, body)
     try {
       await request(
         '/bets/current',
         {
           method: 'DELETE',
-          body: json({ localDate: currentBets.window.localDate }),
-          headers: { 'Idempotency-Key': uuid() },
+          body: json(body),
+          headers: { 'Idempotency-Key': idempotencyKey },
         },
         participantId,
       )
       betDraftDirty.current = false
-      await Promise.all([refresh(participantId), refreshBets(participantId)])
+      if (editingBetIdRef.current === betId) {
+        editingBetIdRef.current = null
+        setEditingBetId(null)
+      }
+      const [, refreshed] = await Promise.all([
+        refresh(participantId),
+        refreshBets(participantId),
+      ])
+      if (!refreshed)
+        throw new Error(
+          'Cancellation completed, but the latest bets did not load. Retry to refresh safely.',
+        )
+      clearBetIdempotencyKey(keyStorageName, idempotencyKey)
       setBetNotice('Your bet was cancelled and the tokens were returned.')
     } catch (caught) {
       setBetError(
@@ -990,6 +1105,10 @@ export default function Home() {
   function changeName() {
     betDraftDirty.current = false
     betDraftScope.current = ''
+    editingBetIdRef.current = null
+    setEditingBetId(null)
+    setBetStakeDraft('1')
+    setBetPlaceDraft('')
     latestAttendanceRequest.current += 1
     latestBetRequest.current += 1
     latestInfluenceRequest.current += 1
@@ -1012,6 +1131,11 @@ export default function Home() {
     ...fallbackEconomySettings,
     ...today?.economy,
   }
+  const editedBet = currentBets?.bets.find((bet) => bet.id === editingBetId)
+  const betDraftBalance = (wallet?.balance ?? 0) + (editedBet?.stake ?? 0)
+  const canCreateBet = Boolean(
+    currentBets && currentBets.bets.length < currentBets.maxBetsPerPlayer,
+  )
   const baselineOptions = odds
   const activeReplay = animationSnapshot
   const wheelOptions = activeReplay ?? baselineOptions
@@ -2223,139 +2347,201 @@ export default function Home() {
                         ? wheelPauseMessage
                         : `Betting for ${currentBets.window.localDate} is closed.`}
                   </p>
-                  <form
-                    className="bet-form"
-                    onSubmit={(event) => void saveBet(event)}
-                  >
-                    <label>
-                      Lunch place
-                      <select
-                        value={betPlaceDraft}
-                        onChange={(event) => {
-                          betDraftDirty.current = true
-                          setBetPlaceDraft(event.target.value)
-                        }}
-                        disabled={
-                          betBusy || !betWindowOpen || !today?.odds.length
-                        }
-                      >
-                        <option value="">Choose a place</option>
-                        {(today?.odds ?? []).map((option) => (
-                          <option key={option.placeId} value={option.placeId}>
-                            {option.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      Stake
-                      <span className="bet-stake-field">
-                        <input
-                          type="number"
-                          min="1"
-                          max={Math.min(
-                            2147483647,
-                            (wallet?.balance ?? 0) +
-                              (currentBets.bet?.stake ?? 0),
-                          )}
-                          step="1"
-                          inputMode="numeric"
-                          value={betStakeDraft}
+                  {currentBets.bets.length > 0 && (
+                    <div className="current-bets-list">
+                      <h3>Your bets</h3>
+                      {currentBets.bets.map((bet) => (
+                        <div className="current-bet-note" key={bet.id}>
+                          <span>
+                            {bet.stake} tokens on{' '}
+                            <strong>{bet.placeName}</strong>
+                          </span>
+                          <span className="bet-actions">
+                            <button
+                              className="button button-light"
+                              type="button"
+                              aria-label={`Edit bet on ${bet.placeName}`}
+                              disabled={betBusy || !betWindowOpen}
+                              onClick={() => {
+                                editingBetIdRef.current = bet.id
+                                setEditingBetId(bet.id)
+                                setBetPlaceDraft(bet.placeId)
+                                setBetStakeDraft(String(bet.stake))
+                                betDraftDirty.current = false
+                              }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="button button-light"
+                              type="button"
+                              aria-label={`Cancel bet on ${bet.placeName}`}
+                              disabled={betBusy || !betWindowOpen}
+                              onClick={() => void cancelBet(bet.id)}
+                            >
+                              Cancel
+                            </button>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {editingBetId && editedBet && canCreateBet && (
+                    <button
+                      type="button"
+                      className="quiet-link"
+                      disabled={betBusy}
+                      onClick={() => {
+                        editingBetIdRef.current = null
+                        setEditingBetId(null)
+                        betDraftDirty.current = false
+                        setBetStakeDraft('1')
+                        setBetPlaceDraft('')
+                      }}
+                    >
+                      Add another bet
+                    </button>
+                  )}
+                  {(editedBet || canCreateBet) && (
+                    <form
+                      className="bet-form"
+                      onSubmit={(event) => void saveBet(event)}
+                    >
+                      <label>
+                        Lunch place
+                        <select
+                          id="bet-place"
+                          value={betPlaceDraft}
                           onChange={(event) => {
                             betDraftDirty.current = true
-                            setBetStakeDraft(event.target.value)
+                            setBetPlaceDraft(event.target.value)
                           }}
-                          disabled={betBusy || !betWindowOpen}
-                          aria-describedby="bet-balance-help"
-                        />
-                        <span>tokens</span>
-                      </span>
-                    </label>
-                    <p className="bet-balance-help" id="bet-balance-help">
-                      Available: {wallet?.balance ?? '—'} tokens
-                      {currentBets.bet
-                        ? ` · ${currentBets.bet.stake} reserved on your current bet`
-                        : ''}
-                    </p>
-                    {(() => {
-                      const probability = today?.odds.find(
-                        (option) => option.placeId === betPlaceDraft,
-                      )?.probability
-                      const stake = Number(betStakeDraft)
-                      const gross =
-                        probability !== undefined &&
-                        probability > 0 &&
-                        Number.isSafeInteger(stake) &&
-                        stake > 0
-                          ? Math.min(
-                              2147483647,
-                              Math.floor(stake / probability),
-                            )
-                          : null
-                      return (
-                        <div className="bet-estimate" aria-live="polite">
-                          <div>
-                            <span>Odds</span>
-                            <strong>
-                              {probability === undefined
-                                ? '—'
-                                : approximateOdds(probability)}
-                            </strong>
-                          </div>
-                          <div>
-                            <span>Est. return if it wins</span>
-                            <strong>
-                              {gross === null
-                                ? '—'
-                                : `${gross.toLocaleString()} tokens`}
-                            </strong>
-                          </div>
-                          <div>
-                            <span>Est. net gain</span>
-                            <strong>
-                              {gross === null
-                                ? '—'
-                                : `${(gross - stake).toLocaleString()} tokens`}
-                            </strong>
-                          </div>
-                        </div>
-                      )
-                    })()}
-                    <div className="bet-actions">
-                      <button
-                        className="button button-yellow"
-                        type="submit"
-                        disabled={
-                          betBusy ||
-                          !participantId ||
-                          !betWindowOpen ||
-                          !today?.odds.length ||
-                          !betPlaceDraft ||
-                          !Number.isSafeInteger(Number(betStakeDraft)) ||
-                          Number(betStakeDraft) < 1 ||
-                          Number(betStakeDraft) >
-                            (wallet?.balance ?? 0) +
-                              (currentBets.bet?.stake ?? 0)
-                        }
-                      >
-                        {betBusy
-                          ? 'Saving…'
-                          : currentBets.bet
-                            ? 'Update bet'
-                            : 'Place bet'}
-                      </button>
-                      {currentBets.bet && (
-                        <button
-                          className="button button-light"
-                          type="button"
-                          onClick={() => void cancelBet()}
-                          disabled={betBusy || !betWindowOpen}
+                          disabled={
+                            betBusy || !betWindowOpen || !today?.odds.length
+                          }
                         >
-                          Cancel bet
+                          <option value="">Choose a place</option>
+                          {(today?.odds ?? []).map((option) => (
+                            <option key={option.placeId} value={option.placeId}>
+                              {option.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Stake
+                        <span className="bet-stake-field">
+                          <input
+                            id="bet-stake"
+                            type="number"
+                            min="1"
+                            max={Math.min(2147483647, betDraftBalance)}
+                            step="1"
+                            inputMode="numeric"
+                            value={betStakeDraft}
+                            onChange={(event) => {
+                              betDraftDirty.current = true
+                              setBetStakeDraft(event.target.value)
+                            }}
+                            disabled={betBusy || !betWindowOpen}
+                            aria-describedby="bet-balance-help"
+                          />
+                          <span>tokens</span>
+                        </span>
+                      </label>
+                      <p className="bet-balance-help" id="bet-balance-help">
+                        Available: {wallet?.balance ?? '—'} tokens
+                        {editedBet
+                          ? ` · ${editedBet.stake} reserved on this bet`
+                          : currentBets.bets.length > 0
+                            ? ` · ${currentBets.bets.length} bet${currentBets.bets.length === 1 ? '' : 's'} reserved`
+                            : ''}
+                      </p>
+                      {(() => {
+                        const probability = today?.odds.find(
+                          (option) => option.placeId === betPlaceDraft,
+                        )?.probability
+                        const stake = Number(betStakeDraft)
+                        const gross =
+                          probability !== undefined &&
+                          probability > 0 &&
+                          Number.isSafeInteger(stake) &&
+                          stake > 0
+                            ? Math.min(
+                                2147483647,
+                                Math.floor(stake / probability),
+                              )
+                            : null
+                        return (
+                          <div className="bet-estimate" aria-live="polite">
+                            <div>
+                              <span>Odds</span>
+                              <strong>
+                                {probability === undefined
+                                  ? '—'
+                                  : approximateOdds(probability)}
+                              </strong>
+                            </div>
+                            <div>
+                              <span>Est. return if it wins</span>
+                              <strong>
+                                {gross === null
+                                  ? '—'
+                                  : `${gross.toLocaleString()} tokens`}
+                              </strong>
+                            </div>
+                            <div>
+                              <span>Est. net gain</span>
+                              <strong>
+                                {gross === null
+                                  ? '—'
+                                  : `${(gross - stake).toLocaleString()} tokens`}
+                              </strong>
+                            </div>
+                          </div>
+                        )
+                      })()}
+                      <div className="bet-actions">
+                        <button
+                          className="button button-yellow"
+                          type="submit"
+                          disabled={
+                            betBusy ||
+                            !participantId ||
+                            !betWindowOpen ||
+                            !today?.odds.length ||
+                            !betPlaceDraft ||
+                            !Number.isSafeInteger(Number(betStakeDraft)) ||
+                            Number(betStakeDraft) < 1 ||
+                            Number(betStakeDraft) > betDraftBalance
+                          }
+                        >
+                          {betBusy
+                            ? 'Saving…'
+                            : editedBet
+                              ? 'Update bet'
+                              : 'Place bet'}
                         </button>
-                      )}
-                    </div>
-                  </form>
+                        {editedBet && currentBets.maxBetsPerPlayer === 1 && (
+                          <button
+                            className="button button-light"
+                            type="button"
+                            onClick={() => void cancelBet(editedBet.id)}
+                            disabled={betBusy || !betWindowOpen}
+                          >
+                            Cancel bet
+                          </button>
+                        )}
+                      </div>
+                    </form>
+                  )}
+                  {!canCreateBet && !editedBet && (
+                    <p className="muted" role="status">
+                      You have reached the limit of{' '}
+                      {currentBets.maxBetsPerPlayer} bets for this draw. Edit or
+                      cancel one to make room.
+                    </p>
+                  )}
                 </>
               )}
               {betError && (
@@ -2368,7 +2554,7 @@ export default function Home() {
                   {betNotice}
                 </p>
               )}
-              {currentBets?.bet && (
+              {currentBets?.maxBetsPerPlayer === 1 && currentBets.bet && (
                 <p className="current-bet-note">
                   Current bet:{' '}
                   <strong>
@@ -2380,6 +2566,7 @@ export default function Home() {
             </section>
 
             <RestaurantSidebar
+              participantId={participantId}
               odds={odds}
               checkIns={today?.restaurantCheckIns ?? []}
               positions={currentInfluence?.places ?? []}
@@ -3313,6 +3500,28 @@ export default function Home() {
                       />
                     </label>
                     <label>
+                      Maximum bets per player per draw
+                      <input
+                        type="number"
+                        required
+                        min={1}
+                        max={100}
+                        step={1}
+                        value={preferences.maxBetsPerPlayer}
+                        onChange={(event) =>
+                          setPreferences({
+                            ...preferences,
+                            maxBetsPerPlayer: Number(event.target.value),
+                          })
+                        }
+                      />
+                    </label>
+                    <p className="muted">
+                      Lowering this limit keeps existing bets, but prevents
+                      players already at or above the new limit from adding
+                      more.
+                    </p>
+                    <label>
                       Reopen activity this many minutes after the roll
                       <input
                         type="number"
@@ -3623,6 +3832,28 @@ export default function Home() {
                         }
                       />
                     </label>
+                    <label>
+                      After-win weight multiplier
+                      <input
+                        type="number"
+                        required
+                        min={0}
+                        max={1}
+                        step="any"
+                        value={economy.winnerMultiplier}
+                        onChange={(event) =>
+                          setEconomy({
+                            ...economy,
+                            winnerMultiplier: Number(event.target.value),
+                          })
+                        }
+                      />
+                    </label>
+                    <p className="muted economy-help">
+                      After a place wins, this sets its weight for future draws.
+                      0 removes it from the wheel and keeps its history; 0.5
+                      halves its weight; 1 leaves it unchanged.
+                    </p>
                     <button
                       type="submit"
                       className="button button-dark"

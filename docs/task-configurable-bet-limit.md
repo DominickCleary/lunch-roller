@@ -1,0 +1,18 @@
+# Task: Admin configurable bets per player per draw
+
+- Owner / branch / worktree: coordinator on main in primary checkout; DB operations in codex/zero-reduction, web UI in codex/removal-e2e, browser coverage in codex/place-readd, each in separate /tmp worktrees.
+- Goal and current behavior: replace the one-bet-per-player restriction with an admin-configurable maximum of 1–100 open bets per player per draw, default 1.
+- Owned files or directories: coordinator owns contracts, schema, migration 0018/metadata, contract tests, API docs and final integration; DB agent owns operations.ts and bet-limit.integration.test.ts; UI agent owns page.tsx and rules-help.tsx; verification agent owns tests/e2e/bet-limit.spec.ts.
+- Dependencies and contracts: GamePreferences/settings maxBetsPerPlayer defaults to 1. Current bets returns bets[] and maxBetsPerPlayer plus the legacy bet field. PUT with create:true creates; PUT with betId edits an owned current open bet; DELETE with betId cancels one. Legacy unaddressed edits/cancellations work with at most one open bet; multiple require an ID. Settings lock serializes counts, balances and creation.
+- Explicit exclusions: payouts/odds formula changes, token minting, forced cancellation when lowering limits, dependencies, deployment, commits.
+- Acceptance criteria: admin setting persists and rejects invalid values; cap enforced server-side across simultaneous requests; separate bets edit/cancel independently; lowering preserves existing bets and permits edits/cancellation; settlement and history include every bet; cutoff and identity rules retained.
+- Checks and required fixtures: format, lint, typecheck, unit suite, build; fresh disposable PostgreSQL migrations and seed twice, integration suite; Playwright multiple bets/configuration/authorization/failure flows and existing betting flows.
+- Migration/environment effects: additive settings column and bounded check; replace unique player/market index with ordinary lookup index. Existing bets/history retained. No new dependencies or environment variables.
+
+## Handoff
+
+- Result and behavior changed: integrated three sub-agent lanes and coordinator review. Admin preferences expose maximum bets per player per draw (1–100, default 1). Members can create/edit/cancel independent reservations; lowering preserves existing bets. Retried identical requests reuse an idempotency key, including after a lost create response.
+- Files touched / commit if available: contracts + tests, database schema/operations, migration 0018 plus metadata, DB bet-limit/preferences integration tests, web page/Help, E2E bet-limit test and updated broad game selectors, README/API/architecture/rules docs. Primary branch main, no commits.
+- Checks executed and outcomes: Node 24.20.0 / pinned pnpm. Format, lint (warnings), typecheck, 70 unit tests and web/worker production build passed. Disposable PostgreSQL 17.6 migrations and seed each passed twice. Integration suite passed 62 tests, including concurrent cap enforcement, idempotency, ownership, lowering, cancellation, cutoff and settlement. Follow-up verification fixed missing Origin headers in the bet-limit browser mutations and stale add-place assertions. pnpm test:e2e:local passed all 48 browser tests on a fresh disposable PostgreSQL container; see task-e2e-regressions.md.
+- Known issues or blockers: none for the implemented bet limit; the earlier browser verification blocker is resolved.
+- Integration order and follow-up work: contracts/schema, server operations, UI and browser verification. Apply pnpm db:migrate before starting updated app; no new environment variables or dependencies.

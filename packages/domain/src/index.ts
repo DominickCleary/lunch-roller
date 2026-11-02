@@ -331,6 +331,7 @@ export function postDrawWeights<
   places: readonly T[],
   winnerId: string,
   healthRule: { enabled: boolean; multiplier: number },
+  winnerMultiplier = 0.5,
 ): T[] {
   const winner = places.find((place) => place.id === winnerId)
   if (!winner) throw new Error('Winner must be an active place.')
@@ -340,11 +341,23 @@ export function postDrawWeights<
     healthRule.multiplier > 100
   )
     throw new Error('Invalid health bonus multiplier.')
-  return places.map((place) => ({
+  if (
+    !Number.isFinite(winnerMultiplier) ||
+    winnerMultiplier < 0 ||
+    winnerMultiplier > 1
+  )
+    throw new Error('Invalid winner multiplier.')
+  const remainingPlaces =
+    winnerMultiplier === 0
+      ? places.filter((place) => place.id !== winnerId)
+      : places
+  const logWinnerMultiplier =
+    winnerMultiplier === 0 ? 0 : Math.log(winnerMultiplier)
+  return remainingPlaces.map((place) => ({
     ...place,
     logWeight: finite(
       place.id === winnerId
-        ? halveWeight(place.logWeight)
+        ? finite(place.logWeight + logWinnerMultiplier)
         : healthRule.enabled &&
             winner.healthLevel === 'treat' &&
             place.healthLevel === 'healthy'

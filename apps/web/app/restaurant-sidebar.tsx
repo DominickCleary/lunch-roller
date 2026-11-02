@@ -5,9 +5,10 @@ import type {
   EconomySettings,
   HealthLevel,
   InfluencePosition,
+  Place,
   TodayResponse,
 } from '@lunch/contracts'
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { approximateOdds } from '../lib/odds'
 import { wheelColors } from '../lib/wheel-colors'
 import { HealthSelect } from './health-label'
@@ -24,6 +25,7 @@ type Props = {
   influenceBusy: boolean
   influenceError: string
   identityReady: boolean
+  participantId?: string
   pausedMessage: string
   onRetry: () => void
   onChangeInfluence: (
@@ -55,6 +57,7 @@ export function RestaurantSidebar({
   influenceBusy,
   influenceError,
   identityReady,
+  participantId = '',
   pausedMessage,
   onRetry,
   onChangeInfluence,
@@ -65,6 +68,11 @@ export function RestaurantSidebar({
   const [showFairOdds, setShowFairOdds] = useState(false)
   const [newPlaceName, setNewPlaceName] = useState('')
   const [newPlaceHealth, setNewPlaceHealth] = useState<HealthLevel>('balanced')
+  const [archivedPlaces, setArchivedPlaces] = useState<Place[]>([])
+  const [archivedLoading, setArchivedLoading] = useState(false)
+  const [archivedError, setArchivedError] = useState('')
+  const [selectedArchivedId, setSelectedArchivedId] = useState('')
+  const [searchAttempt, setSearchAttempt] = useState(0)
   const [orderedPlaceIds, setOrderedPlaceIds] = useState(() =>
     sortedOddsIds(odds),
   )
@@ -75,6 +83,53 @@ export function RestaurantSidebar({
   )
   const hasInitialOrder = useRef(odds.length > 0)
   const maxCheckIns = Math.max(0, ...checkIns.map((entry) => entry.count))
+  useEffect(() => {
+    void searchAttempt
+    if (!newPlaceName.trim() || !identityReady || !participantId) {
+      setArchivedLoading(false)
+      setArchivedPlaces([])
+      setArchivedError('')
+      return
+    }
+    const controller = new AbortController()
+    let current = true
+    setArchivedLoading(true)
+    setArchivedError('')
+    const timer = globalThis.setTimeout(() => {
+      void fetch('/api/v1/places/archived', {
+        headers: { 'X-Participant-Id': participantId },
+        signal: controller.signal,
+      })
+        .then(async (response) => {
+          if (!response.ok) throw new Error('Could not search removed places.')
+          return (await response.json()) as { places: Place[] }
+        })
+        .then(({ places }) => {
+          if (current) setArchivedPlaces(places)
+        })
+        .catch((error: unknown) => {
+          if (current)
+            setArchivedError(
+              error instanceof Error
+                ? error.message
+                : 'Could not search removed places.',
+            )
+        })
+        .finally(() => {
+          if (current) setArchivedLoading(false)
+        })
+    }, 180)
+    return () => {
+      globalThis.clearTimeout(timer)
+      current = false
+      controller.abort()
+    }
+  }, [newPlaceName, searchAttempt, identityReady, participantId])
+  const matchingArchivedPlaces = archivedPlaces.filter((place) =>
+    place.name
+      .toLocaleLowerCase()
+      .includes(newPlaceName.trim().toLocaleLowerCase()),
+  )
   const topCheckInPlaces = new Set(
     maxCheckIns > 0
       ? checkIns
@@ -121,6 +176,7 @@ export function RestaurantSidebar({
     if (await onAddPlace(name, newPlaceHealth)) {
       setNewPlaceName('')
       setNewPlaceHealth('balanced')
+      setSelectedArchivedId('')
     }
   }
 
@@ -233,7 +289,7 @@ export function RestaurantSidebar({
         )}
       </div>
       <form className="add-place" onSubmit={(event) => void addPlace(event)}>
-        <label htmlFor="place-name">Have a new spot in mind?</label>
+        <label htmlFor="place-name">Add or restore a lunch place</label>
         <div className="inline-form">
           <input
             id="place-name"
@@ -242,7 +298,10 @@ export function RestaurantSidebar({
             maxLength={100}
             required
             value={newPlaceName}
-            onChange={(event) => setNewPlaceName(event.target.value)}
+            onChange={(event) => {
+              setNewPlaceName(event.target.value)
+              setSelectedArchivedId('')
+            }}
             disabled={!identityReady || busy || Boolean(pausedMessage)}
           />
           <button
@@ -250,7 +309,7 @@ export function RestaurantSidebar({
             className="button button-light"
             disabled={!identityReady || busy || Boolean(pausedMessage)}
           >
-            Add place
+            {selectedArchivedId ? 'Restore place' : 'Add place'}
           </button>
           <HealthSelect
             label="New spot health level"
@@ -259,6 +318,57 @@ export function RestaurantSidebar({
             disabled={!identityReady || busy || Boolean(pausedMessage)}
           />
         </div>
+        {newPlaceName.trim() && (
+          <div className="archived-place-search" aria-live="polite">
+            <p className="muted">
+              Search removed places to restore their saved record.
+            </p>
+            {archivedLoading && <p role="status">Searching removed places…</p>}
+            {archivedError && (
+              <p role="status">
+                {archivedError}{' '}
+                <button
+                  type="button"
+                  className="ledger-toggle"
+                  onClick={() => setSearchAttempt((attempt) => attempt + 1)}
+                >
+                  Retry search
+                </button>
+              </p>
+            )}
+            {!archivedLoading &&
+              !archivedError &&
+              matchingArchivedPlaces.length > 0 && (
+                <ul aria-label="Removed places matching your search">
+                  {matchingArchivedPlaces.map((place) => (
+                    <li key={place.id}>
+                      <button
+                        type="button"
+                        disabled={
+                          !identityReady || busy || Boolean(pausedMessage)
+                        }
+                        aria-pressed={selectedArchivedId === place.id}
+                        onClick={() => {
+                          setNewPlaceName(place.name)
+                          setNewPlaceHealth(place.healthLevel)
+                          setSelectedArchivedId(place.id)
+                        }}
+                      >
+                        Restore {place.name} · {economy.addPlaceCost} tokens
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            {!archivedLoading &&
+              !archivedError &&
+              matchingArchivedPlaces.length === 0 && (
+                <p className="muted">
+                  No removed places match. You can add this as a new place.
+                </p>
+              )}
+          </div>
+        )}
       </form>
     </div>
   )

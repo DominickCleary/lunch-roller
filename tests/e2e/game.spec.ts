@@ -351,10 +351,10 @@ async function exerciseAdminUiAndGame(
     .first()
     .click()
   await expect(page.getByText('Boost staged for the next draw.')).toBeVisible()
-  await page.getByLabel('Have a new spot in mind?').fill(addPlaceName)
+  await page.getByLabel('Add or restore a lunch place').fill(addPlaceName)
   await page.getByRole('button', { name: 'Add place' }).click()
   await expect(
-    page.getByText('Restaurant added or restored for 20 tokens.'),
+    page.locator('.odds-row').filter({ hasText: addPlaceName }),
   ).toBeVisible()
 
   const participantId = await page.evaluate(() =>

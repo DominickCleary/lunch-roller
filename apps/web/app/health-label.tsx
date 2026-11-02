@@ -77,7 +77,8 @@ export function HealthBonusSummary({
       </ul>
       <p className="muted">
         Chances immediately before and after the automatic bonus, following the
-        winner’s normal halving. No tokens spent.
+        configured after-win weight change. A multiplier of 0 removes the winner
+        from future draws while preserving its history. No tokens spent.
       </p>
     </section>
   )

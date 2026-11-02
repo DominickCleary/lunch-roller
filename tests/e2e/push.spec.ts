@@ -259,11 +259,13 @@ test('permission is requested only on opt-in and core member actions remain avai
     .click()
   await expect(page.getByText('Boost staged for the next draw.')).toBeVisible()
   await page
-    .getByLabel('Have a new spot in mind?')
+    .getByLabel('Add or restore a lunch place')
     .fill(`${fixturePrefix} Browser Place`)
   await page.getByRole('button', { name: 'Add place' }).click()
   await expect(
-    page.getByText('Restaurant added or restored for 20 tokens.'),
+    page
+      .locator('.odds-row')
+      .filter({ hasText: `${fixturePrefix} Browser Place` }),
   ).toBeVisible()
 
   const wallet = await game.wallet(browserParticipantId)

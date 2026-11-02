@@ -535,6 +535,7 @@ function preferencesFromRow(
     bettingCloseMinutes: row.bettingCloseMinutes,
     maxWalkMinutes: row.maxWalkMinutes,
     venueEligibilityCriteria: row.venueEligibilityCriteria,
+    maxBetsPerPlayer: row.maxBetsPerPlayer,
   }
 }
 
@@ -548,6 +549,7 @@ function economyFromRow(row: typeof settings.$inferSelect): EconomySettings {
     boostMultiplier: row.boostMultiplier,
     reduceMultiplier: row.reduceMultiplier,
     newPlaceMultiplier: row.newPlaceMultiplier,
+    winnerMultiplier: row.winnerMultiplier,
   }
 }
 
@@ -2619,7 +2621,7 @@ export class GameService {
       await activeParticipant(tx, participantId)
       const instant = now ?? new Date()
       const market = await this.currentBettingMarket(tx, instant)
-      const [current] = await tx
+      const openBets = await tx
         .select()
         .from(bets)
         .where(
@@ -2629,6 +2631,13 @@ export class GameService {
             eq(bets.status, 'open'),
           ),
         )
+        .orderBy(asc(bets.updatedAt), asc(bets.id))
+      const [configuration] = await tx
+        .select()
+        .from(settings)
+        .where(eq(settings.id, 1))
+      if (!configuration)
+        fail(503, 'NOT_INITIALIZED', 'Game settings are not initialized.')
       const recent = await tx
         .select()
         .from(bets)
@@ -2637,7 +2646,9 @@ export class GameService {
         .limit(10)
       return {
         window: bettingWindowView(market, instant),
-        bet: current ? betView(current) : null,
+        bet: openBets[0] ? betView(openBets[0]) : null,
+        bets: openBets.map(betView),
+        maxBetsPerPlayer: configuration.maxBetsPerPlayer,
         recent: recent.map(betView),
       }
     })
@@ -2657,6 +2668,8 @@ export class GameService {
         'Provide a restaurant and positive whole token stake.',
       )
     const body = parsed.data
+    if (body.betId && body.create)
+      fail(400, 'INVALID_BET', 'Choose a bet to edit or create a new bet.')
     const hash = requestHash('PUT', '/api/v1/bets/current', body)
     return transaction(this.database, async (tx) => {
       await requireSetupComplete(tx)
@@ -2694,15 +2707,55 @@ export class GameService {
           'PLACE_UNAVAILABLE',
           'That restaurant has no current chance of winning.',
         )
-      const [existing] = await tx
+      const openBets = await tx
         .select()
         .from(bets)
         .where(
           and(
             eq(bets.marketId, market.id),
             eq(bets.participantId, participantId),
+            eq(bets.status, 'open'),
           ),
         )
+        .orderBy(asc(bets.updatedAt), asc(bets.id))
+      let existing: typeof bets.$inferSelect | undefined
+      if (body.betId) {
+        existing = openBets.find((bet) => bet.id === body.betId)
+        if (!existing) fail(404, 'BET_NOT_FOUND', 'An open bet was not found.')
+      } else if (!body.create) {
+        if (openBets.length > 1)
+          fail(400, 'BET_ID_REQUIRED', 'Choose a bet to edit.')
+        existing = openBets[0]
+        if (!existing) {
+          const [previous] = await tx
+            .select()
+            .from(bets)
+            .where(
+              and(
+                eq(bets.marketId, market.id),
+                eq(bets.participantId, participantId),
+                inArray(bets.status, ['cancelled', 'refunded']),
+              ),
+            )
+            .orderBy(desc(bets.updatedAt), desc(bets.id))
+            .limit(1)
+          existing = previous
+        }
+      }
+      if (existing?.status !== 'open') {
+        const [configuration] = await tx
+          .select()
+          .from(settings)
+          .where(eq(settings.id, 1))
+        if (!configuration)
+          fail(503, 'NOT_INITIALIZED', 'Game settings are not initialized.')
+        if (openBets.length >= configuration.maxBetsPerPlayer)
+          fail(
+            409,
+            'BET_LIMIT_REACHED',
+            'You have reached your bet limit for this draw.',
+          )
+      }
       const delta =
         existing?.status === 'open' ? existing.stake - body.stake : -body.stake
       const currentBalance = await balance(tx, participantId)
@@ -2769,7 +2822,7 @@ export class GameService {
 
   async cancelBet(
     participantId: string,
-    input: { localDate: string },
+    input: { localDate: string; betId?: string },
     key: string,
     now?: Date,
   ) {
@@ -2794,7 +2847,7 @@ export class GameService {
         !bettingWindowView(market, instant).open
       )
         fail(409, 'BETTING_CLOSED', 'Betting is closed for that draw.')
-      const [existing] = await tx
+      const openBets = await tx
         .select()
         .from(bets)
         .where(
@@ -2804,6 +2857,14 @@ export class GameService {
             eq(bets.status, 'open'),
           ),
         )
+        .orderBy(asc(bets.updatedAt), asc(bets.id))
+      if (!body.betId && openBets.length > 1)
+        fail(400, 'BET_ID_REQUIRED', 'Choose a bet to cancel.')
+      const existing = body.betId
+        ? openBets.find((bet) => bet.id === body.betId)
+        : openBets[0]
+      if (body.betId && !existing)
+        fail(404, 'BET_NOT_FOUND', 'An open bet was not found.')
       if (existing) {
         await tx.insert(tokenLedger).values({
           participantId,
@@ -3167,15 +3228,27 @@ export class GameService {
         enabled: rule!.healthBonusEnabled,
         multiplier: rule!.healthBonusMultiplier,
       }
-      const nextWeights = postDrawWeights(active, winner.id, healthRule)
+      const winnerMultiplier = rule!.winnerMultiplier
+      const nextWeights = postDrawWeights(
+        active,
+        winner.id,
+        healthRule,
+        winnerMultiplier,
+      )
       const healthy = active.filter(
         (place) =>
+          place.id !== winner.id &&
           healthRule.enabled &&
           winner.healthLevel === 'treat' &&
           place.healthLevel === 'healthy',
       )
       const beforeBonus = probabilities(
-        postDrawWeights(active, winner.id, { ...healthRule, enabled: false }),
+        postDrawWeights(
+          active,
+          winner.id,
+          { ...healthRule, enabled: false },
+          winnerMultiplier,
+        ),
       )
       const afterBonus = probabilities(nextWeights)
       const healthBonus = healthy.length
@@ -3207,6 +3280,13 @@ export class GameService {
         })
         .returning()
       await this.settleMarket(tx, due.localDate, row!, instant)
+      if (winnerMultiplier === 0) {
+        await tx
+          .update(places)
+          .set({ active: false })
+          .where(eq(places.id, winner.id))
+        await this.refundPlaceActivity(tx, winner.id, instant)
+      }
       for (const place of nextWeights) {
         if (
           place.id === winner.id ||

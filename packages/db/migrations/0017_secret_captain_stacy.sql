@@ -1,0 +1,2 @@
+ALTER TABLE "settings" ADD COLUMN "winner_multiplier" double precision DEFAULT 0.5 NOT NULL;--> statement-breakpoint
+ALTER TABLE "settings" ADD CONSTRAINT "settings_winner_multiplier" CHECK ("settings"."winner_multiplier" >= 0 and "settings"."winner_multiplier" <= 1);

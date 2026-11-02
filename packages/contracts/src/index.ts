@@ -30,6 +30,7 @@ export const gamePreferences = z.object({
   wheelSwitchTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   checkInPledge: z.string().trim().min(1).max(500),
   bettingCloseMinutes: z.number().int().min(0).max(1440),
+  maxBetsPerPlayer: z.number().int().min(1).max(100).default(1),
 })
 export type GamePreferences = z.infer<typeof gamePreferences>
 export type GamePreferencesInput = z.input<typeof gamePreferences>
@@ -42,6 +43,7 @@ export const defaultGamePreferences: GamePreferences = {
   wheelSwitchTime: '15:00',
   checkInPledge: 'I pledge that I actually obeyed the wheel',
   bettingCloseMinutes: 10,
+  maxBetsPerPlayer: 1,
 }
 const tokenAmount = z.number().int().min(1).max(2147483647)
 export const economySettings = z.object({
@@ -53,6 +55,7 @@ export const economySettings = z.object({
   boostMultiplier: z.number().finite().gt(1).max(100),
   reduceMultiplier: z.number().finite().min(0.01).lt(1),
   newPlaceMultiplier: z.number().finite().min(0.01).max(100),
+  winnerMultiplier: z.number().finite().min(0).max(1).default(0.5),
 })
 export type EconomySettings = z.infer<typeof economySettings>
 export const defaultEconomySettings: EconomySettings = {
@@ -64,6 +67,7 @@ export const defaultEconomySettings: EconomySettings = {
   boostMultiplier: 1.25,
   reduceMultiplier: 0.8,
   newPlaceMultiplier: 1,
+  winnerMultiplier: 0.5,
 }
 export const attendanceStatus = z.object({
   drawId: id.nullable(),
@@ -415,14 +419,21 @@ export type InfluenceMutationResponse = z.infer<
 export const currentBetsResponse = z.object({
   window: bettingWindow,
   bet: betView.nullable(),
+  bets: z.array(betView).default([]),
+  maxBetsPerPlayer: z.number().int().min(1).max(100).default(1),
   recent: z.array(betView),
 })
 export const setBetRequest = z.object({
   localDate: z.iso.date(),
   placeId: id,
   stake: z.number().int().min(1).max(2147483647),
+  betId: id.optional(),
+  create: z.boolean().optional(),
 })
-export const cancelBetRequest = z.object({ localDate: z.iso.date() })
+export const cancelBetRequest = z.object({
+  localDate: z.iso.date(),
+  betId: id.optional(),
+})
 export const betMutationResponse = z.object({
   bet: betView.nullable(),
   balance: z.number().int().nonnegative(),

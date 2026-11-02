@@ -113,9 +113,12 @@ export function RulesHelp({
                   and the wheel moves on to the following scheduled roll.
                 </p>
                 <p>
-                  The winner’s weight is <strong>halved</strong> for future
-                  draws. Weights carry over without resetting. Spins last{' '}
-                  <strong>{preferences.wheelSpinSeconds} seconds</strong>;
+                  After a place wins, its weight is multiplied by{' '}
+                  <strong>×{amount(economy.winnerMultiplier)}</strong> for
+                  future draws. A multiplier of 0 removes it from the wheel
+                  while keeping its history; 0.5 halves its weight, and 1 leaves
+                  it unchanged. Weights carry over without resetting. Spins last{' '}
+                  <strong>{preferences.wheelSpinSeconds} seconds</strong>.{' '}
                   Replay shows the same result and costs nothing. Close the
                   winner modal to return to the current wheel.
                 </p>
@@ -220,6 +223,17 @@ export function RulesHelp({
                   After the cutoff, positions lock. After the draw, influence
                   stays in the weights permanently.
                 </p>
+                <p>
+                  You can place up to{' '}
+                  <strong>
+                    {preferences.maxBetsPerPlayer} bet
+                    {preferences.maxBetsPerPlayer === 1 ? '' : 's'}
+                  </strong>{' '}
+                  on different places for each draw. Lowering the limit keeps
+                  bets already placed, but blocks new bets for anyone already at
+                  or above the new limit; existing bets can still be edited or
+                  cancelled while betting is open.
+                </p>
               </section>
               <section aria-labelledby="rules-health">
                 <h3 id="rules-health">Health balance</h3>
@@ -235,14 +249,15 @@ export function RulesHelp({
                       After a Treat place wins, active Healthy places receive{' '}
                       <strong>×{amount(healthRule.multiplier)} weight</strong>.
                       Balanced places get no bonus. Healthy or Balanced wins
-                      trigger no health bonus. The winner is still halved.
+                      trigger no health bonus. The configured after-win
+                      multiplier still applies.
                     </>
                   ) : healthRule ? (
                     <>
                       <strong>The health bonus is currently disabled.</strong>{' '}
-                      Ratings do not currently add a weight bonus. The winner is
-                      still halved. Configured bonus: ×
-                      {amount(healthRule.multiplier)}.
+                      Ratings do not currently add a weight bonus. The
+                      configured after-win multiplier still applies. Configured
+                      health bonus: ×{amount(healthRule.multiplier)}.
                     </>
                   ) : (
                     'Current health settings are unavailable.'

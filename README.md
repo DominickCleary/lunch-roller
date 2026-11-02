@@ -1,6 +1,6 @@
 # Gambling about lunch
 
-A shared workplace lunch wheel: winners lose half their weight, and showing up earns tokens to influence future lunches.
+A shared workplace lunch wheel: winners lose half their weight by default, and showing up earns tokens to influence future lunches.
 
 **Current status: locally playable MVP.** All five [milestones](docs/backlog.md) are implemented: persistent name selection, separate admin sessions and management, scheduled server draws, attendance and token spending, the animated wheel, and optional Web Push with leased delivery. Production HTTPS/device delivery and hosting require environment setup; see the [operations runbook](docs/operations.md).
 
@@ -34,7 +34,7 @@ Open Team token activity below your own token history to view another active ros
 
 Token standings shows Total, Uncommitted, Today and This spin. Today is your net change since local midnight, including rewards and payouts; This spin groups activity by the current betting draw. Total includes uncommitted tokens plus stakes in open bets and pending boosts/reductions, including units locked for an undrawn result. Settled purchases and historical spending are excluded. Rankings use total tokens; equal totals share a rank (1, 1, 3), with names only ordering tied rows. This spin shows the net token actions attributed to the displayed spin date, matching Activity and including actions made on earlier days. It advances with the next betting spin rather than resetting at midnight; the cutoff or a post-roll pause does not reset it. Total and Uncommitted remain current wallet totals.
 
-Places have three health levels: **Treat**, **Balanced**, and **Healthy**. Choose a level when adding a place; admins can edit it later. Existing places start Balanced. After a Treat place wins, every active Healthy place receives a permanent ×1.25 weight bonus, alongside the winner’s usual halving. Admins can disable the rule or change its multiplier under Health balance. The Activity panel shows automatic bonuses separately from paid boosts, with saved chances before/after the bonus.
+Places have three health levels: **Treat**, **Balanced**, and **Healthy**. Choose a level when adding a place; admins can edit it later. Existing places start Balanced. After a Treat place wins, every active Healthy place receives a permanent ×1.25 weight bonus, alongside the winner’s configured reduction or removal. Admins can disable the rule or change its multiplier under Health balance. The Activity panel shows automatic bonuses separately from paid boosts, with saved chances before/after the bonus.
 
 Open **Trade tokens** in your wallet to choose another active person, enter a whole-token amount, review, and confirm. Transfers are immediate, final, and fee-free; both wallets record the other person and amount. Only available tokens can be traded. The server serializes transfers with purchases and prevents overdrafts and duplicate sends on retries. Transfers use the same trust-based name selection as the rest of the game. The Activity timeline shows both sides of each token trade, including the people, amount and timestamp, grouped with the next spin after the trade. “This spin” in token standings includes these sent and received amounts.
 
@@ -123,3 +123,7 @@ Start with [AGENTS.md](AGENTS.md). A coordinator owns shared contracts, migratio
 Defaults: weekdays at 11:30 Europe/Dublin, permanent winner halving, 10-token attendance reward, 5-token ×1.25/×0.8 influence, and 20-token immediate mean-weight additions. Browser identity is intentionally trust-based; anyone can select another roster member. Admin authorization uses a separate signed, expiring HttpOnly session cookie.
 
 Production requires an always-on server, HTTPS, tested backups, strong secrets, and VAPID configuration for opt-in Web Push. Auth and push settings in `.env.example` are consumed by the server; replace example credentials before exposure. Alerts cover committed draws, received transfers, and winning bet payouts; check-in rewards are silent. Missing push configuration or denied permission does not prevent play. No hosting is provisioned by this repository. Follow the [operations runbook](docs/operations.md) for monitoring, backup/restore and device checks.
+
+Admin tools → Tokens and odds includes an after-win weight multiplier (0–1, default 0.5). Set it to 0 to remove each winning restaurant from future wheels while retaining draw and token history. The add-place form searches removed restaurants as you type so they can be restored for the configured add-place price.
+
+Under Admin tools → Wheel, check-in and betting, set the maximum bets per player per draw (1–100, default 1). Members can place, edit and cancel separate bets before cutoff. Lowering the limit preserves existing bets and prevents new ones until the player is below the limit.
