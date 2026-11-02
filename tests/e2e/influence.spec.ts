@@ -174,17 +174,29 @@ test('holds restaurant order for two seconds after changing influence', async ({
     await page.clock.runFor(1)
     await expect.poll(getOrder).toEqual(expectedOrder)
 
-    await page
-      .locator('.odds-row')
-      .filter({ hasText: placeName })
-      .getByRole('button', { name: `Refund tokens for ${placeName}` })
-      .click()
+    // Only the sort delay needs frozen timers. Let normal UI work finish
+    // before the next action, and verify that the server accepted the refund.
+    await page.clock.resume()
+    const [refund] = await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === '/api/v1/influence/refund' &&
+          response.request().method() === 'POST',
+      ),
+      row
+        .getByRole('button', { name: `Refund tokens for ${placeName}` })
+        .click(),
+    ])
+    const refunded = await refund.json()
+    expect(refund.status(), JSON.stringify(refunded)).toBe(200)
+    expect(refunded).toMatchObject({ tokenDelta: 5, balance: 100 })
     await expect(
       page
         .locator('.odds-row')
         .filter({ hasText: placeName })
         .locator('.influence-net-value'),
     ).toHaveText('0')
+    await expect(page.locator('.balance')).toContainText('100')
   } finally {
     await game.setEconomy(originalEconomy)
     for (const place of originalPlaceWeights) {
@@ -263,7 +275,26 @@ test('edits persisted influence from the odds list without changing selected ide
   await expect(row.locator('.influence-net-value')).toHaveText('0')
   await expect(page.locator('.balance')).toContainText('100')
   for (let count = 0; count < 7; count += 1) {
-    await row.getByRole('button', { name: `Boost ${placeName}` }).click()
+    const [boost] = await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === '/api/v1/influence/current' &&
+          response.request().method() === 'POST',
+      ),
+      row.getByRole('button', { name: `Boost ${placeName}` }).click(),
+    ])
+    const boosted = await boost.json()
+    expect(boost.status(), JSON.stringify(boosted)).toBe(200)
+    expect(boosted).toMatchObject({
+      tokenDelta: -5,
+      balance: 100 - (count + 1) * 5,
+    })
+    await expect(row.locator('.influence-net-value')).toHaveText(
+      `+${count + 1}`,
+    )
+    await expect(page.locator('.balance')).toContainText(
+      String(100 - (count + 1) * 5),
+    )
   }
   const combinedBoost = page
     .locator('.token-activity-panel .ledger-row')
