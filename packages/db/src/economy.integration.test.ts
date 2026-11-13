@@ -100,6 +100,8 @@ it('uses configured rewards and prices, replays original responses, and preserve
     reduceMultiplier: 0.6,
     newPlaceMultiplier: 1.5,
     winnerMultiplier: 0.5,
+    autoRemoveBelowChancePercent: 0,
+    removeWinnerBelowChancePercent: 0,
   }
   expect(await service.setEconomy(economy)).toEqual(economy)
 

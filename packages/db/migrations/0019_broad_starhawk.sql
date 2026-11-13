@@ -1,0 +1,4 @@
+ALTER TABLE "settings" ADD COLUMN "auto_remove_below_chance_percent" double precision DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "settings" ADD COLUMN "remove_winner_below_chance_percent" double precision DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "settings" ADD CONSTRAINT "settings_auto_remove_below_chance_percent" CHECK ("settings"."auto_remove_below_chance_percent" >= 0 and "settings"."auto_remove_below_chance_percent" <= 100);--> statement-breakpoint
+ALTER TABLE "settings" ADD CONSTRAINT "settings_remove_winner_below_chance_percent" CHECK ("settings"."remove_winner_below_chance_percent" >= 0 and "settings"."remove_winner_below_chance_percent" <= 100);

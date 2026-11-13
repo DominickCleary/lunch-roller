@@ -56,8 +56,16 @@ export const economySettings = z.object({
   reduceMultiplier: z.number().finite().min(0.01).lt(1),
   newPlaceMultiplier: z.number().finite().min(0.01).max(100),
   winnerMultiplier: z.number().finite().min(0).max(1).default(0.5),
+  autoRemoveBelowChancePercent: z.number().finite().min(0).max(100).default(0),
+  removeWinnerBelowChancePercent: z
+    .number()
+    .finite()
+    .min(0)
+    .max(100)
+    .default(0),
 })
 export type EconomySettings = z.infer<typeof economySettings>
+export type EconomySettingsInput = z.input<typeof economySettings>
 export const defaultEconomySettings: EconomySettings = {
   attendanceReward: 10,
   addPlaceCost: 20,
@@ -68,6 +76,8 @@ export const defaultEconomySettings: EconomySettings = {
   reduceMultiplier: 0.8,
   newPlaceMultiplier: 1,
   winnerMultiplier: 0.5,
+  autoRemoveBelowChancePercent: 0,
+  removeWinnerBelowChancePercent: 0,
 }
 export const attendanceStatus = z.object({
   drawId: id.nullable(),

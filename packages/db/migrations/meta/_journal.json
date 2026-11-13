@@ -134,6 +134,13 @@
       "when": 1793615765018,
       "tag": "0018_curvy_praxagora",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1794570261823,
+      "tag": "0019_broad_starhawk",
+      "breakpoints": true
     }
   ]
 }

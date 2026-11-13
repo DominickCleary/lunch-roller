@@ -107,7 +107,7 @@ afterAll(async () => {
   }
 })
 
-it('shows mutable upcoming odds immediately while preserving the saved snapshot', async () => {
+it('keeps the saved winning wheel through the local day while odds stay live', async () => {
   await service.setSchedule({
     timezone: 'UTC',
     time: '00:00',
@@ -121,14 +121,14 @@ it('shows mutable upcoming odds immediately while preserving the saved snapshot'
 
   const beforeCutoff = await service.today(new Date('2188-03-02T14:59:59Z'))
   expect(beforeCutoff.wheel).toEqual({
-    mode: 'upcoming',
-    localDate: '2188-03-03',
+    mode: 'result',
+    localDate: '2188-03-02',
   })
   expect(beforeCutoff.result?.snapshot).toEqual(draw.snapshot)
 
   const cutoff = new Date('2188-03-02T15:00:00Z')
   const atCutoff = await service.today(cutoff)
-  expect(atCutoff.wheel).toEqual({ mode: 'upcoming', localDate: '2188-03-03' })
+  expect(atCutoff.wheel).toEqual({ mode: 'result', localDate: '2188-03-02' })
   expect(atCutoff.result?.snapshot).toEqual(draw.snapshot)
   const savedWinnerProbability = draw.snapshot.find(
     (option) => option.placeId === draw.placeId,
@@ -162,4 +162,11 @@ it('shows mutable upcoming odds immediately while preserving the saved snapshot'
   expect(oddsAfter.probability).toBeGreaterThan(oddsBefore.probability)
   expect(afterBoost.wheel).toEqual(atCutoff.wheel)
   expect(afterBoost.result?.snapshot).toEqual(draw.snapshot)
+
+  const nextLocalDay = await service.today(new Date('2188-03-03T00:00:00Z'))
+  expect(nextLocalDay.wheel).toEqual({
+    mode: 'upcoming',
+    localDate: '2188-03-03',
+  })
+  expect(nextLocalDay.result).toBeNull()
 })

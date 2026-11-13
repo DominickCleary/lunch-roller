@@ -147,26 +147,26 @@ function expectGradientMatches(
   }
 }
 
-test('rolls the displayed wheel, keeps current odds live, and replays the saved result', async ({
+test('holds the winning position for the day, keeps next odds live, and replays the saved result', async ({
   page,
 }) => {
   if (!fixtureDraw)
     throw new Error('The rollover draw fixture was not created.')
   await page.clock.install()
 
-  const mode = 'upcoming'
+  let mode: 'result' | 'upcoming' = 'result'
+  let displayDate = fixtureDate
   await page.route('**/api/v1/today', async (route) => {
     const response = await route.fetch()
     const today = await response.json()
-    const upcomingDate = nextDate
     await route.fulfill({
       response,
       json: {
         ...today,
-        localDate: fixtureDate,
-        status: 'drawn',
-        result: fixtureDraw,
-        wheel: { mode, localDate: upcomingDate },
+        localDate: displayDate,
+        status: mode === 'result' ? 'drawn' : 'pending',
+        result: mode === 'result' ? fixtureDraw : null,
+        wheel: { mode, localDate: displayDate },
         odds: today.odds,
       },
     })
@@ -179,7 +179,7 @@ test('rolls the displayed wheel, keeps current odds live, and replays the saved 
   await expect(page.getByTestId('lunch-wheel')).toBeVisible()
   await expect(page.getByTestId('wheel-target')).toHaveAttribute(
     'data-target-date',
-    nextDate,
+    fixtureDate,
   )
   await expect(page.getByTestId('today-result')).toHaveCount(0)
 
@@ -191,25 +191,21 @@ test('rolls the displayed wheel, keeps current odds live, and replays the saved 
     initialLiveOdds.odds.map((option) => option.probability),
   )
   const initialGradient = await wheelGradient(page)
-  expectGradientMatches(
-    initialGradient,
-    initialLiveOdds.odds.map((option) => option.probability),
-  )
+  expectGradientMatches(initialGradient, snapshotProbabilities)
 
   await page.clock.fastForward(30_000)
   await expect(page.getByTestId('wheel-target')).toHaveAttribute(
     'data-target-date',
-    nextDate,
+    fixtureDate,
   )
   await expect(page.getByTestId('lunch-wheel')).not.toHaveClass(
     /wheel-spinning/,
   )
-  // A fresh afternoon load also uses upcoming odds without replaying the old
-  // result automatically.
+  // A reload keeps today's saved landing without replaying the old result.
   await page.reload()
   await expect(page.getByTestId('wheel-target')).toHaveAttribute(
     'data-target-date',
-    nextDate,
+    fixtureDate,
   )
   await expect(page.getByTestId('lunch-wheel')).not.toHaveClass(
     /wheel-spinning/,
@@ -220,7 +216,7 @@ test('rolls the displayed wheel, keeps current odds live, and replays the saved 
   const placeOddsBeforeBoost = liveOddsBeforeBoost.odds.find(
     (option) => option.placeId === fixturePlace.id,
   )!.probability
-  const upcomingGradient = await wheelGradient(page)
+  const savedResultGradient = await wheelGradient(page)
   await page.setViewportSize({ width: 1440, height: 1000 })
   await page.screenshot({
     path: 'test-results/wheel-rollover-desktop.png',
@@ -237,11 +233,8 @@ test('rolls the displayed wheel, keeps current odds live, and replays the saved 
     fullPage: true,
   })
   await page.setViewportSize({ width: 1440, height: 1000 })
-  expect(upcomingGradient).toBe(initialGradient)
-  const liveProbabilities = liveOddsBeforeBoost.odds.map(
-    (option) => option.probability,
-  )
-  expectGradientMatches(upcomingGradient, liveProbabilities)
+  expect(savedResultGradient).toBe(initialGradient)
+  expectGradientMatches(savedResultGradient, snapshotProbabilities)
 
   const fixtureOddsRow = page
     .locator('.odds-row')
@@ -257,13 +250,10 @@ test('rolls the displayed wheel, keeps current odds live, and replays the saved 
         .probability
     })
     .toBeGreaterThan(placeOddsBeforeBoost)
-  await expect
-    .poll(async () => gradientEnds(await wheelGradient(page)).join(','))
-    .not.toBe(gradientEnds(upcomingGradient).join(','))
   const boostedToday = await game.today(new Date(`${fixtureDate}T15:00:00Z`))
-  expectGradientMatches(
-    await wheelGradient(page),
-    boostedToday.odds.map((option) => option.probability),
+  expectGradientMatches(await wheelGradient(page), snapshotProbabilities)
+  expect(boostedToday.odds.map((option) => option.probability)).not.toEqual(
+    snapshotProbabilities,
   )
 
   const replay = page.getByRole('button', { name: "Replay today's result" })
@@ -314,19 +304,16 @@ test('rolls the displayed wheel, keeps current odds live, and replays the saved 
   expect(Math.abs(mobileModal.x + mobileModal.width / 2 - 195)).toBeLessThan(2)
   expect(Math.abs(mobileModal.y + mobileModal.height / 2 - 422)).toBeLessThan(2)
   await page.screenshot({ path: '/tmp/lunch-winner-mobile.png' })
-  // Polling and elapsed time must not restore the upcoming wheel behind the modal.
+  // Polling and elapsed time must keep the saved result behind the modal.
   await page.clock.fastForward(30_000)
   expectGradientMatches(await wheelGradient(page), snapshotProbabilities)
   await celebration.getByRole('button', { name: 'Praise the Wheel' }).click()
   await expect(replay).toBeEnabled({ timeout: 8000 })
   await expect(page.getByTestId('wheel-target')).toHaveAttribute(
     'data-target-date',
-    nextDate,
+    fixtureDate,
   )
-  expectGradientMatches(
-    await wheelGradient(page),
-    boostedToday.odds.map((option) => option.probability),
-  )
+  expectGradientMatches(await wheelGradient(page), snapshotProbabilities)
 
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await replay.click()
@@ -348,6 +335,16 @@ test('rolls the displayed wheel, keeps current odds live, and replays the saved 
   expectGradientMatches(await wheelGradient(page), snapshotProbabilities)
   await page.keyboard.press('Escape')
   await expect(replay).toBeEnabled()
+  await expect(page.getByTestId('wheel-target')).toHaveAttribute(
+    'data-target-date',
+    fixtureDate,
+  )
+  expectGradientMatches(await wheelGradient(page), snapshotProbabilities)
+
+  // The next local day's response restores the live wheel.
+  mode = 'upcoming'
+  displayDate = nextDate
+  await page.reload()
   await expect(page.getByTestId('wheel-target')).toHaveAttribute(
     'data-target-date',
     nextDate,

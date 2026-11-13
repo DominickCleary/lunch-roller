@@ -71,10 +71,11 @@ export function wheelDisplay(
   schedule: { timezone: string; weekdays: number[] },
   hasTodayResult: boolean,
   skippedDate?: string | null,
-): { mode: 'upcoming'; localDate: string } {
+): { mode: 'result' | 'upcoming'; localDate: string } {
   const clock = localClock(now, schedule.timezone)
+  if (hasTodayResult) return { mode: 'result', localDate: clock.localDate }
   // Keep an undrawn scheduled day visible, including delayed or late-time draws.
-  const firstOffset = hasTodayResult ? 1 : 0
+  const firstOffset = 0
   const [year, month, day] = clock.localDate.split('-').map(Number) as [
     number,
     number,
@@ -89,6 +90,24 @@ export function wheelDisplay(
     if (localDate !== skippedDate) return { mode: 'upcoming', localDate }
   }
   throw new Error('Schedule needs at least one valid weekday')
+}
+
+/** Return places strictly below a post-draw chance threshold; zero disables the rule. */
+export function placesBelowChanceThreshold(
+  places: readonly WeightedPlace[],
+  thresholdPercent: number,
+): string[] {
+  if (
+    !Number.isFinite(thresholdPercent) ||
+    thresholdPercent < 0 ||
+    thresholdPercent > 100
+  )
+    throw new Error('Invalid chance threshold.')
+  if (thresholdPercent === 0) return []
+  const threshold = thresholdPercent / 100
+  return probabilities(places)
+    .filter((place) => place.probability < threshold)
+    .map((place) => place.id)
 }
 
 /** Pick today's scheduled date until its draw exists; otherwise the next scheduled calendar date. */

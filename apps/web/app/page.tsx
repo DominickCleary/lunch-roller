@@ -1138,7 +1138,10 @@ export default function Home() {
   )
   const baselineOptions = odds
   const activeReplay = animationSnapshot
-  const wheelOptions = activeReplay ?? baselineOptions
+  const resultSnapshot =
+    wheelMode === 'result' ? savedResult?.snapshot : undefined
+  const showingTodayResult = resultSnapshot !== undefined
+  const wheelOptions = activeReplay ?? resultSnapshot ?? baselineOptions
   const gradient = useMemo(() => {
     if (!wheelOptions.length) return '#d9ddd1'
     let at = 0
@@ -2093,7 +2096,7 @@ export default function Home() {
                     role="img"
                     aria-label={
                       wheelOptions.length
-                        ? `Wheel with ${wheelOptions.length} lunch places, sized by ${activeReplay ? "today's saved result snapshot replay" : 'live odds for the next scheduled draw'}`
+                        ? `Wheel with ${wheelOptions.length} lunch places, sized by ${showingTodayResult ? "today's saved result" : 'live odds for the next scheduled draw'}`
                         : 'Empty lunch wheel'
                     }
                   >
@@ -2155,11 +2158,13 @@ export default function Home() {
                       ? 'Watch the pointer…'
                       : activeReplay && today?.result
                         ? `Saved pick · ${today.result.localDate}`
-                        : today?.status === 'skipped'
-                          ? `Roll skipped for an event · next roll ${wheelTargetLabel} at ${today.schedule.time}`
-                          : wheelTargetLabel
-                            ? `Scheduled for ${wheelTargetLabel} at ${today?.schedule.time ?? ''}`
-                            : 'Loading schedule'}
+                        : showingTodayResult && today?.result
+                          ? `Today's winning position · ${today.result.localDate}`
+                          : today?.status === 'skipped'
+                            ? `Roll skipped for an event · next roll ${wheelTargetLabel} at ${today.schedule.time}`
+                            : wheelTargetLabel
+                              ? `Scheduled for ${wheelTargetLabel} at ${today?.schedule.time ?? ''}`
+                              : 'Loading schedule'}
                   </span>
                 </span>
               </div>
@@ -3853,6 +3858,52 @@ export default function Home() {
                       After a place wins, this sets its weight for future draws.
                       0 removes it from the wheel and keeps its history; 0.5
                       halves its weight; 1 leaves it unchanged.
+                    </p>
+                    <label>
+                      Auto-remove places below chance (%)
+                      <input
+                        type="number"
+                        required
+                        min={0}
+                        max={100}
+                        step="any"
+                        value={economy.autoRemoveBelowChancePercent}
+                        onChange={(event) =>
+                          setEconomy({
+                            ...economy,
+                            autoRemoveBelowChancePercent: Number(
+                              event.target.value,
+                            ),
+                          })
+                        }
+                      />
+                    </label>
+                    <p className="muted economy-help">
+                      After each spin, places below this post-spin chance are
+                      archived together. 0 disables automatic removal.
+                    </p>
+                    <label>
+                      Remove winner after spin below chance (%)
+                      <input
+                        type="number"
+                        required
+                        min={0}
+                        max={100}
+                        step="any"
+                        value={economy.removeWinnerBelowChancePercent}
+                        onChange={(event) =>
+                          setEconomy({
+                            ...economy,
+                            removeWinnerBelowChancePercent: Number(
+                              event.target.value,
+                            ),
+                          })
+                        }
+                      />
+                    </label>
+                    <p className="muted economy-help">
+                      The winning place is archived when its chance after its
+                      weight change is below this value. 0 disables this rule.
                     </p>
                     <button
                       type="submit"

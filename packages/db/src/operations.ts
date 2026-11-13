@@ -17,6 +17,7 @@ import type {
   Draw as DrawResponse,
   DrawSkip,
   EconomySettings,
+  EconomySettingsInput,
   GamePreferences,
   GamePreferencesInput,
   HealthLevel,
@@ -66,6 +67,7 @@ import {
   localClock,
   newPlaceLogWeight,
   nextBettingDate,
+  placesBelowChanceThreshold,
   postDrawWeights,
   probabilities,
   scheduledInstant,
@@ -550,6 +552,8 @@ function economyFromRow(row: typeof settings.$inferSelect): EconomySettings {
     reduceMultiplier: row.reduceMultiplier,
     newPlaceMultiplier: row.newPlaceMultiplier,
     winnerMultiplier: row.winnerMultiplier,
+    autoRemoveBelowChancePercent: row.autoRemoveBelowChancePercent,
+    removeWinnerBelowChancePercent: row.removeWinnerBelowChancePercent,
   }
 }
 
@@ -3030,7 +3034,7 @@ export class GameService {
     return economyFromRow(row)
   }
 
-  async setEconomy(input: EconomySettings): Promise<EconomySettings> {
+  async setEconomy(input: EconomySettingsInput): Promise<EconomySettings> {
     const parsed = economySettings.safeParse(input)
     if (!parsed.success)
       fail(
@@ -3265,6 +3269,22 @@ export class GameService {
             })),
           }
         : null
+      const removalIds = new Set(
+        placesBelowChanceThreshold(
+          nextWeights,
+          rule!.autoRemoveBelowChancePercent,
+        ),
+      )
+      const winnerChance = probabilities(nextWeights).find(
+        (place) => place.id === winner.id,
+      )?.probability
+      if (
+        rule!.removeWinnerBelowChancePercent > 0 &&
+        winnerChance !== undefined &&
+        winnerChance * 100 < rule!.removeWinnerBelowChancePercent
+      )
+        removalIds.add(winner.id)
+      if (winnerMultiplier === 0) removalIds.add(winner.id)
       const [row] = await tx
         .insert(draws)
         .values({
@@ -3280,17 +3300,19 @@ export class GameService {
         })
         .returning()
       await this.settleMarket(tx, due.localDate, row!, instant)
-      if (winnerMultiplier === 0) {
+      if (removalIds.size) {
         await tx
           .update(places)
           .set({ active: false })
-          .where(eq(places.id, winner.id))
-        await this.refundPlaceActivity(tx, winner.id, instant)
+          .where(inArray(places.id, [...removalIds]))
+        for (const placeId of removalIds)
+          await this.refundPlaceActivity(tx, placeId, instant)
       }
       for (const place of nextWeights) {
         if (
-          place.id === winner.id ||
-          healthy.some((entry) => entry.id === place.id)
+          !removalIds.has(place.id) &&
+          (place.id === winner.id ||
+            healthy.some((entry) => entry.id === place.id))
         )
           await tx
             .update(places)

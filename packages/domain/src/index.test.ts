@@ -5,6 +5,7 @@ import {
   influenceWeight,
   newPlaceLogWeight,
   nextBettingDate,
+  placesBelowChanceThreshold,
   postDrawWeights,
   probabilities,
   RULES,
@@ -203,6 +204,23 @@ it('applies a configurable winner multiplier and excludes a winner at zero', () 
     expect(() =>
       postDrawWeights(options, 'winner', healthRule, multiplier),
     ).toThrow('Invalid winner multiplier')
+})
+
+it('selects post-draw places strictly below the configured chance threshold', () => {
+  const options = [
+    { id: 'common-a', logWeight: 0 },
+    { id: 'common-b', logWeight: 0 },
+    { id: 'rare', logWeight: -10 },
+  ]
+  expect(placesBelowChanceThreshold(options, 0)).toEqual([])
+  expect(placesBelowChanceThreshold(options, 1)).toEqual(['rare'])
+  expect(placesBelowChanceThreshold(options, 100)).toEqual([
+    'common-a',
+    'common-b',
+    'rare',
+  ])
+  expect(() => placesBelowChanceThreshold(options, -1)).toThrow()
+  expect(() => placesBelowChanceThreshold(options, 101)).toThrow()
 })
 
 it('lands within the saved winning slice with varied offsets and a safe inset at exact boundaries', () => {

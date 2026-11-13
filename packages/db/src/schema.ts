@@ -146,6 +146,16 @@ export const settings = pgTable(
     winnerMultiplier: doublePrecision('winner_multiplier')
       .default(0.5)
       .notNull(),
+    autoRemoveBelowChancePercent: doublePrecision(
+      'auto_remove_below_chance_percent',
+    )
+      .default(0)
+      .notNull(),
+    removeWinnerBelowChancePercent: doublePrecision(
+      'remove_winner_below_chance_percent',
+    )
+      .default(0)
+      .notNull(),
     maxBetsPerPlayer: integer('max_bets_per_player').default(1).notNull(),
     healthBonusEnabled: boolean('health_bonus_enabled').default(true).notNull(),
     healthBonusMultiplier: doublePrecision('health_bonus_multiplier')
@@ -206,6 +216,14 @@ export const settings = pgTable(
     check(
       'settings_winner_multiplier',
       sql`${t.winnerMultiplier} >= 0 and ${t.winnerMultiplier} <= 1`,
+    ),
+    check(
+      'settings_auto_remove_below_chance_percent',
+      sql`${t.autoRemoveBelowChancePercent} >= 0 and ${t.autoRemoveBelowChancePercent} <= 100`,
+    ),
+    check(
+      'settings_remove_winner_below_chance_percent',
+      sql`${t.removeWinnerBelowChancePercent} >= 0 and ${t.removeWinnerBelowChancePercent} <= 100`,
     ),
     check(
       'settings_wheel_switch_time',

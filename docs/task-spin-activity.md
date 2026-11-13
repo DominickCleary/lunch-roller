@@ -1,5 +1,6 @@
 # Task: Group activity by spin and reopen purchases after a roll
 
+> Historical task brief. Its live-wheel-after-reveal requirement was superseded by [the current sticky-wheel behavior](task-sticky-wheel-auto-removal.md); current odds remain available in member controls.
 - Owner / branch / worktree: Codex coordinator, branch main, /home/docleary/dev/lunch-roller; no commit.
 - Goal and current behavior: replace the calendar/draw UI split with spin-date activity; always show live upcoming odds after revealing a roll; remove the pause until the wheel preview switch time.
 - Owned files or directories: activity and preferences UI/tests in apps/web and tests/e2e; contracts preferences; domain wheel display and tests; DB settings schema, operations, migration and integration tests; README and docs describing this behavior.

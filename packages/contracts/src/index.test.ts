@@ -219,9 +219,26 @@ it('validates the complete token economy and directional weight multipliers', ()
       economySettings.parse({ ...defaultEconomySettings, winnerMultiplier })
         .winnerMultiplier,
     ).toBe(winnerMultiplier)
-  const { winnerMultiplier: _winnerMultiplier, ...legacy } =
-    defaultEconomySettings
+  for (const field of [
+    'autoRemoveBelowChancePercent',
+    'removeWinnerBelowChancePercent',
+  ] as const)
+    for (const value of [-0.1, 100.1, Infinity, NaN])
+      expect(
+        economySettings.safeParse({
+          ...defaultEconomySettings,
+          [field]: value,
+        }).success,
+      ).toBe(false)
+  const {
+    winnerMultiplier: _winnerMultiplier,
+    autoRemoveBelowChancePercent: _autoRemoveBelowChancePercent,
+    removeWinnerBelowChancePercent: _removeWinnerBelowChancePercent,
+    ...legacy
+  } = defaultEconomySettings
   expect(economySettings.parse(legacy).winnerMultiplier).toBe(0.5)
+  expect(economySettings.parse(legacy).autoRemoveBelowChancePercent).toBe(0)
+  expect(economySettings.parse(legacy).removeWinnerBelowChancePercent).toBe(0)
 })
 it('distinguishes permanent participant deletion from history-preserving archival', () => {
   const participantId = 'ca982f50-f7c6-4eb3-8572-28fa01106ed7'

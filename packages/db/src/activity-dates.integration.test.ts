@@ -320,7 +320,10 @@ it('keeps Friday actions for Monday together across midnight, weekend DST, refun
         .where(eq(bettingMarkets.localDate, monday))
     ).map((row) => row.id),
   )
-  expect((await game.today(fridayAt)).wheel.localDate).toBe(monday)
+  expect((await game.today(fridayAt)).wheel).toEqual({
+    mode: 'result',
+    localDate: friday,
+  })
   const body = { localDate: monday, placeId: place.id }
   await game.changeInfluence(
     person.id,
@@ -531,8 +534,8 @@ it('opens immediately by default and carries an optional delay across midnight',
   expect(draw).not.toBeNull()
   drawIds.push(draw!.id)
   expect((await game.today(drawnAt)).wheel).toEqual({
-    mode: 'upcoming',
-    localDate: '2026-11-03',
+    mode: 'result',
+    localDate: '2026-11-02',
   })
   const market = await game.currentInfluence(person.id, drawnAt)
   expect(market.window).toMatchObject({
