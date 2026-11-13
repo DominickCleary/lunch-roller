@@ -56,6 +56,7 @@ export const economySettings = z.object({
   reduceMultiplier: z.number().finite().min(0.01).lt(1),
   newPlaceMultiplier: z.number().finite().min(0.01).max(100),
   winnerMultiplier: z.number().finite().min(0).max(1).default(0.5),
+  winnerChanceReductionPoints: z.number().finite().min(0).max(100).default(0),
   autoRemoveBelowChancePercent: z.number().finite().min(0).max(100).default(0),
   removeWinnerBelowChancePercent: z
     .number()
@@ -76,6 +77,7 @@ export const defaultEconomySettings: EconomySettings = {
   reduceMultiplier: 0.8,
   newPlaceMultiplier: 1,
   winnerMultiplier: 0.5,
+  winnerChanceReductionPoints: 0,
   autoRemoveBelowChancePercent: 0,
   removeWinnerBelowChancePercent: 0,
 }

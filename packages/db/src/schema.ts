@@ -146,6 +146,11 @@ export const settings = pgTable(
     winnerMultiplier: doublePrecision('winner_multiplier')
       .default(0.5)
       .notNull(),
+    winnerChanceReductionPoints: doublePrecision(
+      'winner_chance_reduction_points',
+    )
+      .default(0)
+      .notNull(),
     autoRemoveBelowChancePercent: doublePrecision(
       'auto_remove_below_chance_percent',
     )
@@ -216,6 +221,10 @@ export const settings = pgTable(
     check(
       'settings_winner_multiplier',
       sql`${t.winnerMultiplier} >= 0 and ${t.winnerMultiplier} <= 1`,
+    ),
+    check(
+      'settings_winner_chance_reduction_points',
+      sql`${t.winnerChanceReductionPoints} >= 0 and ${t.winnerChanceReductionPoints} <= 100`,
     ),
     check(
       'settings_auto_remove_below_chance_percent',

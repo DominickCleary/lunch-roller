@@ -113,11 +113,25 @@ export function RulesHelp({
                   and the wheel moves on to the following scheduled roll.
                 </p>
                 <p>
-                  After a place wins, its weight is multiplied by{' '}
-                  <strong>×{amount(economy.winnerMultiplier)}</strong> for
-                  future draws. A multiplier of 0 removes it from the wheel
-                  while keeping its history; 0.5 halves its weight, and 1 leaves
-                  it unchanged. Weights carry over without resetting. Spins last{' '}
+                  {economy.winnerChanceReductionPoints > 0 ? (
+                    <>
+                      After a win, reduce the winner’s chance by the larger of
+                      the configured proportional reduction (multiplier ×
+                      {amount(economy.winnerMultiplier)}) or{' '}
+                      {amount(economy.winnerChanceReductionPoints)} percentage
+                      points. A target of zero or less removes it. Health
+                      bonuses and removal thresholds then apply.{' '}
+                    </>
+                  ) : (
+                    <>
+                      After a place wins, its weight is multiplied by{' '}
+                      <strong>×{amount(economy.winnerMultiplier)}</strong> for
+                      future draws. A multiplier of 0 removes it from the wheel
+                      while keeping its history; 0.5 halves its weight, and 1
+                      leaves it unchanged.{' '}
+                    </>
+                  )}
+                  Weights carry over without resetting. Spins last{' '}
                   <strong>{preferences.wheelSpinSeconds} seconds</strong>.{' '}
                   Replay shows the same result and costs nothing. Close the
                   winner modal to return to the current wheel.

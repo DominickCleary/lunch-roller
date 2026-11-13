@@ -288,9 +288,17 @@ async function exerciseAdminUiAndGame(
       { timeout: 3000 },
     )
   }
-  const desktopWheelBounds = await page.locator('.wheel-wrap').boundingBox()
-  expect(desktopWheelBounds).not.toBeNull()
-  expect(desktopWheelBounds!.width).toBeGreaterThan(600)
+  // Admin tools share the viewport height, so a desktop wheel can be <600px.
+  const desktopWheel = page.locator('.wheel-wrap')
+  await expect(desktopWheel).toBeInViewport()
+  const desktopWheelBounds = await desktopWheel.boundingBox()
+  const workspaceBounds = await page.locator('.hero').boundingBox()
+  if (!desktopWheelBounds || !workspaceBounds)
+    throw new Error('The desktop wheel and workspace must be visible.')
+  expect(desktopWheelBounds.width).toBeGreaterThan(0)
+  expect(desktopWheelBounds.width).toBeCloseTo(desktopWheelBounds.height, 1)
+  expect(desktopWheelBounds.width).toBeLessThanOrEqual(workspaceBounds.width)
+  expect(desktopWheelBounds.height).toBeLessThanOrEqual(workspaceBounds.height)
   await expect(wheel).not.toHaveClass(/wheel-spinning/)
   const normalizedAngle = (actualAngle + 360) % 360
   const angleDifference = Math.min(

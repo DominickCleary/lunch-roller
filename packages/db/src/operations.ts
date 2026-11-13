@@ -552,6 +552,7 @@ function economyFromRow(row: typeof settings.$inferSelect): EconomySettings {
     reduceMultiplier: row.reduceMultiplier,
     newPlaceMultiplier: row.newPlaceMultiplier,
     winnerMultiplier: row.winnerMultiplier,
+    winnerChanceReductionPoints: row.winnerChanceReductionPoints,
     autoRemoveBelowChancePercent: row.autoRemoveBelowChancePercent,
     removeWinnerBelowChancePercent: row.removeWinnerBelowChancePercent,
   }
@@ -3238,6 +3239,7 @@ export class GameService {
         winner.id,
         healthRule,
         winnerMultiplier,
+        rule!.winnerChanceReductionPoints,
       )
       const healthy = active.filter(
         (place) =>
@@ -3252,6 +3254,7 @@ export class GameService {
           winner.id,
           { ...healthRule, enabled: false },
           winnerMultiplier,
+          rule!.winnerChanceReductionPoints,
         ),
       )
       const afterBonus = probabilities(nextWeights)
@@ -3284,7 +3287,8 @@ export class GameService {
         winnerChance * 100 < rule!.removeWinnerBelowChancePercent
       )
         removalIds.add(winner.id)
-      if (winnerMultiplier === 0) removalIds.add(winner.id)
+      if (!nextWeights.some((place) => place.id === winner.id))
+        removalIds.add(winner.id)
       const [row] = await tx
         .insert(draws)
         .values({

@@ -351,6 +351,7 @@ export function postDrawWeights<
   winnerId: string,
   healthRule: { enabled: boolean; multiplier: number },
   winnerMultiplier = 0.5,
+  winnerChanceReductionPoints = 0,
 ): T[] {
   const winner = places.find((place) => place.id === winnerId)
   if (!winner) throw new Error('Winner must be an active place.')
@@ -366,17 +367,54 @@ export function postDrawWeights<
     winnerMultiplier > 1
   )
     throw new Error('Invalid winner multiplier.')
-  const remainingPlaces =
+  if (
+    !Number.isFinite(winnerChanceReductionPoints) ||
+    winnerChanceReductionPoints < 0 ||
+    winnerChanceReductionPoints > 100
+  )
+    throw new Error('Invalid winner chance reduction.')
+  let winnerLogWeight =
     winnerMultiplier === 0
+      ? null
+      : finite(winner.logWeight + Math.log(winnerMultiplier))
+  if (winnerChanceReductionPoints > 0 && winnerLogWeight !== null) {
+    const chance =
+      probabilities(places).find((place) => place.id === winnerId)
+        ?.probability ?? 0
+    const target = Math.min(
+      chance * winnerMultiplier,
+      chance - winnerChanceReductionPoints / 100,
+    )
+    const others = places.filter((place) => place.id !== winnerId)
+    const otherLogTotal =
+      logMean(others.map((place) => place.logWeight)) + Math.log(others.length)
+    const cutoff =
+      otherLogTotal +
+      Math.log(winnerChanceReductionPoints / 100) -
+      Math.log1p(-winnerChanceReductionPoints / 100)
+    // Treat an exact zero target as zero despite log-space round-off.
+    const atCutoff =
+      others.length > 0 &&
+      Number.isFinite(cutoff) &&
+      Math.abs(winner.logWeight - cutoff) <=
+        Number.EPSILON *
+          Math.max(1, Math.abs(winner.logWeight), Math.abs(cutoff)) *
+          2
+    if (target <= 0 || atCutoff) winnerLogWeight = null
+    else if (others.length)
+      winnerLogWeight = finite(
+        otherLogTotal + Math.log(target) - Math.log1p(-target),
+      )
+  }
+  const remainingPlaces =
+    winnerLogWeight === null
       ? places.filter((place) => place.id !== winnerId)
       : places
-  const logWinnerMultiplier =
-    winnerMultiplier === 0 ? 0 : Math.log(winnerMultiplier)
   return remainingPlaces.map((place) => ({
     ...place,
     logWeight: finite(
       place.id === winnerId
-        ? finite(place.logWeight + logWinnerMultiplier)
+        ? (winnerLogWeight ?? place.logWeight)
         : healthRule.enabled &&
             winner.healthLevel === 'treat' &&
             place.healthLevel === 'healthy'

@@ -256,3 +256,53 @@ it('lands within the saved winning slice with varied offsets and a safe inset at
     wheelLandingRotation([{ placeId: 'a', probability: 0 }], 'a', 0),
   ).toThrow()
 })
+
+it('reduces winning chance by the larger proportional or percentage-point amount', () => {
+  const healthRule = { enabled: false, multiplier: 1.25 }
+  for (const [before, expected] of [
+    [0.3, 0.15],
+    [0.15, 0.05],
+    [0.09, 0],
+    [0.1, 0],
+    [0.10000001, 0.00000001],
+    [0.2, 0.1],
+  ] as const) {
+    for (const offset of [-1000, 0, 1000]) {
+      const options = [
+        {
+          id: 'winner',
+          logWeight: Math.log(before) + offset,
+          healthLevel: 'balanced' as const,
+        },
+        {
+          id: 'other',
+          logWeight: Math.log(1 - before) + offset,
+          healthLevel: 'balanced' as const,
+        },
+      ]
+      const result = postDrawWeights(options, 'winner', healthRule, 0.5, 10)
+      const winner = probabilities(result).find(
+        (place) => place.id === 'winner',
+      )
+      if (expected === 0) expect(winner).toBeUndefined()
+      else expect(winner?.probability).toBeCloseTo(expected, 10)
+      expect(result.find((place) => place.id === 'other')?.logWeight).toBe(
+        options[1]?.logWeight,
+      )
+      expect(result.every((place) => Number.isFinite(place.logWeight))).toBe(
+        true,
+      )
+    }
+  }
+  const options = [
+    { id: 'winner', logWeight: 0, healthLevel: 'treat' as const },
+  ]
+  expect(postDrawWeights(options, 'winner', healthRule, 0.5, 10)).toHaveLength(
+    1,
+  )
+  expect(postDrawWeights(options, 'winner', healthRule, 0.5, 100)).toEqual([])
+  for (const invalid of [-1, 101, NaN, Infinity])
+    expect(() =>
+      postDrawWeights(options, 'winner', healthRule, 0.5, invalid),
+    ).toThrow()
+})

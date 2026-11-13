@@ -220,6 +220,7 @@ it('validates the complete token economy and directional weight multipliers', ()
         .winnerMultiplier,
     ).toBe(winnerMultiplier)
   for (const field of [
+    'winnerChanceReductionPoints',
     'autoRemoveBelowChancePercent',
     'removeWinnerBelowChancePercent',
   ] as const)
@@ -232,10 +233,12 @@ it('validates the complete token economy and directional weight multipliers', ()
       ).toBe(false)
   const {
     winnerMultiplier: _winnerMultiplier,
+    winnerChanceReductionPoints: _winnerChanceReductionPoints,
     autoRemoveBelowChancePercent: _autoRemoveBelowChancePercent,
     removeWinnerBelowChancePercent: _removeWinnerBelowChancePercent,
     ...legacy
   } = defaultEconomySettings
+  expect(economySettings.parse(legacy).winnerChanceReductionPoints).toBe(0)
   expect(economySettings.parse(legacy).winnerMultiplier).toBe(0.5)
   expect(economySettings.parse(legacy).autoRemoveBelowChancePercent).toBe(0)
   expect(economySettings.parse(legacy).removeWinnerBelowChancePercent).toBe(0)

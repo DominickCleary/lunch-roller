@@ -128,3 +128,48 @@ it('archives low-chance places and a low-chance winner after preserving settleme
     (await game.today(new Date('2304-01-03T13:00:00.000Z'))).wheel,
   ).toEqual({ mode: 'result', localDate: '2304-01-03' })
 })
+
+it('persists chance reductions, removes exhausted winners and never applies decay twice', async () => {
+  await game.setSchedule({
+    timezone: 'UTC',
+    time: '00:00',
+    weekdays: [1, 2, 3, 4, 5, 6, 7],
+  })
+  for (const [day, points, expected] of [
+    [1, 10, 0.125],
+    [2, 20, 0.05],
+    [3, 30, 0],
+  ] as const) {
+    await database.db
+      .update(places)
+      .set({ active: true, logWeight: 0 })
+      .where(inArray(places.id, fixturePlaceIds))
+    await game.setEconomy({
+      ...originalEconomy,
+      winnerMultiplier: 0.5,
+      winnerChanceReductionPoints: points,
+      autoRemoveBelowChancePercent: 0,
+      removeWinnerBelowChancePercent: 0,
+    })
+    const instant = new Date(`2304-02-0${day}T12:00:00.000Z`)
+    const draw = await game.drawIfDue(instant)
+    if (!draw) throw new Error('Expected the chance-reduction draw.')
+    drawIds.push(draw.id)
+    expect(
+      draw.snapshot.find((place) => place.placeId === draw.placeId)
+        ?.probability,
+    ).toBeCloseTo(0.25, 10)
+    const after = await game.today(instant)
+    const winner = after.odds.find((place) => place.placeId === draw.placeId)
+    if (expected) expect(winner?.probability).toBeCloseTo(expected, 10)
+    else {
+      expect(winner).toBeUndefined()
+      expect(
+        (await game.listPlaces(true)).find((place) => place.id === draw.placeId)
+          ?.active,
+      ).toBe(false)
+    }
+    expect((await game.drawIfDue(instant))?.id).toBe(draw.id)
+    expect((await game.today(instant)).odds).toEqual(after.odds)
+  }
+})

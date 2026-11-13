@@ -42,6 +42,21 @@ async function signIn(page: import('@playwright/test').Page) {
   await expect(page.getByText('Administrator tools unlocked.')).toBeVisible()
 }
 
+async function saveTokenSettings(page: import('@playwright/test').Page) {
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/v1/admin/economy') &&
+        response.request().method() === 'PUT',
+    ),
+    page
+      .getByTestId('admin-economy')
+      .getByRole('button', { name: 'Save token settings' })
+      .click(),
+  ])
+  expect(response.ok()).toBe(true)
+}
+
 test.beforeAll(async () => {
   const [row] = await database.db.select().from(settings)
   if (!row) throw new Error('Settings row missing from test database.')
@@ -125,7 +140,7 @@ test('admin chance thresholds persist and archive qualifying places after draws'
   )
   await autoThreshold.fill('1')
   await winnerThreshold.fill('0')
-  await card.getByRole('button', { name: 'Save token settings' }).click()
+  await saveTokenSettings(page)
   await expect(
     page.getByText('Token settings saved.', { exact: true }),
   ).toBeVisible()
@@ -169,9 +184,7 @@ test('admin chance thresholds persist and archive qualifying places after draws'
 
   await winnerThreshold.fill('40')
   await autoThreshold.fill('0')
-  await reloadedCard
-    .getByRole('button', { name: 'Save token settings' })
-    .click()
+  await saveTokenSettings(page)
   await expect(
     page.getByText('Token settings saved.', { exact: true }),
   ).toBeVisible()
@@ -191,4 +204,51 @@ test('admin chance thresholds persist and archive qualifying places after draws'
       (place) => place.id === secondDraw.placeId,
     ),
   ).toMatchObject({ active: false })
+  // The optional minimum changes chance decay, independently of removal thresholds.
+  await autoThreshold.fill('0')
+  await winnerThreshold.fill('0')
+  await reloadedCard.getByLabel('After-win weight multiplier').fill('0.5')
+  const minimum = reloadedCard.getByLabel(
+    'Minimum after-win reduction (percentage points)',
+  )
+  await minimum.fill('10')
+  await saveTokenSettings(page)
+  await expect(
+    page.getByText('Token settings saved.', { exact: true }),
+  ).toBeVisible()
+  await page.reload()
+  await signIn(page)
+  await expect(minimum).toHaveValue('10')
+  expect((await game.getEconomy()).winnerChanceReductionPoints).toBe(10)
+  for (const [day, points, expected] of [
+    [4, 10, 0.125],
+    [5, 20, 0.05],
+    [6, 30, 0],
+  ] as const) {
+    await minimum.fill(String(points))
+    await saveTokenSettings(page)
+    await expect(
+      page.getByText('Token settings saved.', { exact: true }),
+    ).toBeVisible()
+    await database.client`UPDATE places SET active = true, log_weight = 0 WHERE id IN ${database.client(fixturePlaceIds)}`
+    const instant = new Date(`2304-01-0${day}T12:00:00.000Z`)
+    const draw = await game.drawIfDue(instant)
+    if (!draw) throw new Error('Expected the minimum-reduction draw.')
+    drawIds.push(draw.id)
+    expect(
+      draw.snapshot.find((place) => place.placeId === draw.placeId)
+        ?.probability,
+    ).toBeCloseTo(0.25, 10)
+    const winner = (await game.today(instant)).odds.find(
+      (place) => place.placeId === draw.placeId,
+    )
+    if (expected) expect(winner?.probability).toBeCloseTo(expected, 10)
+    else expect(winner).toBeUndefined()
+  }
+  await minimum.fill('0')
+  await saveTokenSettings(page)
+  await expect(
+    page.getByText('Token settings saved.', { exact: true }),
+  ).toBeVisible()
+  expect((await game.getEconomy()).winnerChanceReductionPoints).toBe(0)
 })

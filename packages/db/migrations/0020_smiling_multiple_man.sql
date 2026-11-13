@@ -1,0 +1,2 @@
+ALTER TABLE "settings" ADD COLUMN "winner_chance_reduction_points" double precision DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "settings" ADD CONSTRAINT "settings_winner_chance_reduction_points" CHECK ("settings"."winner_chance_reduction_points" >= 0 and "settings"."winner_chance_reduction_points" <= 100);

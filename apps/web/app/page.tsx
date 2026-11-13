@@ -3873,6 +3873,33 @@ export default function Home() {
                       halves its weight; 1 leaves it unchanged.
                     </p>
                     <label>
+                      Minimum after-win reduction (percentage points)
+                      <input
+                        type="number"
+                        required
+                        min={0}
+                        max={100}
+                        step="any"
+                        value={economy.winnerChanceReductionPoints}
+                        onChange={(event) =>
+                          setEconomy({
+                            ...economy,
+                            winnerChanceReductionPoints: Number(
+                              event.target.value,
+                            ),
+                          })
+                        }
+                      />
+                    </label>
+                    <p className="muted economy-help">
+                      0 keeps weight-based decay. Above 0, apply the multiplier
+                      to the winner’s chance or subtract this many percentage
+                      points, whichever leaves the lower chance. With 0.5 and 10
+                      points: 30% → 15%, 15% → 5%, and 10% or less is removed.
+                      Disable the removal thresholds below to replace blanket
+                      removal.
+                    </p>
+                    <label>
                       Auto-remove places below chance (%)
                       <input
                         type="number"
