@@ -202,6 +202,7 @@ async function exerciseAdminUiAndGame(
   expect(initialTodayResponse.ok()).toBe(true)
   const initialToday = (await initialTodayResponse.json()) as {
     wheel: { mode: 'result' | 'upcoming'; localDate: string }
+    odds: { placeId: string; probability: number }[]
     result: { placeId: string; placeName: string } | null
   }
   expect(initialToday.result?.placeId).toBe(result.placeId)
@@ -220,7 +221,20 @@ async function exerciseAdminUiAndGame(
   )
   expect(winnerIndex).toBeGreaterThanOrEqual(0)
   expect(result.animation).toBeDefined()
-  const expectedPointerAngle = result.animation!.rotation
+  let expectedPointerAngle = result.animation!.rotation
+  if (initialToday.wheel.mode === 'result') {
+    const liveWinnerIndex = initialToday.odds.findIndex(
+      (option) => option.placeId === result.placeId,
+    )
+    const liveWinner = initialToday.odds[liveWinnerIndex]
+    if (!liveWinner)
+      throw new Error('The live wheel should contain the winner.')
+    const before = initialToday.odds
+      .slice(0, liveWinnerIndex)
+      .reduce((sum, option) => sum + option.probability, 0)
+    expectedPointerAngle =
+      (((90 - (before + liveWinner.probability / 2) * 360) % 360) + 360) % 360
+  }
   async function readSettledAngle() {
     let angle = 0
     await expect

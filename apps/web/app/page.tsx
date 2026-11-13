@@ -35,7 +35,11 @@ import {
   serverClockAnchor,
   spinIsLive,
 } from '../lib/wheel-animation'
-import { wheelColors, wheelSliceColor } from '../lib/wheel-colors'
+import {
+  wheelColors,
+  wheelRestingRotation,
+  wheelSliceColor,
+} from '../lib/wheel-colors'
 import { CountdownBanner } from './countdown-banner'
 import { DailyActivity, TokenOverview } from './daily-activity'
 import { HealthBadge, HealthSelect } from './health-label'
@@ -1138,10 +1142,19 @@ export default function Home() {
   )
   const baselineOptions = odds
   const activeReplay = animationSnapshot
-  const resultSnapshot =
-    wheelMode === 'result' ? savedResult?.snapshot : undefined
-  const showingTodayResult = resultSnapshot !== undefined
-  const wheelOptions = activeReplay ?? resultSnapshot ?? baselineOptions
+  const showingTodayResult =
+    wheelMode === 'result' &&
+    baselineOptions.some(
+      (option) =>
+        option.placeId === savedResult?.placeId && option.probability > 0,
+    )
+  const wheelOptions = activeReplay ?? baselineOptions
+  const wheelRotation = activeReplay
+    ? rotation
+    : wheelRestingRotation(
+        wheelOptions,
+        showingTodayResult ? savedResult?.placeId : undefined,
+      )
   const gradient = useMemo(() => {
     if (!wheelOptions.length) return '#d9ddd1'
     let at = 0
@@ -1155,7 +1168,7 @@ export default function Home() {
   const pointerColor =
     spin || activeReplay
       ? animationPointerColor
-      : wheelSliceColor(wheelOptions, rotation, wheelColors)
+      : wheelSliceColor(wheelOptions, wheelRotation, wheelColors)
 
   async function selectParticipant(event: FormEvent) {
     event.preventDefault()
@@ -2091,12 +2104,12 @@ export default function Home() {
                     data-testid="lunch-wheel"
                     style={{
                       background: gradient,
-                      transform: `rotate(${rotation}deg)`,
+                      transform: `rotate(${wheelRotation}deg)`,
                     }}
                     role="img"
                     aria-label={
                       wheelOptions.length
-                        ? `Wheel with ${wheelOptions.length} lunch places, sized by ${showingTodayResult ? "today's saved result" : 'live odds for the next scheduled draw'}`
+                        ? `Wheel with ${wheelOptions.length} lunch places, sized by ${activeReplay ? 'the saved draw' : 'live odds for the next scheduled draw'}`
                         : 'Empty lunch wheel'
                     }
                   >

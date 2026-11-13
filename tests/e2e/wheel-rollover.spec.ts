@@ -74,7 +74,7 @@ test.afterAll(async () => {
       `
     for (const [id, logWeight] of originalWeights)
       await database.client`
-        UPDATE places SET log_weight = ${logWeight} WHERE id = ${id}::uuid
+        UPDATE places SET log_weight = ${logWeight}, active = true WHERE id = ${id}::uuid
       `
     if (drawIds.length) {
       await database.client`
@@ -147,7 +147,46 @@ function expectGradientMatches(
   }
 }
 
-test('holds the winning position for the day, keeps next odds live, and replays the saved result', async ({
+async function expectLiveWheel(
+  page: Page,
+  odds: readonly { placeId: string; probability: number }[],
+  winnerId?: string,
+) {
+  await expect
+    .poll(async () =>
+      gradientEnds(await wheelGradient(page)).map((n) => n.toFixed(1)),
+    )
+    .toEqual(
+      odds.map((_, index) =>
+        (
+          odds
+            .slice(0, index + 1)
+            .reduce((sum, option) => sum + option.probability, 0) * 360
+        ).toFixed(1),
+      ),
+    )
+  const winnerIndex = odds.findIndex((option) => option.placeId === winnerId)
+  let expectedRotation = 0
+  const winner = odds[winnerIndex]
+  if (winner) {
+    const before = odds
+      .slice(0, winnerIndex)
+      .reduce((sum, option) => sum + option.probability, 0)
+    expectedRotation =
+      (((90 - (before + winner.probability / 2) * 360) % 360) + 360) % 360
+  }
+  await expect
+    .poll(() =>
+      page
+        .getByTestId('lunch-wheel')
+        .evaluate((element) =>
+          Number.parseFloat((element as HTMLElement).style.transform.slice(7)),
+        ),
+    )
+    .toBeCloseTo(expectedRotation, 2)
+}
+
+test('keeps live slices updated with the current winner under the arrow and replays the saved result', async ({
   page,
 }) => {
   if (!fixtureDraw)
@@ -191,7 +230,11 @@ test('holds the winning position for the day, keeps next odds live, and replays 
     initialLiveOdds.odds.map((option) => option.probability),
   )
   const initialGradient = await wheelGradient(page)
-  expectGradientMatches(initialGradient, snapshotProbabilities)
+  expectGradientMatches(
+    initialGradient,
+    initialLiveOdds.odds.map((option) => option.probability),
+  )
+  await expectLiveWheel(page, initialLiveOdds.odds, fixtureDraw.placeId)
 
   await page.clock.fastForward(30_000)
   await expect(page.getByTestId('wheel-target')).toHaveAttribute(
@@ -201,7 +244,7 @@ test('holds the winning position for the day, keeps next odds live, and replays 
   await expect(page.getByTestId('lunch-wheel')).not.toHaveClass(
     /wheel-spinning/,
   )
-  // A reload keeps today's saved landing without replaying the old result.
+  // Reload retains live sizes and the winner under the arrow without replaying.
   await page.reload()
   await expect(page.getByTestId('wheel-target')).toHaveAttribute(
     'data-target-date',
@@ -234,7 +277,7 @@ test('holds the winning position for the day, keeps next odds live, and replays 
   })
   await page.setViewportSize({ width: 1440, height: 1000 })
   expect(savedResultGradient).toBe(initialGradient)
-  expectGradientMatches(savedResultGradient, snapshotProbabilities)
+  await expectLiveWheel(page, liveOddsBeforeBoost.odds, fixtureDraw.placeId)
 
   const fixtureOddsRow = page
     .locator('.odds-row')
@@ -251,7 +294,7 @@ test('holds the winning position for the day, keeps next odds live, and replays 
     })
     .toBeGreaterThan(placeOddsBeforeBoost)
   const boostedToday = await game.today(new Date(`${fixtureDate}T15:00:00Z`))
-  expectGradientMatches(await wheelGradient(page), snapshotProbabilities)
+  await expectLiveWheel(page, boostedToday.odds, fixtureDraw.placeId)
   expect(boostedToday.odds.map((option) => option.probability)).not.toEqual(
     snapshotProbabilities,
   )
@@ -313,7 +356,7 @@ test('holds the winning position for the day, keeps next odds live, and replays 
     'data-target-date',
     fixtureDate,
   )
-  expectGradientMatches(await wheelGradient(page), snapshotProbabilities)
+  await expectLiveWheel(page, boostedToday.odds, fixtureDraw.placeId)
 
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await replay.click()
@@ -339,9 +382,34 @@ test('holds the winning position for the day, keeps next odds live, and replays 
     'data-target-date',
     fixtureDate,
   )
-  expectGradientMatches(await wheelGradient(page), snapshotProbabilities)
+  await expectLiveWheel(page, boostedToday.odds, fixtureDraw.placeId)
 
-  // The next local day's response restores the live wheel.
+  const added = await game.savePlace({ name: `rollover-new-${suffix}` })
+  placeIds.push(added.id)
+  await page.reload()
+  const afterAddition = await game.today(new Date(`${fixtureDate}T15:00:00Z`))
+  await expectLiveWheel(page, afterAddition.odds, fixtureDraw.placeId)
+  await expect(
+    page
+      .getByTestId('lunch-wheel')
+      .locator('.wheel-label', { hasText: added.name.slice(0, 13) }),
+  ).toBeVisible()
+
+  // Removed winners must leave the live wheel rather than freezing its snapshot.
+  await game.savePlace({ active: false }, fixtureDraw.placeId)
+  await page.reload()
+  const afterRemoval = await game.today(new Date(`${fixtureDate}T15:00:00Z`))
+  expect(afterRemoval.odds.map((option) => option.placeId)).not.toContain(
+    fixtureDraw.placeId,
+  )
+  await expectLiveWheel(page, afterRemoval.odds)
+
+  await game.savePlace({ active: true }, fixtureDraw.placeId)
+  await page.reload()
+  const afterRestore = await game.today(new Date(`${fixtureDate}T15:00:00Z`))
+  await expectLiveWheel(page, afterRestore.odds, fixtureDraw.placeId)
+
+  // The next local day continues showing live odds at the neutral angle.
   mode = 'upcoming'
   displayDate = nextDate
   await page.reload()
@@ -349,15 +417,5 @@ test('holds the winning position for the day, keeps next odds live, and replays 
     'data-target-date',
     nextDate,
   )
-  expectGradientEndsAfterReplay(await wheelGradient(page), boostedToday.odds)
+  await expectLiveWheel(page, afterRestore.odds)
 })
-
-function expectGradientEndsAfterReplay(
-  gradient: string,
-  odds: readonly { probability: number }[],
-) {
-  expectGradientMatches(
-    gradient,
-    odds.map((option) => option.probability),
-  )
-}

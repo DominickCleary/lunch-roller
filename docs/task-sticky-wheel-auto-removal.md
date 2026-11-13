@@ -1,5 +1,7 @@
 # Task: Keep the winning wheel position and configure chance-based removal
 
+The frozen snapshot display described here is superseded by [the live wheel correction](task-live-wheel-winner-position.md). Chance-removal rules remain current.
+
 - Owner / branch / worktree: coordinator / current branch / current worktree.
 - Goal and current behavior: after a draw, the wheel switches back to live odds when its reveal closes. Keep the saved winning snapshot and landing position as the default wheel view through the rest of the workplace-local calendar day. Add two independent admin-configurable percentage thresholds: archive every active place below the general post-draw chance threshold, and archive the winner when its post-draw chance is below the winner threshold. Zero disables either rule; comparisons are strict. Thresholds are evaluated against one shared post-draw distribution after winner decay and health bonuses, before any threshold removals.
 - Owned files or directories: `apps/web/app/page.tsx`, `packages/contracts/src/index.ts` and tests, `packages/domain/src/index.ts` and tests, `packages/db/src/schema.ts`, `packages/db/src/operations.ts` and tests, `packages/db/migrations/**`, affected `tests/e2e/**`, `docs/api.md`, `docs/architecture.md`, `docs/game-rules.md`, `README.md`, and historical wheel task notes.

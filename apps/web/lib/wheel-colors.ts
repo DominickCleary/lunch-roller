@@ -24,3 +24,19 @@ export function wheelSliceColor(
   }
   return palette[0] ?? '#d9ddd1'
 }
+
+/** Keep the current winner under the pointer as live slices resize. */
+export function wheelRestingRotation(
+  options: readonly Pick<Draw['snapshot'][number], 'placeId' | 'probability'>[],
+  winnerId: string | undefined,
+) {
+  let before = 0
+  for (const option of options) {
+    if (option.placeId === winnerId && option.probability > 0)
+      return (
+        (((90 - (before + option.probability / 2) * 360) % 360) + 360) % 360
+      )
+    before += option.probability
+  }
+  return 0
+}
