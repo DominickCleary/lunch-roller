@@ -112,10 +112,9 @@ test('dark mode covers the name picker, wheel, admin forms and removal dialog on
     fullPage: true,
   })
   await page.getByRole('button', { name: 'Remove Alex', exact: true }).click()
-  await expect(page.getByRole('alertdialog')).toHaveCSS(
-    'background-color',
-    'rgb(27, 34, 37)',
-  )
+  await expect(
+    page.getByRole('alertdialog').locator('.confirm-dialog'),
+  ).toHaveCSS('background-color', 'rgb(27, 34, 37)')
   await page.getByRole('button', { name: 'Cancel', exact: true }).click()
 })
 

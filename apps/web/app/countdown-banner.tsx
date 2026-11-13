@@ -73,7 +73,11 @@ export function CountdownBanner({
       data-testid="countdown-banner"
     >
       {winner && !spinning && (
-        <div className="countdown-winner" aria-label="Winning restaurant">
+        <div
+          className="countdown-winner"
+          role="group"
+          aria-label="Winning restaurant"
+        >
           <span aria-hidden="true">✦</span>
           <div>
             <span className="countdown-eyebrow">

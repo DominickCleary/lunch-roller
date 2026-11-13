@@ -2,6 +2,7 @@
 
 import type { Participant, TransferRequest } from '@lunch/contracts'
 import { useEffect, useRef, useState } from 'react'
+import { ConfirmationDialog } from './confirmation-dialog'
 
 export function TokenTransfer({
   participantId,
@@ -21,10 +22,9 @@ export function TokenTransfer({
   const [review, setReview] = useState<TransferRequest | null>(null)
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState('')
+  const [sendError, setSendError] = useState('')
   const submitting = useRef(false)
   const recipientField = useRef<HTMLSelectElement | null>(null)
-  const confirmButton = useRef<HTMLButtonElement | null>(null)
-  const backButton = useRef<HTMLButtonElement | null>(null)
   const wasReview = useRef(false)
   const recipients = participants.filter(
     (person) => person.active && person.id !== participantId,
@@ -38,8 +38,7 @@ export function TokenTransfer({
     Number(amount) > 0 &&
     Number(amount) <= Math.min(balance, 2147483647)
   useEffect(() => {
-    if (review) confirmButton.current?.focus()
-    else if (wasReview.current)
+    if (!review && wasReview.current)
       recipientField.current?.focus({ preventScroll: true })
     wasReview.current = Boolean(review)
   }, [review])
@@ -47,6 +46,7 @@ export function TokenTransfer({
     if (!review || !recipient || submitting.current) return
     submitting.current = true
     setSending(true)
+    setSendError('')
     try {
       const message = `Traded ${review.amount} token${review.amount === 1 ? '' : 's'} to ${recipient.name}.`
       if (await onSend(review, message)) {
@@ -54,6 +54,8 @@ export function TokenTransfer({
         setReview(null)
         setAmount('1')
         setRecipientId('')
+      } else {
+        setSendError('The trade could not be confirmed. Please try again.')
       }
     } finally {
       submitting.current = false
@@ -69,83 +71,55 @@ export function TokenTransfer({
         </p>
       )}
       {review ? (
-        <div className="dialog-backdrop">
-          <section
-            className="confirm-dialog trade-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="trade-heading"
-            aria-describedby="trade-summary trade-balance"
-            onKeyDown={(event) => {
-              if (event.key === 'Escape' && !busy && !sending) {
-                event.preventDefault()
-                setReview(null)
-                return
-              }
-              if (event.key !== 'Tab') return
-              if (
-                event.shiftKey &&
-                document.activeElement === backButton.current
-              ) {
-                event.preventDefault()
-                confirmButton.current?.focus()
-              } else if (
-                !event.shiftKey &&
-                document.activeElement === confirmButton.current
-              ) {
-                event.preventDefault()
-                backButton.current?.focus()
-              } else if (
-                document.activeElement !== backButton.current &&
-                document.activeElement !== confirmButton.current
-              ) {
-                event.preventDefault()
-                ;(event.shiftKey
-                  ? confirmButton.current
-                  : backButton.current
-                )?.focus()
-              }
-            }}
-          >
-            <h2 id="trade-heading">Confirm trade</h2>
-            <p id="trade-summary">
-              Trade <strong>{review.amount} tokens</strong> to{' '}
-              <strong>{recipient?.name ?? 'this person'}</strong>?
+        <ConfirmationDialog
+          labelledBy="trade-heading"
+          describedBy="trade-summary trade-balance"
+          onDismiss={() => {
+            if (!busy && !sending) setReview(null)
+          }}
+        >
+          <h2 id="trade-heading">Confirm trade</h2>
+          <p id="trade-summary">
+            Trade <strong>{review.amount} tokens</strong> to{' '}
+            <strong>{recipient?.name ?? 'this person'}</strong>?
+          </p>
+          <p id="trade-balance">
+            Your balance after the trade: {balance - review.amount} tokens.
+          </p>
+          {sendError && (
+            <p className="setup-error" role="alert">
+              {sendError}
             </p>
-            <p id="trade-balance">
-              Your balance after the trade: {balance - review.amount} tokens.
-            </p>
-            <div className="dialog-actions">
-              <button
-                ref={backButton}
-                className="button button-light"
-                type="button"
-                disabled={busy || sending}
-                onClick={() => setReview(null)}
-              >
-                Edit trade
-              </button>
-              <button
-                ref={confirmButton}
-                type="button"
-                className="button button-yellow"
-                disabled={
-                  busy || sending || !recipient || balance < review.amount
-                }
-                onClick={() => void send()}
-              >
-                {sending ? 'Trading…' : 'Confirm trade'}
-              </button>
-            </div>
-            <p className="trade-final-note">Trades are immediate and final.</p>
-          </section>
-        </div>
+          )}
+          <div className="dialog-actions">
+            <button
+              className="button button-light"
+              type="button"
+              disabled={busy || sending}
+              onClick={() => setReview(null)}
+            >
+              Edit trade
+            </button>
+            <button
+              type="button"
+              className="button button-yellow"
+              disabled={
+                busy || sending || !recipient || balance < review.amount
+              }
+              onClick={() => void send()}
+            >
+              {sending ? 'Trading…' : 'Confirm trade'}
+            </button>
+          </div>
+          <p className="trade-final-note">Trades are immediate and final.</p>
+        </ConfirmationDialog>
       ) : (
         <form
           onSubmit={(event) => {
             event.preventDefault()
             if (valid) {
               setSent('')
+              setSendError('')
               setReview({ recipientId, amount: Number(amount) })
             }
           }}
@@ -172,6 +146,7 @@ export function TokenTransfer({
             Tokens to trade
             <input
               aria-label="Tokens to trade"
+              aria-describedby="transfer-availability"
               type="number"
               inputMode="numeric"
               autoComplete="off"
@@ -184,9 +159,10 @@ export function TokenTransfer({
               onChange={(event) => setAmount(event.target.value)}
             />
           </label>
-          <p className="muted">
-            Available: {balance} tokens. Tokens reserved for bets or boosts are
-            already excluded.
+          <p className="muted" id="transfer-availability">
+            {balance > 0
+              ? `Available: ${balance} tokens. You can trade up to ${Math.min(balance, 2147483647)}; tokens reserved for bets or boosts are already excluded.`
+              : 'No tokens are available to trade right now. Release an open bet or pending boost to make tokens available.'}
           </p>
           <button
             type="submit"

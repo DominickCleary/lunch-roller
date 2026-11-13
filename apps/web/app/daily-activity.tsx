@@ -22,9 +22,10 @@ type ActivityResult = {
 export function TokenOverview({ participantId }: { participantId: string }) {
   const [data, setData] = useState<TokenOverviewResponse | null>(null)
   const [error, setError] = useState('')
-  const [_retryCount, setRetryCount] = useState(0)
+  const [retryCount, setRetryCount] = useState(0)
 
   useEffect(() => {
+    void retryCount
     if (!participantId) return
     const controller = new AbortController()
     const refresh = async () => {
@@ -55,13 +56,13 @@ export function TokenOverview({ participantId }: { participantId: string }) {
       controller.abort()
       window.clearInterval(timer)
     }
-  }, [participantId])
+  }, [participantId, retryCount])
 
   return (
     <section
       className="activity-panel token-overview"
       aria-label="Token overview"
-      aria-busy={!data}
+      aria-busy={!data && !error}
     >
       <div className="activity-panel-heading">
         <div>
@@ -72,11 +73,19 @@ export function TokenOverview({ participantId }: { participantId: string }) {
               ? ` · Spin dated ${data.spinLocalDate} (${data.timezone})`
               : ''}
           </p>
-          <p>
-            Total includes tokens reserved in open bets and pending boosts or
-            reductions. Today shows your net token change since local midnight;
-            this includes rewards, payouts and spending. This spin shows net
-            token actions for that draw, including actions made on earlier days.
+          <p className="token-overview-key">
+            <span>
+              <strong>Total</strong> includes tokens reserved for open bets and
+              pending influence.
+            </span>
+            <span>
+              <strong>Uncommitted</strong> is available to spend.
+            </span>
+            <span>
+              <strong>Today</strong> is net change since midnight;{' '}
+              <strong>This spin</strong> includes actions for the displayed spin
+              date.
+            </span>
           </p>
         </div>
         <span className="activity-live-indicator">Live · 30 sec</span>
@@ -105,16 +114,41 @@ export function TokenOverview({ participantId }: { participantId: string }) {
             : 'Loading token standings…'}
         </p>
       ) : (
-        <div className="token-overview-table-wrap">
+        <div
+          className="token-overview-table-wrap"
+          role="region"
+          aria-label="Token standings table"
+          tabIndex={0}
+        >
           <table className="token-overview-table">
+            <caption className="visually-hidden">
+              Token standings by total balance. On small screens, scroll
+              horizontally to view today and this spin.
+            </caption>
             <thead>
               <tr>
-                <th scope="col">Rank</th>
+                <th scope="col" title="Equal totals share the same rank.">
+                  Rank
+                </th>
                 <th scope="col">Member</th>
-                <th scope="col">Total</th>
-                <th scope="col">Uncommitted</th>
-                <th scope="col">Today</th>
-                <th scope="col">This spin</th>
+                <th
+                  scope="col"
+                  title="Includes tokens reserved in open bets and pending influence."
+                >
+                  Total
+                </th>
+                <th scope="col" title="Tokens currently available to spend.">
+                  Uncommitted
+                </th>
+                <th scope="col" title="Net change since local midnight.">
+                  Today
+                </th>
+                <th
+                  scope="col"
+                  title="Net token actions attributed to this spin date."
+                >
+                  This spin
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -786,6 +820,7 @@ export function DailyActivity({
             <button
               type="button"
               className={selectedDate === localDate ? 'selected' : ''}
+              aria-pressed={selectedDate === localDate}
               onClick={() => {
                 setSelectedDate(localDate)
                 setPersonFilter('all')
@@ -797,6 +832,7 @@ export function DailyActivity({
             <button
               type="button"
               className={selectedDate === nextDrawDate ? 'selected' : ''}
+              aria-pressed={selectedDate === nextDrawDate}
               onClick={() => {
                 setSelectedDate(nextDrawDate)
                 setPersonFilter('all')
@@ -1031,7 +1067,11 @@ export function DailyActivity({
                 {tokenCount(entries.length)} events
               </span>
             </div>
-            <div className="timeline-filters">
+            <div
+              className="timeline-filters"
+              role="group"
+              aria-label="Filter token actions"
+            >
               <label>
                 <span id="activity-person-label">Person</span>
                 <select
@@ -1063,6 +1103,29 @@ export function DailyActivity({
                 </select>
               </label>
             </div>
+            <p
+              className="timeline-result-count"
+              role="status"
+              aria-live="polite"
+            >
+              Showing{' '}
+              {tokenCount(
+                filteredEntries.reduce((sum, item) => sum + item.count, 0),
+              )}{' '}
+              of {tokenCount(entries.length)} actions
+              {(personFilter !== 'all' || placeFilter !== 'all') && (
+                <button
+                  type="button"
+                  className="timeline-clear-filters"
+                  onClick={() => {
+                    setPersonFilter('all')
+                    setPlaceFilter('all')
+                  }}
+                >
+                  Clear filters
+                </button>
+              )}
+            </p>
             {filteredEntries.length ? (
               <ol className="activity-timeline">
                 {filteredEntries.map(({ entry, count, oldestAt }) => (

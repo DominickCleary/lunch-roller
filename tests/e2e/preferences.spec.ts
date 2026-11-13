@@ -177,6 +177,20 @@ test('admin preferences persist and participants see the pledge and completed ch
     name: 'Swear your pledge to the Wheel',
   })
   await expect(checkInDialog).toBeVisible()
+  expect(
+    await checkInDialog.evaluate((element) => element.matches(':modal')),
+  ).toBe(true)
+  await expect(
+    checkInDialog.getByRole('button', { name: 'I decline' }),
+  ).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(
+    checkInDialog.getByRole('button', { name: 'I swear it' }),
+  ).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(checkInDialog).toBeHidden()
+  await expect(checkIn).toBeFocused()
+  await checkIn.click()
   await expect(checkInDialog.getByTestId('check-in-pledge')).toHaveText(
     'I followed the wheel for lunch.',
   )

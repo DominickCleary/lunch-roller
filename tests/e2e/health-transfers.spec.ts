@@ -67,6 +67,11 @@ test('reviews and trades tokens, persists both wallets and rejects invalid API s
   await expect(page.locator('.balance')).toContainText('100')
   const transfer = page.locator('.token-transfer')
   await transfer.getByText('Trade tokens', { exact: true }).click()
+  await expect(
+    transfer.getByText(
+      'Available: 100 tokens. You can trade up to 100; tokens reserved for bets or boosts are already excluded.',
+    ),
+  ).toBeVisible()
   await transfer
     .getByLabel('Recipient', { exact: true })
     .selectOption(recipientId)
@@ -162,7 +167,15 @@ test('reviews and trades tokens, persists both wallets and rejects invalid API s
   const confirm = mobileTransfer.getByRole('button', {
     name: 'Confirm trade',
   })
-  await expect(confirm).toBeFocused()
+  await expect(
+    mobileTransfer.getByRole('button', { name: 'Edit trade' }),
+  ).toBeFocused()
+  expect(
+    await mobileTransfer
+      .getByRole('dialog')
+      .evaluate((element) => element.matches(':modal')),
+  ).toBe(true)
+  await expect(confirm).toBeEnabled()
   await mobileTransfer.getByRole('button', { name: 'Edit trade' }).click()
   await expect(
     mobileTransfer.getByLabel('Recipient', { exact: true }),

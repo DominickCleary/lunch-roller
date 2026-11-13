@@ -5,9 +5,11 @@ import {
   suggestionListResponse,
   suggestion as suggestionSchema,
 } from '@lunch/contracts'
+import Image from 'next/image'
 import Link from 'next/link'
 import type { FormEvent } from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ThemeToggle } from '../theme-toggle'
 import './suggestions.css'
 
 type ApiError = { error?: { message?: string } }
@@ -39,6 +41,24 @@ export default function SuggestionsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [busyId, setBusyId] = useState('')
+  const [statusFilter, setStatusFilter] = useState<
+    'all' | Suggestion['status']
+  >('all')
+  const [sortOrder, setSortOrder] = useState<'newest' | 'popular'>('newest')
+
+  const visibleSuggestions = useMemo(() => {
+    const filtered = (suggestions ?? []).filter(
+      (item) => statusFilter === 'all' || item.status === statusFilter,
+    )
+    return filtered.sort((left, right) =>
+      sortOrder === 'popular'
+        ? right.upvotes - right.downvotes - (left.upvotes - left.downvotes) ||
+          new Date(right.createdAt).getTime() -
+            new Date(left.createdAt).getTime()
+        : new Date(right.createdAt).getTime() -
+          new Date(left.createdAt).getTime(),
+    )
+  }, [suggestions, statusFilter, sortOrder])
 
   const loadSuggestions = useCallback(async (id: string) => {
     setLoading(true)
@@ -151,6 +171,7 @@ export default function SuggestionsPage() {
       setSuggestions((current) =>
         current ? replaceSuggestion(current, updated) : current,
       )
+      setNotice(`Your vote on “${item.title}” has been recorded.`)
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -186,6 +207,7 @@ export default function SuggestionsPage() {
       setSuggestions((current) =>
         current ? replaceSuggestion(current, updated) : current,
       )
+      setNotice(`“${item.title}” marked ${status}.`)
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -201,9 +223,14 @@ export default function SuggestionsPage() {
     <div className="suggestions-shell">
       <header className="topbar suggestions-topbar">
         <Link className="brand" href="/" aria-label="Gambling about lunch home">
-          <span className="brand-mark" aria-hidden="true">
-            ◉
-          </span>
+          <Image
+            className="brand-logo"
+            src="/android-chrome-192x192.png"
+            alt=""
+            width={192}
+            height={192}
+            priority
+          />
           <span className="brand-title">Gambling about lunch</span>
         </Link>
         <nav className="top-nav" aria-label="Primary navigation">
@@ -212,6 +239,9 @@ export default function SuggestionsPage() {
             Suggestion board
           </Link>
         </nav>
+        <div className="suggestions-header-actions">
+          <ThemeToggle />
+        </div>
       </header>
       <main className="suggestions-page">
         <header className="suggestions-intro">
@@ -238,8 +268,8 @@ export default function SuggestionsPage() {
           </div>
           {!participantId ? (
             <p className="suggestion-identity-note" role="status">
-              Choose your name on the main page before creating or voting on
-              requests.
+              <Link href="/">Choose your name on the main page</Link> before
+              creating or voting on requests.
             </p>
           ) : (
             <form className="suggestion-form" onSubmit={createSuggestion}>
@@ -251,10 +281,15 @@ export default function SuggestionsPage() {
                   onChange={(event) => setTitle(event.target.value)}
                   maxLength={120}
                   required
+                  aria-describedby="suggestion-title-count"
+                  autoComplete="off"
                   placeholder="A short name for your idea"
                 />
-                <span className="suggestion-field-hint">
-                  Up to 120 characters
+                <span
+                  className="suggestion-field-hint"
+                  id="suggestion-title-count"
+                >
+                  {title.length} / 120 characters
                 </span>
               </label>
               <label>
@@ -266,10 +301,14 @@ export default function SuggestionsPage() {
                   maxLength={2000}
                   required
                   rows={4}
+                  aria-describedby="suggestion-description-count"
                   placeholder="What would you like to change, and why?"
                 />
-                <span className="suggestion-field-hint">
-                  Up to 2,000 characters
+                <span
+                  className="suggestion-field-hint"
+                  id="suggestion-description-count"
+                >
+                  {description.length.toLocaleString()} / 2,000 characters
                 </span>
               </label>
               <div className="suggestion-form-actions">
@@ -297,11 +336,46 @@ export default function SuggestionsPage() {
             </div>
             {suggestions && (
               <span className="suggestion-count">
-                {suggestions.length}{' '}
-                {suggestions.length === 1 ? 'request' : 'requests'}
+                {visibleSuggestions.length} of {suggestions.length} requests
               </span>
             )}
           </div>
+
+          {suggestions && suggestions.length > 0 && (
+            <div className="suggestion-list-controls">
+              <label>
+                Show
+                <select
+                  aria-label="Filter requests by status"
+                  value={statusFilter}
+                  onChange={(event) =>
+                    setStatusFilter(event.target.value as typeof statusFilter)
+                  }
+                >
+                  <option value="all">All requests</option>
+                  <option value="open">Under consideration</option>
+                  <option value="approved">Approved</option>
+                  <option value="denied">Denied</option>
+                </select>
+              </label>
+              <label>
+                Sort by
+                <select
+                  aria-label="Sort requests"
+                  value={sortOrder}
+                  onChange={(event) =>
+                    setSortOrder(event.target.value as typeof sortOrder)
+                  }
+                >
+                  <option value="newest">Newest</option>
+                  <option value="popular">Top rated</option>
+                </select>
+              </label>
+              <p className="suggestion-vote-hint">
+                One vote per request. Votes cannot be changed later.
+              </p>
+            </div>
+          )}
 
           {error && (
             <div className="suggestion-error" role="alert">
@@ -333,13 +407,23 @@ export default function SuggestionsPage() {
               <p>Start the conversation by sharing the first idea.</p>
             </div>
           )}
-          {!loading && suggestions && suggestions.length > 0 && (
+          {!loading &&
+            suggestions &&
+            suggestions.length > 0 &&
+            visibleSuggestions.length === 0 && (
+              <div className="suggestion-empty" role="status">
+                <span aria-hidden="true">⌕</span>
+                <h3>No requests in this group</h3>
+                <p>Choose another status to see more team ideas.</p>
+              </div>
+            )}
+          {!loading && suggestions && visibleSuggestions.length > 0 && (
             <div className="suggestion-list">
-              {suggestions.map((item) => (
+              {visibleSuggestions.map((item) => (
                 <article className="suggestion-card" key={item.id}>
                   <fieldset
                     className="suggestion-votes"
-                    aria-label="Request votes"
+                    aria-label={`Vote on ${item.title}`}
                   >
                     <button
                       className={`suggestion-vote-button ${item.yourVote === 1 ? 'is-selected' : ''}`}
@@ -355,9 +439,9 @@ export default function SuggestionsPage() {
                     >
                       <span aria-hidden="true">▲</span>
                     </button>
-                    <strong aria-live="polite">
+                    <output aria-live="polite">
                       {item.upvotes - item.downvotes}
-                    </strong>
+                    </output>
                     <button
                       className={`suggestion-vote-button ${item.yourVote === -1 ? 'is-selected' : ''}`}
                       type="button"

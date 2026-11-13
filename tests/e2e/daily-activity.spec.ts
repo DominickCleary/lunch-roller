@@ -283,6 +283,9 @@ test('groups activity by spin date including earlier purchases', async ({
   await expect(panel.getByLabel('View', { exact: true })).toHaveCount(0)
   await expect(panel.getByLabel('Spin date')).toHaveValue(nextDate)
   await expect(
+    panel.getByRole('button', { name: 'Next spin · 2026-10-22' }),
+  ).toHaveAttribute('aria-pressed', 'true')
+  await expect(
     panel.getByRole('heading', { name: /Activity for spin dated/ }),
   ).toBeVisible()
   const board = panel.locator('.bet-board-panel')
@@ -370,6 +373,57 @@ test('combines consecutive influence actions in the activity timeline', async ({
   await panel.getByLabel('Person', { exact: true }).selectOption(alex)
   await expect(rows).toHaveCount(3)
   await expect(rows.last()).toContainText('−5')
+  await expect(panel.getByRole('status')).toContainText(
+    'Showing 5 of 6 actions',
+  )
+  await panel.getByRole('button', { name: 'Clear filters' }).click()
+  await expect(rows).toHaveCount(4)
+})
+
+test('retries token standings after a failed load and keeps member names visible while scrolling', async ({
+  page,
+}) => {
+  let requests = 0
+  await page.route('**/api/v1/token-overview', async (route) => {
+    if (requests++ === 0)
+      return route.fulfill({
+        status: 503,
+        json: { error: { message: 'Unavailable' } },
+      })
+    await route.fulfill({ json: tokenOverview })
+  })
+  await page.goto('/')
+  await page.getByRole('tab', { name: 'Token standings' }).click()
+  const standings = page.getByRole('region', { name: 'Token overview' })
+  await expect(standings.getByRole('alert')).toContainText(
+    'Could not load token overview',
+  )
+  await standings.getByRole('button', { name: 'Retry' }).click()
+  await expect(
+    standings.getByRole('table', { name: /Token standings by total balance/ }),
+  ).toBeVisible()
+  const tableRegion = standings.getByRole('region', {
+    name: 'Token standings table',
+  })
+  await expect(
+    tableRegion.getByRole('columnheader', { name: 'Member' }),
+  ).toBeVisible()
+  await page.setViewportSize({ width: 390, height: 844 })
+  const member = tableRegion.getByRole('cell', { name: 'Alex', exact: true })
+  const memberBefore = await member.boundingBox()
+  await tableRegion.evaluate((element) => {
+    element.scrollLeft = element.scrollWidth
+  })
+  const memberAfter = await member.boundingBox()
+  const rankAfter = await tableRegion
+    .getByRole('row')
+    .nth(1)
+    .getByRole('rowheader')
+    .boundingBox()
+  if (!memberBefore || !memberAfter || !rankAfter)
+    throw new Error('Standings cells must be visible.')
+  expect(memberAfter.x).toBeCloseTo(memberBefore.x, 0)
+  expect(rankAfter.x + rankAfter.width).toBeLessThanOrEqual(memberAfter.x + 1)
 })
 
 test('labels historical boosts without inventing draw positions', async ({

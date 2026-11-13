@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import type { WalletResponse } from '@lunch/contracts'
 import { expect, test } from '@playwright/test'
 import {
   createDatabase,
@@ -274,33 +275,88 @@ test('edits persisted influence from the odds list without changing selected ide
     .click()
   await expect(row.locator('.influence-net-value')).toHaveText('0')
   await expect(page.locator('.balance')).toContainText('100')
-  for (let count = 0; count < 7; count += 1) {
-    const [boost] = await Promise.all([
-      page.waitForResponse(
-        (response) =>
-          new URL(response.url()).pathname === '/api/v1/influence/current' &&
-          response.request().method() === 'POST',
-      ),
-      row.getByRole('button', { name: `Boost ${placeName}` }).click(),
-    ])
-    const boosted = await boost.json()
-    expect(boost.status(), JSON.stringify(boosted)).toBe(200)
-    expect(boosted).toMatchObject({
-      tokenDelta: -5,
-      balance: 100 - (count + 1) * 5,
-    })
-    await expect(row.locator('.influence-net-value')).toHaveText(
-      `+${count + 1}`,
-    )
-    await expect(page.locator('.balance')).toContainText(
-      String(100 - (count + 1) * 5),
-    )
-  }
+  const staleWalletReady = Promise.withResolvers<WalletResponse>()
+  const releaseStaleWallet = Promise.withResolvers<void>()
+  const releaseLaterWallets = Promise.withResolvers<void>()
+  let interceptedWallet = false
+  let blockLaterWallets = false
   const combinedBoost = page
     .locator('.token-activity-panel .ledger-row')
     .filter({ hasText: placeName })
     .filter({ hasText: 'Boosted' })
-  await expect(combinedBoost.filter({ hasText: '-35 tokens' })).toHaveCount(1)
+  try {
+    for (let count = 0; count < 7; count += 1) {
+      if (count === 6) {
+        // Hold a real six-boost snapshot while the seventh purchase and its
+        // authoritative wallet refresh finish. Background and mutation reads
+        // can overlap in ordinary use, even though the purchases are serial.
+        await page.route('**/api/v1/wallet', async (route) => {
+          if (!interceptedWallet) {
+            interceptedWallet = true
+            const response = await route.fetch()
+            staleWalletReady.resolve(await response.json())
+            await releaseStaleWallet.promise
+            await route.fulfill({
+              response,
+              headers: {
+                ...response.headers(),
+                'x-test-delayed-wallet': 'true',
+              },
+            })
+          } else {
+            // Prevent a recovery refresh from masking a stale overwrite.
+            if (blockLaterWallets) await releaseLaterWallets.promise
+            await route.continue()
+          }
+        })
+        await page.evaluate(() =>
+          document.dispatchEvent(new Event('visibilitychange')),
+        )
+        expect((await staleWalletReady.promise).balance).toBe(70)
+      }
+      const [boost] = await Promise.all([
+        page.waitForResponse(
+          (response) =>
+            new URL(response.url()).pathname === '/api/v1/influence/current' &&
+            response.request().method() === 'POST',
+        ),
+        row.getByRole('button', { name: `Boost ${placeName}` }).click(),
+      ])
+      const boosted = await boost.json()
+      expect(boost.status(), JSON.stringify(boosted)).toBe(200)
+      expect(boosted).toMatchObject({
+        tokenDelta: -5,
+        balance: 100 - (count + 1) * 5,
+      })
+      await expect(row.locator('.influence-net-value')).toHaveText(
+        `+${count + 1}`,
+      )
+      await expect(page.locator('.balance')).toContainText(
+        String(100 - (count + 1) * 5),
+      )
+    }
+    await expect(combinedBoost.filter({ hasText: '-35 tokens' })).toHaveCount(1)
+    blockLaterWallets = true
+    const staleResponse = page.waitForResponse(
+      (response) => response.headers()['x-test-delayed-wallet'] === 'true',
+    )
+    releaseStaleWallet.resolve()
+    await (await staleResponse).finished()
+    // Let React render the delivered response before checking the visible
+    // balance/history, without relying on an arbitrary network sleep.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    )
+    await expect(page.locator('.balance')).toContainText('65')
+    await expect(combinedBoost.filter({ hasText: '-35 tokens' })).toHaveCount(1)
+  } finally {
+    releaseStaleWallet.resolve()
+    releaseLaterWallets.resolve()
+    await page.unrouteAll({ behavior: 'wait' })
+  }
   await row
     .getByRole('button', { name: `Refund tokens for ${placeName}` })
     .click()

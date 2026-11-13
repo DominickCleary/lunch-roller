@@ -100,6 +100,11 @@ test('unifies place management, odds and direct weights; persists spin duration 
     )!.percent,
   ).toBeCloseTo(20)
   await page.getByRole('button', { name: 'Odds', exact: true }).click()
+  await expect(
+    page.getByText(
+      'Approximate net winnings per token staked. Bets settle using the final draw chances.',
+    ),
+  ).toBeVisible()
   await expect(spot.locator(':scope > strong')).toHaveText('4/1')
   await expect(spot.locator(':scope > strong')).toHaveAttribute(
     'title',
@@ -148,7 +153,14 @@ test('unifies place management, odds and direct weights; persists spin duration 
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true)
-  expect((await spot.boundingBox())!.height).toBeLessThanOrEqual(48)
+  const boostControl = spot.getByRole('button', {
+    name: `Boost ${placeName}`,
+    exact: true,
+  })
+  const boostBounds = await boostControl.boundingBox()
+  expect(boostBounds!.height).toBeGreaterThanOrEqual(44)
+  expect(boostBounds!.width).toBeGreaterThanOrEqual(44)
+  await expect(spot.locator('.health-badge')).toBeVisible()
   const add = await page
     .locator('.add-place')
     .getByRole('button', { name: 'Add place' })

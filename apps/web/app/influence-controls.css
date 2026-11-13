@@ -172,3 +172,74 @@
     transition: none;
   }
 }
+
+/* Name and health belong on separate lines in the compact restaurant row. */
+.influence-place-title-line {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  width: 100%;
+}
+.influence-place-title-line .health-badge {
+  justify-self: start;
+}
+.influence-controls .influence-place-heading .odds-name {
+  display: block;
+}
+.influence-place-heading {
+  height: auto;
+  min-height: 35px;
+}
+
+@media (max-width: 620px) {
+  .odds-row {
+    grid-template-columns: 9px minmax(0, 1fr) auto;
+    gap: 6px;
+    padding: 8px 0;
+  }
+  .odds-row > strong {
+    grid-column: 3;
+  }
+  .influence-stepper {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .odds-row > .influence-buttons {
+    grid-column: 3;
+    grid-row: 2;
+    justify-self: end;
+  }
+  .influence-position-buttons {
+    gap: 6px;
+  }
+  .influence-position-control,
+  .odds-row .remove-place-control {
+    width: 44px;
+    height: 44px;
+  }
+  .influence-position-control svg {
+    width: 18px;
+    height: 18px;
+  }
+  .influence-net {
+    min-width: 25px;
+  }
+  .influence-net-value {
+    font-size: 13px;
+  }
+  .influence-place-heading .health-badge,
+  .market-count {
+    font-size: 10px;
+  }
+  .odds-name,
+  .odds-row > strong {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 620px) {
+  .influence-controls .influence-place-heading .odds-name {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}

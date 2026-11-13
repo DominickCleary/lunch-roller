@@ -185,12 +185,20 @@
 .token-overview-table-wrap {
   width: 100%;
   overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  border-radius: 4px;
+}
+.token-overview-table-wrap:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
 }
 .token-overview-table {
   width: 100%;
+  min-width: 690px;
   border-collapse: collapse;
   text-align: left;
   font-size: 13px;
+  font-variant-numeric: tabular-nums;
 }
 .token-overview-table th,
 .token-overview-table td {
@@ -198,11 +206,68 @@
   border-bottom: 1px solid var(--line);
 }
 .token-overview-table thead th {
+  background: var(--surface);
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+.token-overview-table thead th:first-child,
+.token-overview-table thead th:nth-child(2),
+.token-overview-table tbody th,
+.token-overview-table tbody td:nth-child(2) {
+  position: sticky;
+  z-index: 1;
+  background: var(--surface);
+}
+.token-overview-table thead th:first-child,
+.token-overview-table tbody th {
+  left: 0;
+}
+.token-overview-table thead th:nth-child(2),
+.token-overview-table tbody td:nth-child(2) {
+  left: 62px;
+  box-shadow: 5px 0 8px -7px var(--text-strong);
+}
+.token-overview-table thead th:first-child,
+.token-overview-table thead th:nth-child(2) {
+  z-index: 2;
+}
+.token-overview-table tbody th {
+  text-align: left;
+}
+.token-overview-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 16px;
+}
+.token-overview-key strong {
+  color: var(--text-secondary);
+}
+.timeline-result-count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.timeline-clear-filters {
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+.timeline-clear-filters:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 .token-overview-table tbody tr:last-child th,
 .token-overview-table tbody tr:last-child td {
@@ -603,6 +668,20 @@
   }
   .token-overview-table {
     font-size: 12px;
+  }
+  .token-overview-table thead th,
+  .token-overview-table td,
+  .token-overview-table tbody th {
+    padding: 9px 8px;
+  }
+  .token-overview-table thead th:first-child,
+  .token-overview-table tbody th {
+    width: 54px;
+    min-width: 54px;
+  }
+  .token-overview-table thead th:nth-child(2),
+  .token-overview-table tbody td:nth-child(2) {
+    left: 54px;
   }
   .activity-summary {
     gap: 7px;

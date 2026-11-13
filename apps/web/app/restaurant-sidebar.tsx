@@ -8,7 +8,14 @@ import type {
   Place,
   TodayResponse,
 } from '@lunch/contracts'
-import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type FormEvent,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { approximateOdds } from '../lib/odds'
 import { wheelColors } from '../lib/wheel-colors'
 import { HealthSelect } from './health-label'
@@ -66,6 +73,7 @@ export function RestaurantSidebar({
   onAddPlace,
 }: Props) {
   const [showFairOdds, setShowFairOdds] = useState(false)
+  const oddsHelpId = useId()
   const [newPlaceName, setNewPlaceName] = useState('')
   const [newPlaceHealth, setNewPlaceHealth] = useState<HealthLevel>('balanced')
   const [archivedPlaces, setArchivedPlaces] = useState<Place[]>([])
@@ -212,11 +220,18 @@ export function RestaurantSidebar({
         <button
           type="button"
           aria-pressed={showFairOdds}
+          aria-describedby={showFairOdds ? oddsHelpId : undefined}
           onClick={() => setShowFairOdds(true)}
         >
           Odds
         </button>
       </fieldset>
+      {showFairOdds && (
+        <p className="muted" id={oddsHelpId}>
+          Approximate net winnings per token staked. Bets settle using the final
+          draw chances.
+        </p>
+      )}
       {pausedMessage && (
         <p className="muted" role="status">
           {pausedMessage}

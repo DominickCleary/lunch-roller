@@ -156,6 +156,18 @@ test('submits suggestions, permits one vote per request, and lets admins review 
       .getByRole('button', { name: new RegExp(`Upvote ${firstTitle}`) }),
   ).toHaveAttribute('aria-pressed', 'true')
 
+  await page.getByLabel('Sort requests').selectOption('popular')
+  const sortedCards = page.locator('.suggestion-card')
+  await expect(sortedCards.first()).toContainText(firstTitle)
+  await page.getByLabel('Filter requests by status').selectOption('approved')
+  await expect(sortedCards).toHaveCount(0)
+  await expect(
+    page.getByRole('heading', { name: 'No requests in this group' }),
+  ).toBeVisible()
+  await page.getByLabel('Filter requests by status').selectOption('all')
+  await expect(sortedCards).toHaveCount(2)
+  await page.getByLabel('Sort requests').selectOption('newest')
+
   const votedResponse = await request.get('/api/v1/suggestions', {
     headers: { 'X-Participant-Id': voterId },
   })
@@ -191,7 +203,7 @@ test('submits suggestions, permits one vote per request, and lets admins review 
   expect(unauthorized.status()).toBe(401)
 
   await page.goto(origin)
-  await page.getByText('Admin tools', { exact: true }).click()
+  await page.locator('.admin-disclosure > summary').click()
   await page.getByLabel('Administrator password').fill(adminPassword)
   await page.getByRole('button', { name: 'Unlock' }).click()
   await expect(page.getByText('Administrator tools unlocked.')).toBeVisible()
@@ -223,4 +235,25 @@ test('submits suggestions, permits one vote per request, and lets admins review 
       .filter({ hasText: secondTitle })
       .locator('.suggestion-status'),
   ).toHaveText('Denied')
+
+  await page.getByLabel('Filter requests by status').selectOption('approved')
+  await expect(page.locator('.suggestion-card')).toHaveCount(1)
+  await expect(page.locator('.suggestion-card')).toContainText(firstTitle)
+  await page.getByLabel('Filter requests by status').selectOption('all')
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true)
+  const voteButton = page
+    .locator('.suggestion-card')
+    .first()
+    .getByRole('button', { name: /Upvote/ })
+  await expect(voteButton).toHaveCSS('height', '40px')
+  await page.getByRole('button', { name: 'Switch to dark mode' }).click()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  await page.getByRole('button', { name: 'Switch to light mode' }).click()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
 })

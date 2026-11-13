@@ -40,6 +40,7 @@ import {
   wheelRestingRotation,
   wheelSliceColor,
 } from '../lib/wheel-colors'
+import { ConfirmationDialog } from './confirmation-dialog'
 import { CountdownBanner } from './countdown-banner'
 import { DailyActivity, TokenOverview } from './daily-activity'
 import { HealthBadge, HealthSelect } from './health-label'
@@ -396,13 +397,12 @@ export default function Home() {
     null,
   )
   const latestBetRequest = useRef(0)
+  const latestWalletRequest = useRef(0)
   const latestInfluenceRequest = useRef(0)
   const [checkInConfirmOpen, setCheckInConfirmOpen] = useState(false)
   const checkInTrigger = useRef<HTMLButtonElement | null>(null)
   const checkInConfirmed = useRef(false)
   const checkInSubmitting = useRef(false)
-  const cancelCheckIn = useRef<HTMLButtonElement | null>(null)
-  const confirmCheckIn = useRef<HTMLButtonElement | null>(null)
   const checkInConfirmation = useRef<HTMLParagraphElement | null>(null)
   const [attendance, setAttendance] = useState<{
     participantId: string
@@ -454,8 +454,6 @@ export default function Home() {
   const latestAttendanceRequest = useRef(0)
   const [removeTarget, setRemoveTarget] = useState<Participant | null>(null)
   const removeTrigger = useRef<HTMLButtonElement | null>(null)
-  const cancelRemoval = useRef<HTMLButtonElement | null>(null)
-  const confirmRemoval = useRef<HTMLButtonElement | null>(null)
   const adminDisclosure = useRef<HTMLDetailsElement | null>(null)
 
   const clockAnchor = useRef<{ serverMs: number; clientMs: number } | null>(
@@ -507,6 +505,10 @@ export default function Home() {
 
   const refresh = useCallback(
     async (selected: string) => {
+      const walletRequest = ++latestWalletRequest.current
+      const isCurrentWallet = () =>
+        walletRequest === latestWalletRequest.current &&
+        (localStorage.getItem(storageKey) ?? '') === selected
       try {
         const [roster] = await Promise.all([
           request<{ participants: Participant[] }>('/participants'),
@@ -515,8 +517,16 @@ export default function Home() {
         setParticipants(roster.participants)
         if (selected) {
           try {
-            setWallet(await request<WalletResponse>('/wallet', {}, selected))
+            const nextWallet = await request<WalletResponse>(
+              '/wallet',
+              {},
+              selected,
+            )
+            if (isCurrentWallet()) setWallet(nextWallet)
           } catch (caught) {
+            // SSE and mutation refreshes overlap. An old response must never
+            // replace a newer wallet or clear a newly selected identity.
+            if (!isCurrentWallet()) return false
             if (
               caught instanceof ApiRequestError &&
               [401, 403, 404].includes(caught.status) &&
@@ -532,7 +542,7 @@ export default function Home() {
               return false
             } else throw caught
           }
-        } else setWallet(null)
+        } else if (isCurrentWallet()) setWallet(null)
         if (selected) {
           const influenceRequest = ++latestInfluenceRequest.current
           try {
@@ -1549,29 +1559,6 @@ export default function Home() {
     window.setTimeout(() => checkInTrigger.current?.focus(), 0)
   }, [])
 
-  useEffect(() => {
-    if (!removeTarget) return
-    cancelRemoval.current?.focus()
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setRemoveTarget(null)
-        window.setTimeout(() => removeTrigger.current?.focus(), 0)
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [removeTarget])
-
-  useEffect(() => {
-    if (!checkInConfirmOpen) return
-    cancelCheckIn.current?.focus()
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') closeCheckInDialog()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [checkInConfirmOpen, closeCheckInDialog])
-
   async function removeParticipant() {
     if (!removeTarget || busy) return
     const person = removeTarget
@@ -1669,7 +1656,8 @@ export default function Home() {
           <p className="eyebrow">YOUR SEAT AT THE TABLE</p>
           <h2>Choose your name</h2>
           <p className="muted">
-            Pick your name from the active team roster to enter the lunch wheel.
+            Pick your name from the active team roster. This browser remembers
+            your choice; you can change it at any time.
           </p>
           <form className="setup-form" onSubmit={selectParticipant}>
             <label htmlFor="entry-name">Your name</label>
@@ -1982,14 +1970,26 @@ export default function Home() {
               data-testid="change-name"
               onClick={changeName}
             >
-              Logout
+              Change name
             </button>
           )}
           {(entryStage === 'name' || entryStage === 'game') && (
             <button
               type="button"
               className="quiet-link"
-              onClick={() => adminDisclosure.current?.setAttribute('open', '')}
+              onClick={() => {
+                const disclosure = adminDisclosure.current
+                if (!disclosure) return
+                disclosure.open = true
+                window.requestAnimationFrame(() => {
+                  disclosure.scrollIntoView({ block: 'nearest' })
+                  disclosure
+                    .querySelector<HTMLElement>(
+                      '#admin-password, .admin-section-nav a',
+                    )
+                    ?.focus({ preventScroll: true })
+                })
+              }}
             >
               Admin
             </button>
@@ -2079,6 +2079,7 @@ export default function Home() {
               <div
                 id="wheel-panel"
                 role="tabpanel"
+                tabIndex={0}
                 aria-labelledby="wheel-tab"
                 hidden={mainView !== 'wheel'}
               >
@@ -2184,6 +2185,7 @@ export default function Home() {
               <div
                 id="activity-panel"
                 role="tabpanel"
+                tabIndex={0}
                 aria-labelledby="activity-tab"
                 hidden={mainView !== 'activity'}
               >
@@ -2200,6 +2202,7 @@ export default function Home() {
               <div
                 id="standings-panel"
                 role="tabpanel"
+                tabIndex={0}
                 aria-labelledby="standings-tab"
                 hidden={mainView !== 'standings'}
               >
@@ -2253,11 +2256,25 @@ export default function Home() {
                   Checked in for today.
                 </p>
               )}
+              {!canCheckIn && !displayedAttendance?.checkedIn && (
+                <p className="check-in-help" id="check-in-help">
+                  {!displayedDrawId
+                    ? 'Check in after today’s draw to earn tokens.'
+                    : !displayedAttendance
+                      ? 'Checking whether check-in is available…'
+                      : 'Check-in has closed for this draw.'}
+                </p>
+              )}
               <div className="button-row">
                 <button
                   type="button"
                   className="button button-yellow"
                   data-testid="check-in"
+                  aria-describedby={
+                    !canCheckIn && !displayedAttendance?.checkedIn
+                      ? 'check-in-help'
+                      : undefined
+                  }
                   aria-haspopup="dialog"
                   disabled={busy || !participantId || !canCheckIn}
                   onClick={(event) => {
@@ -2701,7 +2718,7 @@ export default function Home() {
           <section className="admin-section">
             <div className="admin-intro">
               <p className="eyebrow">THE BACK OFFICE</p>
-              <h2>Admin corner</h2>
+              <h2>Admin tools</h2>
               <p>Keep the roster, lunch spots and schedule in good order.</p>
             </div>
             {!admin ? (
@@ -2726,7 +2743,34 @@ export default function Home() {
               </form>
             ) : (
               <div className="admin-tools">
-                <div className="admin-tool-card admin-wide-card" tabIndex={-1}>
+                <nav className="admin-section-nav" aria-label="Admin sections">
+                  {[
+                    ['people', 'People'],
+                    ['places', 'Places and odds'],
+                    ['schedule', 'Schedule'],
+                    ['preferences', 'Preferences'],
+                    ['health', 'Health balance'],
+                    ['economy', 'Tokens and odds'],
+                  ].map(([id, label]) => (
+                    <a
+                      key={id}
+                      href={`#admin-${id}`}
+                      onClick={(event) => {
+                        event.preventDefault()
+                        const section = document.getElementById(`admin-${id}`)
+                        section?.scrollIntoView({ block: 'start' })
+                        section?.focus({ preventScroll: true })
+                      }}
+                    >
+                      {label}
+                    </a>
+                  ))}
+                </nav>
+                <div
+                  id="admin-people"
+                  className="admin-tool-card admin-wide-card"
+                  tabIndex={-1}
+                >
                   <h3>People</h3>
                   <p className="muted">
                     Add people, disable or restore access, and set each balance
@@ -2934,6 +2978,7 @@ export default function Home() {
                                     onClick={(event) => {
                                       removeTrigger.current =
                                         event.currentTarget
+                                      setError('')
                                       setRemoveTarget(person)
                                     }}
                                   >
@@ -2951,6 +2996,8 @@ export default function Home() {
                 <div
                   className="admin-tool-card admin-wide-card"
                   data-testid="admin-restaurant-odds"
+                  id="admin-places"
+                  tabIndex={-1}
                 >
                   <h3>Places and odds</h3>
                   <form
@@ -3347,7 +3394,11 @@ export default function Home() {
                     </details>
                   )}
                 </div>
-                <div className="admin-tool-card">
+                <div
+                  id="admin-schedule"
+                  className="admin-tool-card"
+                  tabIndex={-1}
+                >
                   <h3>Draw schedule</h3>
                   <p className="muted">
                     Changing the schedule refunds any open bets so they are not
@@ -3466,6 +3517,8 @@ export default function Home() {
                 <div
                   className="admin-tool-card"
                   data-testid="admin-preferences"
+                  id="admin-preferences"
+                  tabIndex={-1}
                 >
                   <h3>Wheel, check-in, betting and eligibility</h3>
                   <form
@@ -3630,6 +3683,8 @@ export default function Home() {
                 <div
                   className="admin-tool-card"
                   data-testid="admin-health-rule"
+                  id="admin-health"
+                  tabIndex={-1}
                 >
                   <h3>Health balance</h3>
                   <p>
@@ -3691,7 +3746,12 @@ export default function Home() {
                     </button>
                   </form>
                 </div>
-                <div className="admin-tool-card" data-testid="admin-economy">
+                <div
+                  className="admin-tool-card"
+                  data-testid="admin-economy"
+                  id="admin-economy"
+                  tabIndex={-1}
+                >
                   <h3>Tokens and odds</h3>
                   <p className="muted">
                     Token costs and rewards apply to future actions. Boost and
@@ -3985,152 +4045,103 @@ export default function Home() {
         <Link href="/api/v1/health">Service health ↗</Link>
       </footer>
       {checkInConfirmOpen && (
-        <dialog
-          open
-          className="dialog-backdrop"
-          aria-modal="true"
-          aria-labelledby="check-in-heading"
-          aria-describedby="check-in-pledge"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) closeCheckInDialog()
-          }}
+        <ConfirmationDialog
+          labelledBy="check-in-heading"
+          describedBy="check-in-pledge"
+          onDismiss={closeCheckInDialog}
         >
-          <section
-            className="confirm-dialog"
-            onKeyDown={(event) => {
-              if (event.key !== 'Tab') return
-              if (
-                event.shiftKey &&
-                document.activeElement === cancelCheckIn.current
-              ) {
-                event.preventDefault()
-                confirmCheckIn.current?.focus()
-              } else if (
-                !event.shiftKey &&
-                document.activeElement === confirmCheckIn.current
-              ) {
-                event.preventDefault()
-                cancelCheckIn.current?.focus()
-              } else if (
-                document.activeElement !== cancelCheckIn.current &&
-                document.activeElement !== confirmCheckIn.current
-              ) {
-                event.preventDefault()
-                ;(event.shiftKey
-                  ? confirmCheckIn.current
-                  : cancelCheckIn.current
-                )?.focus()
-              }
-            }}
-          >
-            <h2 id="check-in-heading">Swear your pledge to the Wheel</h2>
-            <p id="check-in-pledge" data-testid="check-in-pledge">
-              {today?.preferences.checkInPledge ??
-                defaultGamePreferences.checkInPledge}
+          <h2 id="check-in-heading">Swear your pledge to the Wheel</h2>
+          <p id="check-in-pledge" data-testid="check-in-pledge">
+            {today?.preferences.checkInPledge ??
+              defaultGamePreferences.checkInPledge}
+          </p>
+          {error && (
+            <p className="setup-error" role="alert">
+              {error}
             </p>
-            {error && (
-              <p className="setup-error" role="alert">
-                {error}
-              </p>
-            )}
-            <div className="dialog-actions">
-              <button
-                ref={cancelCheckIn}
-                className="button button-light"
-                type="button"
-                onClick={closeCheckInDialog}
-              >
-                I decline
-              </button>
-              <button
-                ref={confirmCheckIn}
-                className="button button-yellow"
-                type="button"
-                disabled={busy || !canCheckIn}
-                onClick={() => {
-                  if (busy || !canCheckIn) return
-                  checkInConfirmed.current = true
-                  checkInTrigger.current?.click()
-                }}
-              >
-                {busy ? 'Taking the oath…' : 'I swear it'}
-              </button>
-            </div>
-          </section>
-        </dialog>
+          )}
+          <div className="dialog-actions">
+            <button
+              className="button button-light"
+              type="button"
+              onClick={closeCheckInDialog}
+            >
+              I decline
+            </button>
+            <button
+              className="button button-yellow"
+              type="button"
+              disabled={busy || !canCheckIn}
+              onClick={() => {
+                if (busy || !canCheckIn) return
+                checkInConfirmed.current = true
+                checkInTrigger.current?.click()
+              }}
+            >
+              {busy ? 'Taking the oath…' : 'I swear it'}
+            </button>
+          </div>
+        </ConfirmationDialog>
       )}
       {removeTarget && (
-        <div className="dialog-backdrop">
-          <section
-            className="confirm-dialog"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="remove-person-heading"
-            aria-describedby="remove-person-description"
-            onKeyDown={(event) => {
-              if (event.key !== 'Tab') return
-              if (busy) {
-                event.preventDefault()
-                cancelRemoval.current?.focus()
-                return
-              }
-              if (
-                event.shiftKey &&
-                document.activeElement === cancelRemoval.current
-              ) {
-                event.preventDefault()
-                confirmRemoval.current?.focus()
-              } else if (
-                !event.shiftKey &&
-                document.activeElement === confirmRemoval.current
-              ) {
-                event.preventDefault()
-                cancelRemoval.current?.focus()
-              } else if (
-                document.activeElement !== cancelRemoval.current &&
-                document.activeElement !== confirmRemoval.current
-              ) {
-                event.preventDefault()
-                ;(event.shiftKey
-                  ? confirmRemoval.current
-                  : cancelRemoval.current
-                )?.focus()
-              }
-            }}
-          >
-            <h2 id="remove-person-heading">Remove person?</h2>
-            <p id="remove-person-description">
-              Remove <strong>{removeTarget.name}</strong>? Profiles without
-              history are deleted. Profiles with history are archived, with
-              their history preserved.
+        <ConfirmationDialog
+          labelledBy="remove-person-heading"
+          describedBy="remove-person-description"
+          alert
+          onDismiss={() => {
+            setRemoveTarget(null)
+            window.setTimeout(() => removeTrigger.current?.focus(), 0)
+          }}
+        >
+          <h2 id="remove-person-heading">Remove person?</h2>
+          <p id="remove-person-description">
+            Remove <strong>{removeTarget.name}</strong>? Profiles without
+            history are deleted. Profiles with history are archived, with their
+            history preserved.
+          </p>
+          {error && (
+            <p className="setup-error" role="alert">
+              {error}
             </p>
-            <div className="dialog-actions">
-              <button
-                ref={cancelRemoval}
-                className="button button-light"
-                type="button"
-                onClick={() => {
-                  setRemoveTarget(null)
-                  window.setTimeout(() => removeTrigger.current?.focus(), 0)
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                ref={confirmRemoval}
-                className="button button-dark"
-                type="button"
-                disabled={busy}
-                onClick={() => void removeParticipant()}
-              >
-                Remove person
-              </button>
-            </div>
-          </section>
-        </div>
+          )}
+          <div className="dialog-actions">
+            <button
+              className="button button-light"
+              type="button"
+              onClick={() => {
+                setRemoveTarget(null)
+                window.setTimeout(() => removeTrigger.current?.focus(), 0)
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              className="button button-dark"
+              type="button"
+              disabled={busy}
+              onClick={() => void removeParticipant()}
+            >
+              Remove person
+            </button>
+          </div>
+        </ConfirmationDialog>
       )}
       <div className="announcement" aria-live="polite" role="status">
-        {error || notice}
+        {(error || notice) && (
+          <>
+            <span>{error || notice}</span>
+            <button
+              type="button"
+              aria-label="Dismiss message"
+              onClick={() => {
+                setError('')
+                setNotice('')
+              }}
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          </>
+        )}
       </div>
     </main>
   )
