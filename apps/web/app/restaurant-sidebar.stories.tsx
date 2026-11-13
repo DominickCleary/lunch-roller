@@ -175,3 +175,39 @@ export const OverboostedFavorite: Story = {
     ],
   },
 }
+
+export const JointOvergoatedLeaders: Story = {
+  args: {
+    ...BalancedHealthMix.args,
+    checkIns: [
+      { placeId: '7e97e826-2562-499c-befe-59488e8a05ae', count: 12 },
+      { placeId: '8c933bae-7f31-4215-9810-f7e4d541de7f', count: 12 },
+      { placeId: 'caa0cb2e-1547-487a-a83d-12e780b9afec', count: 3 },
+    ],
+  },
+}
+
+export const OvergoatedWithLongName: Story = {
+  args: {
+    ...BalancedHealthMix.args,
+    odds: [
+      {
+        placeId: '7e97e826-2562-499c-befe-59488e8a05ae',
+        name: 'The Very Good Lunch Club and Neighbourhood Kitchen',
+        probability: 0.5,
+        healthLevel: 'healthy',
+      },
+      ...(BalancedHealthMix.args?.odds?.slice(1) ?? []),
+    ],
+    checkIns: [
+      { placeId: '7e97e826-2562-499c-befe-59488e8a05ae', count: 1234567 },
+    ],
+  },
+}
+
+export const NoCheckInsYet: Story = {
+  args: {
+    ...BalancedHealthMix.args,
+    checkIns: [],
+  },
+}

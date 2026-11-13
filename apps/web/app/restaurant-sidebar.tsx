@@ -242,11 +242,9 @@ export function RestaurantSidebar({
           const position = positions.find(
             (entry) => entry.placeId === option.placeId,
           )
+          const leadsCheckIns = topCheckInPlaces.has(option.placeId)
           return (
-            <div
-              className={`odds-row${topCheckInPlaces.has(option.placeId) ? ' odds-row-most-checkins' : ''}`}
-              key={option.placeId}
-            >
+            <div className="odds-row" key={option.placeId}>
               <span
                 className="odds-color"
                 style={{
@@ -294,6 +292,35 @@ export function RestaurantSidebar({
                   ×
                 </button>
               </div>
+              {leadsCheckIns && (
+                <p className="restaurant-checkin-award">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.75"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M8 3h8v5a4 4 0 0 1-8 0V3ZM8 5H4v2a4 4 0 0 0 4 4m8-6h4v2a4 4 0 0 1-4 4M12 12v6m-4 3h8m-6-3h4v3h-4z" />
+                  </svg>
+                  <span className="restaurant-checkin-award-copy">
+                    <span className="restaurant-checkin-award-label">
+                      Overgoated
+                    </span>
+                    <span className="restaurant-checkin-award-count">
+                      {maxCheckIns.toLocaleString('en-GB')}{' '}
+                      {maxCheckIns === 1 ? 'check-in' : 'check-ins'} ·{' '}
+                      {topCheckInPlaces.size > 1
+                        ? 'joint all-time leader'
+                        : 'all-time leader'}
+                    </span>
+                  </span>
+                </p>
+              )}
             </div>
           )
         })}
